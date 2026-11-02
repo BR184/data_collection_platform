@@ -48,6 +48,163 @@ public class FormComparableRegistrationService {
 
   public record RegistrationResult(int registered, int unchanged, String status) {}
 
+  /** 系统维护身份的操作人标识；不来自页面输入。 */
+  static final String SYSTEM_OPERATOR = "system:publication";
+
+  /**
+   * 发布/登记时补齐该版本缺失的稳定可比声明。
+   *
+   * <p>身份延续只沿紧邻的前一权威版本：同字段或同 {@code apiKey} 改名沿用原 stableId/semanticKey；
+   * 前一版本没有的字段一律生成新身份，即使历史更早版本曾出现同名字段也不复用。声明类型始终取该版
+   * 冻结 {@code field.type}，类型/单位/语义的实际变化由共同字段选择判为不合并，而不是阻断发布。
+   * 已由人工登记的字段原样保留。
+   *
+   * @param scopeId 范围
+   * @param versionId 新发布/登记的权威版本
+   * @param previousVersionId 紧邻的前一权威版本；首次发布为空
+   * @return 新增与保留数量
+   */
+  @Transactional
+  public RegistrationResult ensureVersionDeclarations(
+      long scopeId, long versionId, Long previousVersionId) {
+    List<Map<String, Object>> versions =
+        jdbcTemplate.queryForList(
+            "select v.scope_id, v.field_spec::text as field_spec, s.template_key"
+                + " from form_template_versions v join form_template_scopes s on s.id = v.scope_id"
+                + " where v.id = ?",
+            versionId);
+    if (versions.isEmpty()) {
+      throw new BizException(ResultCode.BAD_REQUEST, "结构版本不存在");
+    }
+    long actualScopeId = ((Number) versions.getFirst().get("scope_id")).longValue();
+    if (actualScopeId != scopeId) {
+      throw new BizException(ResultCode.BAD_REQUEST, "版本不属于指定范围");
+    }
+    String templateKey = (String) versions.getFirst().get("template_key");
+    FormTemplateSpec spec =
+        contextService.parseSpec((String) versions.getFirst().get("field_spec"), templateKey);
+    Map<String, FieldDeclaration> existing = declarationsForVersion(versionId);
+    PreviousIdentity previous = previousIdentity(scopeId, previousVersionId);
+    int inserted = 0;
+    int unchanged = 0;
+    for (FormFieldSpec field : spec.fields()) {
+      if (existing.containsKey(field.name())) {
+        unchanged++;
+        continue;
+      }
+      FieldDeclaration inherited = previous.match(field);
+      String stableId =
+          inherited != null
+              ? inherited.stableId()
+              : newStableId(scopeId, templateKey, field.name(), versionId);
+      String semanticKey =
+          inherited != null
+              ? inherited.semanticKey()
+              : fit(templateKey + "." + field.name(), SEMANTIC_KEY_MAX_LENGTH);
+      String unit = inherited == null ? null : inherited.unit();
+      String meaning = inherited == null ? semanticKey : inherited.meaning();
+      jdbcTemplate.update(
+          """
+          insert into form_field_comparable_registrations(
+              scope_id, version_id, field_name, stable_id, semantic_key, declared_type, unit,
+              meaning, registered_by)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          """,
+          scopeId,
+          versionId,
+          field.name(),
+          stableId,
+          semanticKey,
+          field.type(),
+          unit,
+          meaning,
+          SYSTEM_OPERATOR);
+      inserted++;
+    }
+    return new RegistrationResult(inserted, unchanged,
+        inserted > 0 ? "REGISTERED" : "UNCHANGED");
+  }
+
+  private static final int STABLE_ID_MAX_LENGTH = 64;
+  private static final int SEMANTIC_KEY_MAX_LENGTH = 128;
+
+  private record PreviousIdentity(
+      Map<String, FieldDeclaration> byFieldName,
+      Map<String, String> fieldNameByApiKey) {
+
+    static PreviousIdentity empty() {
+      return new PreviousIdentity(Map.of(), Map.of());
+    }
+
+    FieldDeclaration match(FormFieldSpec field) {
+      FieldDeclaration sameName = byFieldName.get(field.name());
+      if (sameName != null) {
+        return sameName;
+      }
+      String previousFieldName = field.apiKey() == null ? null : fieldNameByApiKey.get(field.apiKey());
+      return previousFieldName == null ? null : byFieldName.get(previousFieldName);
+    }
+  }
+
+  private PreviousIdentity previousIdentity(long scopeId, Long previousVersionId) {
+    if (previousVersionId == null) {
+      return PreviousIdentity.empty();
+    }
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            "select v.id, v.field_spec::text as field_spec, s.template_key"
+                + " from form_template_versions v join form_template_scopes s on s.id = v.scope_id"
+                + " where v.id = ? and v.scope_id = ? and v.record_source_role = 'AUTHORITATIVE'"
+                + " and v.version_status in ('PUBLISHED', 'RETIRED')",
+            previousVersionId,
+            scopeId);
+    if (rows.isEmpty()) {
+      return PreviousIdentity.empty();
+    }
+    Map<String, Object> row = rows.getFirst();
+    FormTemplateSpec spec =
+        contextService.parseSpec(
+            (String) row.get("field_spec"), (String) row.get("template_key"));
+    Map<String, FieldDeclaration> declarations = declarationsForVersion(previousVersionId);
+    Map<String, String> fieldNameByApiKey = new LinkedHashMap<>();
+    for (FormFieldSpec field : spec.fields()) {
+      if (field.apiKey() != null) {
+        fieldNameByApiKey.putIfAbsent(field.apiKey(), field.name());
+      }
+    }
+    return new PreviousIdentity(declarations, fieldNameByApiKey);
+  }
+
+  /** 前一版本没有该字段时生成新身份；同名字段历史出现过也不复用，避免删除后重加被合并。 */
+  private String newStableId(
+      long scopeId, String templateKey, String fieldName, long versionId) {
+    String base = templateKey + "." + fieldName;
+    if (!stableIdUsed(scopeId, base)) {
+      return fit(base, STABLE_ID_MAX_LENGTH);
+    }
+    return fit(base + "#v" + versionId, STABLE_ID_MAX_LENGTH);
+  }
+
+  private boolean stableIdUsed(long scopeId, String stableId) {
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            "select exists(select 1 from form_field_comparable_registrations"
+                + " where scope_id = ? and stable_id = ?)",
+            Boolean.class,
+            scopeId,
+            stableId);
+    return Boolean.TRUE.equals(exists);
+  }
+
+  private static String fit(String value, int maxLength) {
+    if (value.length() <= maxLength) {
+      return value;
+    }
+    String digest =
+        com.data.collection.platform.domain.form.FormHashSupport.sha256Hex(value);
+    return value.substring(0, maxLength - 17) + "~" + digest.substring(0, 16);
+  }
+
   /** 读取某版本已登记的可比声明；无登记返回空表。 */
   public Map<String, FieldDeclaration> declarationsForVersion(long versionId) {
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(

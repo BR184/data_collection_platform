@@ -15,4 +15,5 @@ public record CodeReviewMultiBoardOverviewResponse(
     Double averageReviewDurationMinutes,
     Double averageAddedLines,
     List<CodeReviewMultiBoardBreakdownRowResponse> moduleRows,
-    List<CodeReviewMultiBoardBreakdownRowResponse> ownerRows) {}
+    List<CodeReviewMultiBoardBreakdownRowResponse> ownerRows,
+    List<CodeReviewDurationPartitionResponse> reviewDurationPartitions) {}

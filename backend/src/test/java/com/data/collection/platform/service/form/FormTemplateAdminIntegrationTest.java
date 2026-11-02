@@ -491,6 +491,13 @@ class FormTemplateAdminIntegrationTest {
     assertThat(first.stage()).isEqualTo("PUBLISHED");
     assertThat(versionStatus(first.toVersionId())).isEqualTo("PUBLISHED");
     assertThat(versionRole(first.toVersionId())).isEqualTo("AUTHORITATIVE");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select count(*) from form_field_comparable_registrations where version_id = ?",
+                Integer.class,
+                first.toVersionId()))
+        .as("发布时自动维护稳定可比声明")
+        .isPositive();
     assertThat(countTable(recordTable(first.toVersionId()))).isZero();
     assertThat(countTable(instanceTable(first.toVersionId()))).isZero();
     assertThat(currentVersionId(scopeId)).isEqualTo(first.toVersionId());
@@ -637,6 +644,8 @@ class FormTemplateAdminIntegrationTest {
     long scopeId = createScope("n3-old-key");
     boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "N3R1");
     FormAdminViews.PublicationView v1 = publish(scopeId, "N3R1");
+    FormV6TestSupport.insertFormAuthority(
+        jdbcTemplate, scopeId, FormTemplateSpecCatalog.ISSUE_REPLY, "issue", PROJECT_ID, ISSUE_IID);
     String key = UUID.randomUUID().toString();
     FormCreateResponse first =
         formRecordService.create(
@@ -1182,7 +1191,15 @@ class FormTemplateAdminIntegrationTest {
           "insert into platform_ldap_users(user_id, real_name) values ('w4-admin', '管理员')"
               + " on conflict (user_id) do update set real_name = excluded.real_name");
       seedMergeRequest(MERGE_REQUEST_IID);
-    }    ObjectNode fields =
+    }
+    FormV6TestSupport.insertFormAuthority(
+        jdbcTemplate,
+        scopeId,
+        templateKey,
+        mergeRequest ? "merge_request" : "issue",
+        PROJECT_ID,
+        mergeRequest ? MERGE_REQUEST_IID : ISSUE_IID);
+    ObjectNode fields =
         switch (templateKey) {
           case FormTemplateSpecCatalog.CODE_REVIEW -> codeReviewFields();
           case FormTemplateSpecCatalog.ISSUE_RESPONSE -> issueResponseFields();
@@ -1303,6 +1320,8 @@ class FormTemplateAdminIntegrationTest {
   }
 
   private FormCreateResponse createIssueReply(long scopeId, long versionId) {
+    FormV6TestSupport.insertFormAuthority(
+        jdbcTemplate, scopeId, FormTemplateSpecCatalog.ISSUE_REPLY, "issue", PROJECT_ID, ISSUE_IID);
     return formRecordService.create(
         issueReplyRequest(scopeId, versionId, UUID.randomUUID().toString(), issueReplyFields()),
         admin,
@@ -1397,6 +1416,8 @@ class FormTemplateAdminIntegrationTest {
 
   private FormCreateResponse createCustomReply(
       long scopeId, long versionId, ObjectNode fields, String requestKey) {
+    FormV6TestSupport.insertFormAuthority(
+        jdbcTemplate, scopeId, FormTemplateSpecCatalog.ISSUE_REPLY, "issue", PROJECT_ID, ISSUE_IID);
     return formRecordService.create(
         new FormCreateRequest(
             GITLAB_URL,

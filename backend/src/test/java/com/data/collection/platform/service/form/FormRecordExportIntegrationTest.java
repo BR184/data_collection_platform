@@ -108,6 +108,12 @@ class FormRecordExportIntegrationTest {
       assertThat(sheet.getRow(1).getCell(0).getStringCellValue())
           .isEqualTo(Long.toString(v1.recordId()));
       assertThat(sheet.getRow(1).getCell(5).getStringCellValue()).isEqualTo("Alice");
+      assertThat(sheet.getRow(1).getCell(7).getStringCellValue())
+          .as("记录修订输出实际 record_version，而不是结构版本标签")
+          .isEqualTo("1");
+      assertThat(sheet.getRow(1).getCell(8).getStringCellValue())
+          .as("结构版本单列")
+          .isEqualTo("V1");
     }
     assertThat(jdbc.queryForObject(
         "select count(*) from form_record_export_logs where version_id = ?",
@@ -162,6 +168,22 @@ class FormRecordExportIntegrationTest {
         .isInstanceOf(FormPayloadTooLargeException.class)
         .hasMessageContaining("行数超过上限");
 
+    // 作废行在候选阶段排除：预算只探测超限一行，恰好等于上限时不得误报。
+    fixture.addRecord(v1, PROJECT_A, "502", true, 30);
+    FormRecordExportService exactlyLimited =
+        new FormRecordExportService(
+            jdbc,
+            services.reader(),
+            services.contextService(),
+            services.objectMapper(),
+            1,
+            1024 * 1024);
+    assertThat(exactlyLimited.export(v1.versionId(), List.of(), "tester").rowCount()).isEqualTo(1);
+    fixture.addRecord(v1, PROJECT_A, "503", false, 40);
+    assertThatThrownBy(() -> exactlyLimited.export(v1.versionId(), List.of(), "tester"))
+        .isInstanceOf(FormPayloadTooLargeException.class)
+        .hasMessageContaining("行数超过上限");
+
     FormRecordExportService byteLimited =
         new FormRecordExportService(
             jdbc, services.reader(), services.contextService(), services.objectMapper(), 10, 1);
@@ -176,6 +198,41 @@ class FormRecordExportIntegrationTest {
       Row header = workbook.getSheetAt(0).getRow(0);
       assertThat((int) header.getLastCellNum()).isGreaterThan(0);
       assertThat(workbook.getSheetAt(0).getLastRowNum()).isZero();
+    }
+  }
+
+  @Test
+  void legacyNoneVersionLeavesRecordRevisionBlankAndKeepsStructureVersion() throws Exception {
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId =
+        FormV6TestSupport.insertScope(
+            jdbc,
+            "code_review",
+            "p5-legacy-" + SCOPE_SEQUENCE.incrementAndGet(),
+            configId,
+            URL,
+            List.of(PROJECT_A),
+            PROJECT_A,
+            "DRAFT");
+    FormV6TestSupport.insertLegacyPair(jdbc, 940_001, 940_002, URL, PROJECT_A);
+    FormV6RegistrationService.PrecheckReport precheck =
+        services.registrationService().precheckLegacyDemo(scopeId);
+    services.tx().execute(status -> services.registrationService().registerLegacyDemo(
+        scopeId, "tester", "LEGACY-DEMO", precheck.count(), precheck.rowHash()));
+    long versionId =
+        jdbc.queryForObject(
+            "select id from form_template_versions where scope_id = ? and instance_mode = 'NONE'",
+            Long.class,
+            scopeId);
+
+    FormRecordExportService.ExportResult result =
+        exportService.export(versionId, List.of(), "tester");
+
+    assertThat(result.rowCount()).isEqualTo(2);
+    try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(result.content()))) {
+      Row row = workbook.getSheetAt(0).getRow(1);
+      assertThat(row.getCell(7).getStringCellValue()).as("无修订证据时留空").isEmpty();
+      assertThat(row.getCell(8).getStringCellValue()).isEqualTo("LEGACY-DEMO");
     }
   }
 
@@ -225,12 +282,43 @@ class FormRecordExportIntegrationTest {
       values.put("design_count", 0);
       values.put("other_count", 0);
       insertRecordRow(
-          jdbc, tables.recordTable(), recordId, instanceId, tables.versionId(), createdBy, values);
+          jdbc, tables.recordTable(), recordId, instanceId, tables.versionId(), createdBy, values,
+          false);
       insertLocation(
           jdbc, recordId, scopeId, tables, instanceId, configId, "501", projectId, createdBy);
       registerComparable(scopeId, tables.versionId(), spec);
       return new Tables(
           tables.versionId(), tables.recordTable(), recordId, spec, tables);
+    }
+
+    private long addRecord(
+        Tables tables, long projectId, String resourceId, boolean deleted, int duration) {
+      long instanceId =
+          FormV6TestSupport.insertInstance(
+              jdbc,
+              tables.fixture().instanceTable(),
+              scopeId,
+              configId,
+              URL,
+              projectId,
+              Long.parseLong(resourceId));
+      long recordId = 900_000 + SCOPE_SEQUENCE.incrementAndGet();
+      Map<String, Object> values = new LinkedHashMap<>();
+      values.put("reviewer_user_id", "u-alice");
+      values.put("reviewer_name", "Alice");
+      values.put("review_duration_minutes", duration);
+      values.put("specification_count", 1);
+      values.put("logic_count", 0);
+      values.put("performance_count", 0);
+      values.put("design_count", 0);
+      values.put("other_count", 0);
+      insertRecordRow(
+          jdbc, tables.recordTable(), recordId, instanceId, tables.versionId(), "u-alice", values,
+          deleted);
+      insertLocation(
+          jdbc, recordId, scopeId, tables.fixture(), instanceId, configId, resourceId, projectId,
+          "u-alice");
+      return recordId;
     }
 
     private Tables emptyVersion(String label) {
@@ -288,7 +376,8 @@ class FormRecordExportIntegrationTest {
       long instanceId,
       long versionId,
       String createdBy,
-      Map<String, Object> values) {
+      Map<String, Object> values,
+      boolean deleted) {
     List<String> columns =
         new java.util.ArrayList<>(
             List.of(
@@ -310,7 +399,7 @@ class FormRecordExportIntegrationTest {
                 instanceId,
                 versionId,
                 1,
-                false,
+                deleted,
                 createdBy,
                 "v-test",
                 "req-" + recordId,

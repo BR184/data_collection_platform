@@ -282,9 +282,9 @@ public class FormHeadCaptureService {
     return count != null && count > 0;
   }
 
-  /** 按完整来源身份批量读取 head；同一身份出现多行视为登记冲突。 */
+  /** 按完整来源身份批量读取指定资源类型的 head；同一身份出现多行视为登记冲突。 */
   public Map<HeadKey, HeadRow> loadHeads(
-      String sourceInstance, Collection<HeadKey> keys) {
+      String sourceInstance, String resourceType, Collection<HeadKey> keys) {
     Map<HeadKey, HeadRow> result = new LinkedHashMap<>();
     Map<Long, List<HeadKey>> byProject = new LinkedHashMap<>();
     for (HeadKey key : keys) {
@@ -304,7 +304,7 @@ public class FormHeadCaptureService {
                        pending_source_set_revision, pending_source_set_hash,
                        pending_authority_revision, resource_id, template_key
                   from form_change_heads
-                 where source_instance = ? and resource_type = 'issue' and project_id = ?
+                 where source_instance = ? and resource_type = ? and project_id = ?
                    and resource_id in (%s)
                 """
                     .formatted(placeholders(chunk.size())),
@@ -327,7 +327,7 @@ public class FormHeadCaptureService {
                             nullableLong(rs, "pending_source_set_revision"),
                             rs.getString("pending_source_set_hash"),
                             nullableLong(rs, "pending_authority_revision"))),
-                args(sourceInstance, project.getKey(), chunk));
+                args(sourceInstance, resourceType, project.getKey(), chunk));
         for (Map.Entry<HeadKey, HeadRow> row : rows) {
           if (result.putIfAbsent(row.getKey(), row.getValue()) != null) {
             throw new FormConflictException("同一议题模板存在多份变更 head");
@@ -560,9 +560,37 @@ public class FormHeadCaptureService {
             """,
             Long.class,
             publicationId);
-    if (missing != null && missing > 0) {
+    long missingMergeRequests =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from read_publication_fact_roots r
+              join ods_gitlab_merge_requests mr
+                on mr.id = r.root_id and mr.target_project_id = r.project_id
+              join form_resource_authorities a
+                on a.source_instance = r.source_instance
+               and a.project_id = r.project_id
+               and a.resource_type = 'merge_request'
+               and a.resource_id = mr.iid
+               and a.authority = 'FORM'
+               and a.template_key = 'code_review'
+              join form_change_heads h
+                on h.source_config_id = a.source_config_id
+               and h.project_id = a.project_id
+               and h.resource_type = a.resource_type
+               and h.resource_id = a.resource_id
+               and h.template_key = a.template_key
+             where r.publication_id = ? and r.fact_type = 'MERGE_REQUEST' and r.operation = 'UPSERT'
+               and not exists (
+                 select 1 from form_publication_captures c
+                  where c.publication_id = r.publication_id and c.head_id = h.id)
+            """,
+            Long.class,
+            publicationId);
+    long missingTotal = (missing == null ? 0L : missing) + missingMergeRequests;
+    if (missingTotal > 0) {
       throw new FormConflictException(
-          "候选缺少 FORM 侧输入证据，禁止公开；缺失数=" + missing);
+          "候选缺少 FORM 侧输入证据，禁止公开；缺失数=" + missingTotal);
     }
   }
 
@@ -961,12 +989,14 @@ public class FormHeadCaptureService {
     return String.join(", ", java.util.Collections.nCopies(count, "?"));
   }
 
-  private static Object[] args(String sourceInstance, long projectId, List<Long> ids) {
-    Object[] args = new Object[ids.size() + 2];
+  private static Object[] args(
+      String sourceInstance, String resourceType, long projectId, List<Long> ids) {
+    Object[] args = new Object[ids.size() + 3];
     args[0] = sourceInstance;
-    args[1] = projectId;
+    args[1] = resourceType;
+    args[2] = projectId;
     for (int index = 0; index < ids.size(); index++) {
-      args[index + 2] = ids.get(index);
+      args[index + 3] = ids.get(index);
     }
     return args;
   }

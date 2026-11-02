@@ -51,6 +51,7 @@ public class FormPublicationTxService {
   private final FormHeadSwitchService headSwitchService;
   private final FormScopeValidationService scopeValidationService;
   private final FormVersionStructureVerifier structureVerifier;
+  private final FormComparableRegistrationService comparableRegistrationService;
   private final Clock clock;
 
   public FormPublicationTxService(
@@ -60,6 +61,7 @@ public class FormPublicationTxService {
       FormHeadSwitchService headSwitchService,
       FormScopeValidationService scopeValidationService,
       FormVersionStructureVerifier structureVerifier,
+      FormComparableRegistrationService comparableRegistrationService,
       Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
@@ -67,6 +69,7 @@ public class FormPublicationTxService {
     this.headSwitchService = headSwitchService;
     this.scopeValidationService = scopeValidationService;
     this.structureVerifier = structureVerifier;
+    this.comparableRegistrationService = comparableRegistrationService;
     this.clock = clock;
   }
 
@@ -596,6 +599,8 @@ public class FormPublicationTxService {
           claim.fromVersionId(),
           scope.id());
     }
+    comparableRegistrationService.ensureVersionDeclarations(
+        scope.id(), claim.toVersionId(), claim.fromVersionId());
     ObjectNode binding = (ObjectNode) readJson(publication.frozenBindingJson());
     long sourceConfigId = binding.path("sourceConfigId").asLong();
     String sourceInstance = binding.path("sourceInstance").asText();

@@ -73,6 +73,11 @@ class FormV6RegistrationIntegrationTest {
             scopeId, "operator", "LEGACY-DEMO", precheck.count(), precheck.rowHash()));
     assertThat(result.status()).isEqualTo("REGISTERED");
     assertThat(result.directoryRows()).isEqualTo(2);
+    long registeredVersionId = jdbc.queryForObject(
+        "select id from form_template_versions where scope_id = ?", Long.class, scopeId);
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_field_comparable_registrations where version_id = ?",
+        Integer.class, registeredVersionId)).isEqualTo(8);
 
     List<Map<String, Object>> directory = FormV6TestSupport.directoryRows(jdbc, scopeId);
     assertThat(directory).hasSize(2);

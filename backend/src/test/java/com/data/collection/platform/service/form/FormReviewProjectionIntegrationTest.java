@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.entity.MergeRequestFact;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -66,13 +68,27 @@ class FormReviewProjectionIntegrationTest {
     insertLocation(jdbc, scopeId, v2Id, v2Id, "MATERIALIZED", instanceV2, configId, 9002L, v2Id);
     FormV6TestSupport.insertFormAuthority(
         jdbc, scopeId, "code_review", "merge_request", PROJECT_ID, ISSUE_IID);
+    services.comparableService().ensureVersionDeclarations(scopeId, v1Id, null);
+    services.comparableService().ensureVersionDeclarations(scopeId, v2Id, v1Id);
 
     MergeRequestFact formFact = fact(ISSUE_ID, ISSUE_IID, 100);
     MergeRequestFact commentFact = fact(9002L, 502L, 100);
     commentFact.setReviewDurationMinutes(15);
     commentFact.setCodeSpecificationCount(7);
+    FormCommonFieldService commonFieldService =
+        new FormCommonFieldService(
+            jdbc,
+            services.contextService(),
+            services.reader(),
+            services.comparableService(),
+            new ObjectMapper());
     FormReviewProjectionService projectionService =
-        new FormReviewProjectionService(jdbc, services.reader(), new ObjectMapper());
+        new FormReviewProjectionService(
+            jdbc,
+            services.reader(),
+            commonFieldService,
+            services.comparableService(),
+            services.contextService());
 
     FormReviewProjectionService.Projection projection =
         projectionService.load("default", List.of(formFact, commentFact));
@@ -114,6 +130,130 @@ class FormReviewProjectionIntegrationTest {
     assertThat(formFact.getReviewerNames()).isEqualTo("Alice");
     assertThat(formFact.getCodeWalkthroughDate())
         .isEqualTo(LocalDateTime.of(2026, 1, 1, 10, 0));
+  }
+
+  @Test
+  void deletedOtherFieldDoesNotNpeAndIsNotPaddedWithZero() {
+    JdbcTemplate jdbc = FormV6TestSupport.migrate(postgres);
+    FormV6TestSupport.WiredServices services = FormV6TestSupport.wire(jdbc);
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId =
+        FormV6TestSupport.insertScope(
+            jdbc, "code_review", "p4-deleted-other", configId, URL, PROJECT_ID, "DRAFT");
+    ObjectMapper mapper = new ObjectMapper();
+    FormTemplateSpecCatalog catalog = new FormTemplateSpecCatalog(mapper);
+    String fullSpec = catalog.rawJson(FormTemplateSpecCatalog.CODE_REVIEW);
+    String withoutOther = withoutField(mapper, fullSpec, "other_count");
+    FormV6TestSupport.FixtureTables v1 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "V1", fullSpec, "RETIRED", true);
+    FormV6TestSupport.FixtureTables v2 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "V2", withoutOther, "PUBLISHED", true);
+    long v1Id = versionId(jdbc, scopeId, v1.recordTable());
+    long v2Id = versionId(jdbc, scopeId, v2.recordTable());
+    long instanceV1 =
+        FormV6TestSupport.insertInstance(
+            jdbc, v1.instanceTable(), scopeId, configId, URL, PROJECT_ID, ISSUE_IID);
+    long instanceV2 =
+        FormV6TestSupport.insertInstance(
+            jdbc, v2.instanceTable(), scopeId, configId, URL, PROJECT_ID, ISSUE_IID);
+    insertRecord(
+        jdbc, v1.recordTable(), instanceV1, v1Id, 9001L, "u-alice", "Alice", 10, 2,
+        LocalDateTime.of(2026, 1, 1, 10, 0), false);
+    insertRecordWithoutOther(
+        jdbc, v2.recordTable(), instanceV2, v2Id, 9002L, "u-bob", "Bob", 20, 3,
+        LocalDateTime.of(2026, 1, 2, 10, 0));
+    insertLocation(jdbc, scopeId, v1Id, v1Id, "MATERIALIZED", instanceV1, configId, 9001L, v1Id);
+    insertLocation(jdbc, scopeId, v2Id, v2Id, "MATERIALIZED", instanceV2, configId, 9002L, v2Id);
+    FormV6TestSupport.insertFormAuthority(
+        jdbc, scopeId, "code_review", "merge_request", PROJECT_ID, ISSUE_IID);
+    services.comparableService().ensureVersionDeclarations(scopeId, v1Id, null);
+    services.comparableService().ensureVersionDeclarations(scopeId, v2Id, v1Id);
+
+    MergeRequestFact formFact = fact(ISSUE_ID, ISSUE_IID, 100);
+    FormCommonFieldService commonFieldService =
+        new FormCommonFieldService(
+            jdbc,
+            services.contextService(),
+            services.reader(),
+            services.comparableService(),
+            new ObjectMapper());
+    FormReviewProjectionService projectionService =
+        new FormReviewProjectionService(
+            jdbc,
+            services.reader(),
+            commonFieldService,
+            services.comparableService(),
+            services.contextService());
+
+    FormReviewProjectionService.Projection projection =
+        projectionService.load("default", List.of(formFact));
+    projectionService.apply(List.of(formFact), projection);
+
+    assertThat(projection.records()).hasSize(2);
+    assertThat(projection.records())
+        .filteredOn(record -> record.recordId() == 9002L)
+        .singleElement()
+        .satisfies(record -> {
+          assertThat(record.otherCount()).as("新版无“其他”字段时不补 0").isNull();
+          assertThat(record.specificationCount()).isEqualTo(3);
+        });
+    assertThat(projection.records())
+        .filteredOn(record -> record.recordId() == 9001L)
+        .singleElement()
+        .satisfies(record -> assertThat(record.otherCount()).as("显式 0 保留").isZero());
+    assertThat(formFact.getReviewDurationMinutes()).isEqualTo(30);
+    assertThat(formFact.getCodeSpecificationCount()).isEqualTo(5);
+    assertThat(formFact.getOtherSpecificationCount()).isZero();
+    assertThat(formFact.getDefectCount()).isEqualTo(5);
+    assertThat(formFact.getReviewDefectDensityPerKloc())
+        .isEqualByComparingTo(new BigDecimal("50.00"));
+    assertThat(formFact.getReviewStatus()).isEqualTo("COMPLETED");
+  }
+
+  private static String withoutField(ObjectMapper mapper, String raw, String fieldName) {
+    try {
+      ObjectNode root = (ObjectNode) mapper.readTree(raw);
+      ArrayNode fields = (ArrayNode) root.get("fields");
+      for (int index = fields.size() - 1; index >= 0; index--) {
+        if (fieldName.equals(fields.get(index).path("name").asText())) {
+          fields.remove(index);
+        }
+      }
+      return mapper.writeValueAsString(root);
+    } catch (Exception error) {
+      throw new IllegalStateException(error);
+    }
+  }
+
+  private static void insertRecordWithoutOther(
+      JdbcTemplate jdbc,
+      String recordTable,
+      long instanceId,
+      long versionId,
+      long recordId,
+      String reviewerUserId,
+      String reviewerName,
+      int duration,
+      int specification,
+      LocalDateTime createdAt) {
+    jdbc.update(
+        "insert into "
+            + recordTable
+            + "(id, instance_id, origin_version_id, record_version, reviewer_user_id,"
+            + " reviewer_name, review_duration_minutes, specification_count, logic_count,"
+            + " performance_count, design_count, deleted, created_at, updated_at)"
+            + " values (?, ?, ?, 1, ?, ?, ?, ?, 0, 0, 0, false, ?, ?)",
+        recordId,
+        instanceId,
+        versionId,
+        reviewerUserId,
+        reviewerName,
+        duration,
+        specification,
+        Timestamp.valueOf(createdAt),
+        Timestamp.valueOf(createdAt));
   }
 
   private static MergeRequestFact fact(long mergeRequestId, long iid, int addedLines) {

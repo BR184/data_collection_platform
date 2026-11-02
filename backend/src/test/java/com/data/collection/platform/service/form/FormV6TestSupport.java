@@ -62,6 +62,8 @@ final class FormV6TestSupport {
         new FormRecordDirectoryService(jdbc, contextService, fieldValueService, store, viewFactory);
     FormRecordDirectoryReader reader = new FormRecordDirectoryReader(jdbc, contextService);
     FormVersionSchemaService schemaService = new FormVersionSchemaService(objectMapper);
+    FormComparableRegistrationService comparableService =
+        new FormComparableRegistrationService(jdbc, contextService, objectMapper);
     FormV6RegistrationService registrationService =
         new FormV6RegistrationService(
             jdbc,
@@ -70,9 +72,8 @@ final class FormV6TestSupport {
             scopeValidation,
             schemaService,
             new FormVersionStructureVerifier(jdbc),
-            reader);
-    FormComparableRegistrationService comparableService =
-        new FormComparableRegistrationService(jdbc, contextService, objectMapper);
+            reader,
+            comparableService);
     FormRecordWriteService writeService =
         new FormRecordWriteService(
             jdbc, contextService, store, viewFactory, directoryService, reader,

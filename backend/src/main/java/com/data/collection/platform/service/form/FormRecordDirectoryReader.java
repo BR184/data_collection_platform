@@ -44,6 +44,7 @@ public class FormRecordDirectoryReader {
    */
   public record LocatedRecord(
       long recordId,
+      Integer recordVersion,
       long scopeId,
       long storageVersionId,
       long originVersionId,
@@ -292,7 +293,8 @@ public class FormRecordDirectoryReader {
       return null;
     }
     return withPayload(
-        record, stored.deleted(), stored.createdAt(), stored.updatedAt(), stored.values());
+        record, stored.recordVersion(), stored.deleted(), stored.createdAt(), stored.updatedAt(),
+        stored.values());
   }
 
   private StoredRow readMaterializedRow(LocatedRecord record) {
@@ -308,8 +310,8 @@ public class FormRecordDirectoryReader {
     FormTemplateSpec spec = parseSpec((String) version.get("field_spec"), record.scopeId());
     List<String> columns = specColumns(spec);
     String sql =
-        "select r.deleted, r.created_by, r.instance_id, r.created_at, r.updated_at,"
-            + " i.source_config_id, i.source_instance, i.gitlab_base_url,"
+        "select r.deleted, r.record_version, r.created_by, r.instance_id, r.created_at,"
+            + " r.updated_at, i.source_config_id, i.source_instance, i.gitlab_base_url,"
             + " i.project_id, i.resource_type, i.resource_id, i.scope_id, i.template_key,"
             + String.join(", ", prefixed(columns))
             + " from " + recordTable + " r join " + instanceTable
@@ -328,6 +330,7 @@ public class FormRecordDirectoryReader {
       values.put(column, row.get(column));
     }
     return new StoredRow(
+        nullableInt(row.get("record_version")),
         Boolean.TRUE.equals(row.get("deleted")),
         toLocalDateTime(row.get("created_at")),
         toLocalDateTime(row.get("updated_at")),
@@ -382,6 +385,7 @@ public class FormRecordDirectoryReader {
       values.put(column, row.get(column));
     }
     return new StoredRow(
+        null,
         Boolean.TRUE.equals(row.get("deleted")),
         toLocalDateTime(row.get("created_at")),
         toLocalDateTime(row.get("updated_at")),
@@ -512,6 +516,7 @@ public class FormRecordDirectoryReader {
   private LocatedRecord baseRecord(java.sql.ResultSet rs) throws java.sql.SQLException {
     return new LocatedRecord(
         rs.getLong("record_id"),
+        null,
         rs.getLong("scope_id"),
         rs.getLong("storage_version_id"),
         rs.getLong("origin_version_id"),
@@ -536,16 +541,18 @@ public class FormRecordDirectoryReader {
 
   private LocatedRecord withPayload(
       LocatedRecord record,
+      Integer recordVersion,
       boolean deleted,
       java.time.LocalDateTime createdAt,
       java.time.LocalDateTime updatedAt,
       Map<String, Object> fields) {
     return new LocatedRecord(
-        record.recordId(), record.scopeId(), record.storageVersionId(), record.originVersionId(),
-        record.instanceMode(), record.instanceId(), record.createdBy(), record.sourceConfigId(),
-        record.sourceInstance(), record.gitlabBaseUrl(), record.projectId(), record.resourceType(),
-        record.resourceId(), record.requestKey(), record.createPayloadHash(),
-        record.recordSourceRole(), record.versionStatus(), deleted, createdAt, updatedAt, fields);
+        record.recordId(), recordVersion, record.scopeId(), record.storageVersionId(),
+        record.originVersionId(), record.instanceMode(), record.instanceId(), record.createdBy(),
+        record.sourceConfigId(), record.sourceInstance(), record.gitlabBaseUrl(),
+        record.projectId(), record.resourceType(), record.resourceId(), record.requestKey(),
+        record.createPayloadHash(), record.recordSourceRole(), record.versionStatus(), deleted,
+        createdAt, updatedAt, fields);
   }
 
   private java.time.LocalDateTime toLocalDateTime(Object raw) {
@@ -558,7 +565,12 @@ public class FormRecordDirectoryReader {
     return null;
   }
 
+  private static Integer nullableInt(Object raw) {
+    return raw instanceof Number number ? number.intValue() : null;
+  }
+
   private record StoredRow(
+      Integer recordVersion,
       boolean deleted,
       java.time.LocalDateTime createdAt,
       java.time.LocalDateTime updatedAt,

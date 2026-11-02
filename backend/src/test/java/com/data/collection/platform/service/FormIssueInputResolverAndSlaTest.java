@@ -350,7 +350,7 @@ class FormIssueInputResolverAndSlaTest {
       long recordId, LocalDateTime createdAt, LocalDateTime updatedAt, String createdBy,
       Map<String, Object> fields) {
     return new LocatedRecord(
-        recordId, 901L, 1L, 1L, "MATERIALIZED", 501L, createdBy, 1L, "default",
+        recordId, 1, 901L, 1L, 1L, "MATERIALIZED", 501L, createdBy, 1L, "default",
         "http://gitlab.test", 325L, "issue", "81001", null, null,
         "AUTHORITATIVE", "PUBLISHED", false, createdAt, updatedAt, fields);
   }

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.CodeReviewDurationPartitionResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardBreakdownRowResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
@@ -52,7 +53,7 @@ public class CodeReviewMultiBoardService {
     String source = resolveSource(request.source(), options);
     if (!StringUtils.hasText(source)) {
       return new CodeReviewMultiBoardOverviewResponse(
-          "", "", 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());
+          "", "", 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of(), List.of());
     }
     //兼容模式-MatchMode：旧 overview 没有项目参数，继续保持当前读源全量语义；
     // 正式表与兼容表的选择只由统一读源支持层决定。
@@ -60,25 +61,19 @@ public class CodeReviewMultiBoardService {
         codeReviewReadSupport.resolveAllProjectsScope(source, readMode);
     if (!readScope.available()) {
       return new CodeReviewMultiBoardOverviewResponse(
-          source, sourceLabel(source), 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());
+          source, sourceLabel(source), 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of(),
+          List.of());
     }
     LegacyScopeSql scopeSql = legacyScopeSql(readScope);
 
+    boolean formEnabled = formRecordsEnabled(readScope);
     Map<String, Object> summary =
-        formRecordsEnabled(readScope)
+        formEnabled
             ? queryForMap(
                 """
                 with base as (
                   select * from %s
                   %s
-                ), record_rows as (
-                  select b.review_duration_minutes as duration from base b
-                   where not exists (
-                     select 1 from form_review_fact r
-                      where r.merge_request_revision_id = b.id)
-                  union all
-                  select r.review_duration_minutes from base b
-                   join form_review_fact r on r.merge_request_revision_id = b.id
                 )
                 select
                   (select count(*) from base) as merge_request_count,
@@ -88,9 +83,33 @@ public class CodeReviewMultiBoardService {
                   (select round(avg(comment_rate)::numeric, 2) from base) as average_comment_rate,
                   (select coalesce(sum(defect_count), 0) from base) as total_defect_count,
                   (select coalesce(sum(added_lines), 0) from base) as total_added_lines,
-                  (select round(avg(duration)::numeric, 2) from record_rows
-                    where duration is not null) as average_review_duration_minutes,
-                  (select round(avg(added_lines)::numeric, 2) from base) as average_added_lines
+                  (select round(avg(added_lines)::numeric, 2) from base) as average_added_lines,
+                  (select round(avg(r.review_duration_minutes)::numeric, 2)
+                     from base b join form_review_fact r on r.merge_request_revision_id = b.id
+                    where r.review_duration_minutes is not null) as form_average_duration,
+                  (select count(*)
+                     from base b join form_review_fact r on r.merge_request_revision_id = b.id
+                    where r.review_duration_minutes is not null) as form_record_count,
+                  (select count(distinct b.merge_request_id)
+                     from base b join form_review_fact r on r.merge_request_revision_id = b.id
+                    where r.review_duration_minutes is not null) as form_merge_request_count,
+                  (select round(avg(b.review_duration_minutes)::numeric, 2)
+                     from base b
+                    where b.review_duration_minutes is not null
+                      and not exists (
+                        select 1 from form_review_fact r
+                         where r.merge_request_revision_id = b.id)) as comment_average_duration,
+                  (select count(*)
+                     from base b
+                    where b.review_duration_minutes is not null
+                      and not exists (
+                        select 1 from form_review_fact r
+                         where r.merge_request_revision_id = b.id)) as comment_record_count,
+                  (select count(*)
+                     from base b
+                    where not exists (
+                      select 1 from form_review_fact r
+                       where r.merge_request_revision_id = b.id)) as comment_merge_request_count
                 """.formatted(readScope.tableName(), scopeSql.whereClause()),
                 scopeSql.args().toArray())
             : queryForMap(
@@ -103,7 +122,8 @@ public class CodeReviewMultiBoardService {
                   coalesce(sum(defect_count), 0) as total_defect_count,
                   coalesce(sum(added_lines), 0) as total_added_lines,
                   round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
-                  round(avg(added_lines)::numeric, 2) as average_added_lines
+                  round(avg(added_lines)::numeric, 2) as average_added_lines,
+                  count(review_duration_minutes) as comment_record_count
                 from %s
                 %s
                 """.formatted(readScope.tableName(), scopeSql.whereClause()),
@@ -114,6 +134,8 @@ public class CodeReviewMultiBoardService {
     List<CodeReviewMultiBoardBreakdownRowResponse> ownerRows =
         queryBreakdown("reviewer_names", "未标注走查人", readScope, scopeSql);
 
+    List<CodeReviewDurationPartitionResponse> partitions =
+        durationPartitions(summary, formEnabled);
     return new CodeReviewMultiBoardOverviewResponse(
         source,
         sourceLabel(source),
@@ -124,10 +146,11 @@ public class CodeReviewMultiBoardService {
         intValue(summary.get("total_defect_count")),
         intValue(summary.get("total_added_lines")),
         densityValue(summary.get("total_defect_count"), summary.get("total_added_lines")),
-        doubleValue(summary.get("average_review_duration_minutes")),
+        overallDuration(partitions),
         doubleValue(summary.get("average_added_lines")),
         moduleRows,
-        ownerRows);
+        ownerRows,
+        partitions);
   }
 
   private List<CodeReviewMultiBoardBreakdownRowResponse> queryBreakdown(
@@ -163,7 +186,8 @@ public class CodeReviewMultiBoardService {
               coalesce(sum(defect_count), 0) as total_defect_count,
               coalesce(sum(added_lines), 0) as total_added_lines,
               round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
-              round(avg(added_lines)::numeric, 2) as average_added_lines
+              round(avg(added_lines)::numeric, 2) as average_added_lines,
+              count(review_duration_minutes) as comment_record_count
             from scoped
             group by row_label
             order by merge_request_count desc, row_label
@@ -173,6 +197,13 @@ public class CodeReviewMultiBoardService {
     List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       String label = String.valueOf(row.get("row_label"));
+      List<CodeReviewDurationPartitionResponse> partitions =
+          List.of(
+              new CodeReviewDurationPartitionResponse(
+                  "COMMENT",
+                  intValue(row.get("merge_request_count")),
+                  intValue(row.get("comment_record_count")),
+                  doubleValue(row.get("average_review_duration_minutes"))));
       result.add(
           new CodeReviewMultiBoardBreakdownRowResponse(
               label,
@@ -183,8 +214,9 @@ public class CodeReviewMultiBoardService {
               intValue(row.get("total_defect_count")),
               intValue(row.get("total_added_lines")),
               densityValue(row.get("total_defect_count"), row.get("total_added_lines")),
-              doubleValue(row.get("average_review_duration_minutes")),
-              doubleValue(row.get("average_added_lines"))));
+              overallDuration(partitions),
+              doubleValue(row.get("average_added_lines")),
+              partitions));
     }
     return result;
   }
@@ -218,13 +250,13 @@ public class CodeReviewMultiBoardService {
               select * from %s
               %s
             ), record_rows as (
-              select %s as row_label,
+              select 'FORM' as authority, %s as row_label,
                      b.review_status, b.comment_rate, b.defect_count, b.added_lines,
                      b.project_id, b.merge_request_id,
                      r.review_duration_minutes as duration
                 from base b join form_review_fact r on r.merge_request_revision_id = b.id
               union all
-              select %s as row_label,
+              select 'COMMENT' as authority, %s as row_label,
                      b.review_status, b.comment_rate, b.defect_count, b.added_lines,
                      b.project_id, b.merge_request_id,
                      b.review_duration_minutes as duration
@@ -246,7 +278,17 @@ public class CodeReviewMultiBoardService {
                 from mr_rows
                group by row_label
             ), record_metrics as (
-              select row_label, round(avg(duration)::numeric, 2) as average_review_duration_minutes
+              select row_label,
+                     round(avg(duration) filter (where authority = 'FORM')::numeric, 2)
+                       as form_average_duration,
+                     count(*) filter (where authority = 'FORM') as form_record_count,
+                     count(distinct (project_id, merge_request_id))
+                       filter (where authority = 'FORM') as form_merge_request_count,
+                     round(avg(duration) filter (where authority = 'COMMENT')::numeric, 2)
+                       as comment_average_duration,
+                     count(*) filter (where authority = 'COMMENT') as comment_record_count,
+                     count(distinct (project_id, merge_request_id))
+                       filter (where authority = 'COMMENT') as comment_merge_request_count
                 from record_rows where duration is not null group by row_label
             )
             select m.row_label,
@@ -255,8 +297,13 @@ public class CodeReviewMultiBoardService {
                    m.average_comment_rate,
                    m.total_defect_count,
                    m.total_added_lines,
-                   r.average_review_duration_minutes,
-                   m.average_added_lines
+                   m.average_added_lines,
+                   r.form_average_duration,
+                   r.form_record_count,
+                   r.form_merge_request_count,
+                   r.comment_average_duration,
+                   r.comment_record_count,
+                   r.comment_merge_request_count
               from mr_metrics m
               left join record_metrics r on r.row_label = m.row_label
              order by m.merge_request_count desc, m.row_label
@@ -267,6 +314,23 @@ public class CodeReviewMultiBoardService {
     List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       String label = String.valueOf(row.get("row_label"));
+      List<CodeReviewDurationPartitionResponse> partitions = new ArrayList<>();
+      if (intValue(row.get("form_record_count")) > 0) {
+        partitions.add(
+            new CodeReviewDurationPartitionResponse(
+                "FORM",
+                intValue(row.get("form_merge_request_count")),
+                intValue(row.get("form_record_count")),
+                doubleValue(row.get("form_average_duration"))));
+      }
+      if (intValue(row.get("comment_record_count")) > 0) {
+        partitions.add(
+            new CodeReviewDurationPartitionResponse(
+                "COMMENT",
+                intValue(row.get("comment_merge_request_count")),
+                intValue(row.get("comment_record_count")),
+                doubleValue(row.get("comment_average_duration"))));
+      }
       result.add(
           new CodeReviewMultiBoardBreakdownRowResponse(
               label,
@@ -277,10 +341,56 @@ public class CodeReviewMultiBoardService {
               intValue(row.get("total_defect_count")),
               intValue(row.get("total_added_lines")),
               densityValue(row.get("total_defect_count"), row.get("total_added_lines")),
-              doubleValue(row.get("average_review_duration_minutes")),
-              doubleValue(row.get("average_added_lines"))));
+              overallDuration(partitions),
+              doubleValue(row.get("average_added_lines")),
+              List.copyOf(partitions)));
     }
     return result;
+  }
+
+  /**
+   * 按持久权威拆分均时：FORM 按有效记录、COMMENT 每合并请求一行。
+   *
+   * <p>分区只包含实际有有效时长的口径；混合范围的整体均时由 {@link #overallDuration(List)}
+   * 显式置空，禁止把两种口径拼成一个平均值。
+   */
+  private List<CodeReviewDurationPartitionResponse> durationPartitions(
+      Map<String, Object> summary, boolean formEnabled) {
+    List<CodeReviewDurationPartitionResponse> partitions = new ArrayList<>();
+    if (formEnabled) {
+      if (intValue(summary.get("form_record_count")) > 0) {
+        partitions.add(
+            new CodeReviewDurationPartitionResponse(
+                "FORM",
+                intValue(summary.get("form_merge_request_count")),
+                intValue(summary.get("form_record_count")),
+                doubleValue(summary.get("form_average_duration"))));
+      }
+      if (intValue(summary.get("comment_record_count")) > 0) {
+        partitions.add(
+            new CodeReviewDurationPartitionResponse(
+                "COMMENT",
+                intValue(summary.get("comment_merge_request_count")),
+                intValue(summary.get("comment_record_count")),
+                doubleValue(summary.get("comment_average_duration"))));
+      }
+      return List.copyOf(partitions);
+    }
+    int commentRecords = intValue(summary.get("comment_record_count"));
+    if (commentRecords > 0) {
+      partitions.add(
+          new CodeReviewDurationPartitionResponse(
+              "COMMENT",
+              intValue(summary.get("merge_request_count")),
+              commentRecords,
+              doubleValue(summary.get("average_review_duration_minutes"))));
+    }
+    return List.copyOf(partitions);
+  }
+
+  /** 单一分区沿用既有均时字段；混合或空范围返回空值，不合成跨口径平均值。 */
+  private Double overallDuration(List<CodeReviewDurationPartitionResponse> partitions) {
+    return partitions.size() == 1 ? partitions.getFirst().averageReviewDurationMinutes() : null;
   }
 
   private String resolveSource(String requestedSource, List<OptionItemResponse> options) {

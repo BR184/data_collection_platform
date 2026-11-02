@@ -93,6 +93,7 @@ public class FormV6RegistrationService {
   private final FormVersionSchemaService schemaService;
   private final FormVersionStructureVerifier structureVerifier;
   private final FormRecordDirectoryReader reader;
+  private final FormComparableRegistrationService comparableRegistrationService;
   private final FormEvidenceCodec evidence;
 
   public FormV6RegistrationService(
@@ -102,7 +103,8 @@ public class FormV6RegistrationService {
       FormScopeValidationService scopeValidationService,
       FormVersionSchemaService schemaService,
       FormVersionStructureVerifier structureVerifier,
-      FormRecordDirectoryReader reader) {
+      FormRecordDirectoryReader reader,
+      FormComparableRegistrationService comparableRegistrationService) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
     this.contextService = contextService;
@@ -110,6 +112,7 @@ public class FormV6RegistrationService {
     this.schemaService = schemaService;
     this.structureVerifier = structureVerifier;
     this.reader = reader;
+    this.comparableRegistrationService = comparableRegistrationService;
     this.evidence = new FormEvidenceCodec(objectMapper);
   }
 
@@ -174,6 +177,7 @@ public class FormV6RegistrationService {
       throw new BizException(ResultCode.BAD_REQUEST, "旧Demo选集为空，无登记对象");
     }
     long versionId = insertLegacyVersion(scopeId, versionLabel);
+    comparableRegistrationService.ensureVersionDeclarations(scopeId, versionId, null);
     // 范围已绑定来源配置；同 URL 可能存在多个配置，不能按地址反推。
     long sourceConfigId = fresh.sourceConfigId();
     String originSpecHash = specHashOfVersion(versionId);
@@ -248,6 +252,8 @@ public class FormV6RegistrationService {
     if (analysis.directoryRowCount() > 0) {
       requireCompletionEvidence(fresh, analysis.fingerprint(), CARRIER_KIND_COPIED);
       requireCopiedEvidence(fresh, analysis);
+      comparableRegistrationService.ensureVersionDeclarations(
+          scopeId, analysis.carrierVersionId(), null);
       return new RegistrationResult(analysis.carrierVersionId(), directoryRowCount(scopeId),
           scopeSourceSetRevision(scopeId), "ALREADY_REGISTERED");
     }
@@ -288,6 +294,8 @@ public class FormV6RegistrationService {
           + ", inserted=" + inserted);
     }
     requireCopiedEvidence(fresh, analysis);
+    comparableRegistrationService.ensureVersionDeclarations(
+        scopeId, analysis.carrierVersionId(), null);
     int revision = bumpSourceSet(scopeId);
     insertRegistrationEvent(scopeId, revision, "LEGACY_REGISTERED", operatorId,
         registrationPayload(analysis.carrierRecords().size(), analysis.fingerprint(),

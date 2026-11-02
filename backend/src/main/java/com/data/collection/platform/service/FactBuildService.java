@@ -62,6 +62,7 @@ public class FactBuildService {
   private final FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
   private final FormIssueBuildInputService formIssueBuildInputService;
   private final FormAdoptionProperties formAdoptionProperties;
+  private final FormMergeRequestBuildInputService formMergeRequestBuildInputService;
   private final com.data.collection.platform.service.form.FormReviewProjectionService
       formReviewProjectionService;
 
@@ -88,6 +89,7 @@ public class FactBuildService {
       FormIssueAuthorityRegistrar formIssueAuthorityRegistrar,
       FormIssueBuildInputService formIssueBuildInputService,
       FormAdoptionProperties formAdoptionProperties,
+      FormMergeRequestBuildInputService formMergeRequestBuildInputService,
       com.data.collection.platform.service.form.FormReviewProjectionService
           formReviewProjectionService) {
     this.jdbcTemplate = jdbcTemplate;
@@ -112,6 +114,7 @@ public class FactBuildService {
     this.formIssueAuthorityRegistrar = formIssueAuthorityRegistrar;
     this.formIssueBuildInputService = formIssueBuildInputService;
     this.formAdoptionProperties = formAdoptionProperties;
+    this.formMergeRequestBuildInputService = formMergeRequestBuildInputService;
     this.formReviewProjectionService = formReviewProjectionService;
   }
 
@@ -644,6 +647,8 @@ public class FactBuildService {
     List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
         ? loadMergeRequestCommitFactsByRootIds(normalizedSource, safeRootIds)
         : List.of();
+    formMergeRequestBuildInputService.freeze(
+        target, normalizedSource, facts, LocalDateTime.now());
     com.data.collection.platform.service.form.FormReviewProjectionService.Projection projection =
         formReviewProjectionService.load(normalizedSource, facts);
     formReviewProjectionService.apply(facts, projection);
@@ -715,6 +720,8 @@ public class FactBuildService {
         if (!rootIds.isEmpty()) {
           // 增量范围有界，保持单事务原子语义：事实替换、提交关系、走查投影与搜索列刷新同提交。
           publicationTransaction.execute(() -> {
+            formMergeRequestBuildInputService.freeze(
+                target, sourceInstance, facts, LocalDateTime.now());
             com.data.collection.platform.service.form.FormReviewProjectionService.Projection
                 projection = formReviewProjectionService.load(sourceInstance, facts);
             formReviewProjectionService.apply(facts, projection);
@@ -780,6 +787,8 @@ public class FactBuildService {
               .sorted()
               .toList();
       publicationTransaction.execute(() -> {
+        formMergeRequestBuildInputService.freeze(
+            target, sourceInstance, chunk, LocalDateTime.now());
         com.data.collection.platform.service.form.FormReviewProjectionService.Projection
             projection = formReviewProjectionService.load(sourceInstance, chunk);
         formReviewProjectionService.apply(chunk, projection);

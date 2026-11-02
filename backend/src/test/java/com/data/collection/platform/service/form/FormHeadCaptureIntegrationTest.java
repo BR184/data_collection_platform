@@ -46,6 +46,9 @@ class FormHeadCaptureIntegrationTest {
         "create table if not exists ods_gitlab_merge_requests("
             + "id bigint primary key, target_project_id bigint, iid bigint,"
             + " updated_at timestamp with time zone)");
+    jdbc.execute(
+        "create table if not exists ods_gitlab_issues("
+            + "id bigint primary key, project_id bigint, iid bigint)");
     services = FormV6TestSupport.wire(jdbc);
   }
 
@@ -57,6 +60,7 @@ class FormHeadCaptureIntegrationTest {
     jdbc.update("delete from form_directory_events");
     jdbc.update("delete from form_directory_event_cursors");
     jdbc.update("delete from fact_change_heads");
+    jdbc.execute("alter sequence fact_change_version_seq restart with 1");
     jdbc.update("delete from form_change_heads");
     jdbc.update("delete from form_resource_authorities");
     jdbc.update("update form_template_scopes set status = 'DRAFT', current_version_id = null");
@@ -283,6 +287,170 @@ class FormHeadCaptureIntegrationTest {
     assertThat(factHeadVersion()).isNull();
   }
 
+  @Test
+  void emptyPublishedVersionWakesOldOnlyAndNoInstanceFormResources() {
+    jdbc.update(
+        "update form_change_heads set latest_change_version = 1, consumed_change_version = 1,"
+            + " status = 'CONSUMED' where id = ?",
+        headId);
+    insertAuthorityAndHead(9002L);
+    FormV6TestSupport.FixtureTables v2 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "v2-empty", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    jdbc.update(
+        "update form_template_scopes set current_version_id = ?, source_set_revision = 2,"
+            + " source_set_hash = form_source_set_hash(id) where id = ?",
+        v2.versionId(),
+        scopeId);
+    jdbc.update(
+        "insert into form_directory_events(scope_id, event_type, source_set_revision, payload)"
+            + " values (?, 'VERSION_ADDED', 2, ?::jsonb)",
+        scopeId,
+        "{\"versionId\":" + v2.versionId() + "}");
+
+    FormDirectoryEventCursorService.Consumption consumption =
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+
+    assertThat(consumption.woken())
+        .extracting(FormDirectoryEventCursorService.WokenResource::resourceId)
+        .containsExactlyInAnyOrder(9001L, 9002L);
+    assertThat(
+            jdbc.queryForObject(
+                "select pending_storage_version_id from form_change_heads where resource_id = 9001",
+                Long.class))
+        .as("只有旧记录的 FORM 资源也要指向新版本")
+        .isEqualTo(v2.versionId());
+    assertThat(
+            jdbc.queryForObject(
+                "select latest_change_version from form_change_heads where resource_id = 9002",
+                Long.class))
+        .as("没有记录实例的 FORM 权威同样被唤醒")
+        .isEqualTo(2L);
+  }
+
+  @Test
+  void staleDirectoryEventDoesNotOverwriteNewerPendingSnapshot() {
+    FormV6TestSupport.FixtureTables v2 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "v2-pending", FormV6TestSupport.SPEC_V1, "PUBLISHED", true);
+    String hash =
+        jdbc.queryForObject(
+            "select form_source_set_hash(id) from form_template_scopes where id = ?",
+            String.class,
+            scopeId);
+    jdbc.update(
+        "update form_template_scopes set current_version_id = ?, source_set_revision = 2,"
+            + " source_set_hash = ? where id = ?",
+        v2.versionId(),
+        hash,
+        scopeId);
+    jdbc.update(
+        """
+        update form_change_heads
+           set latest_change_version = 5, consumed_change_version = 1, status = 'PENDING',
+               pending_storage_version_id = ?, pending_source_set_revision = 2,
+               pending_source_set_hash = ?
+         where id = ?
+        """,
+        v2.versionId(),
+        hash,
+        headId);
+    jdbc.update(
+        "insert into form_directory_events(scope_id, event_type, source_set_revision, payload)"
+            + " values (?, 'VERSION_ADDED', 1, ?::jsonb)",
+        scopeId,
+        "{\"versionId\":" + versionId + "}");
+
+    FormDirectoryEventCursorService.Consumption consumption =
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+
+    assertThat(consumption.woken()).isEmpty();
+    assertThat(
+            jdbc.queryForObject(
+                "select pending_storage_version_id from form_change_heads where id = ?",
+                Long.class,
+                headId))
+        .isEqualTo(v2.versionId());
+    assertThat(
+            jdbc.queryForObject(
+                "select latest_change_version from form_change_heads where id = ?",
+                Long.class,
+                headId))
+        .isEqualTo(5L);
+  }
+
+  @Test
+  void failedSubmissionIsRetriedFromPersistedFactHeadWithoutNewEvents() {
+    seedWokenMergeRequestHead();
+    com.data.collection.platform.entity.GitlabSyncConfig config =
+        new com.data.collection.platform.entity.GitlabSyncConfig();
+    config.setId(configId);
+    config.setSourceInstance("default");
+    com.data.collection.platform.service.GitlabConfigService configService =
+        org.mockito.Mockito.mock(com.data.collection.platform.service.GitlabConfigService.class);
+    org.mockito.Mockito.when(configService.listConfigs()).thenReturn(List.of(config));
+    org.mockito.Mockito.when(configService.isSourceEnabled(config)).thenReturn(true);
+    com.data.collection.platform.service.sync.SyncRunSubmissionService submissionService =
+        org.mockito.Mockito.mock(
+            com.data.collection.platform.service.sync.SyncRunSubmissionService.class);
+    org.mockito.Mockito.doThrow(new IllegalStateException("首次提交失败"))
+        .doReturn(null)
+        .when(submissionService)
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.eq(config),
+            org.mockito.ArgumentMatchers.eq(false),
+            org.mockito.ArgumentMatchers.anyString());
+    FormDirectoryEventWorker worker =
+        newWorker(new com.data.collection.platform.service.FormDirectoryEventBridge(
+            jdbc, configService, submissionService));
+
+    assertThat(worker.consumeOnce(10)).isEqualTo(1);
+    assertThat(
+            jdbc.queryForObject(
+                "select count(*) from form_directory_events where status = 'CONSUMED'",
+                Long.class))
+        .isEqualTo(1);
+
+    assertThat(worker.consumeOnce(10)).as("没有新事件仍按持久 fact head 补投").isZero();
+    org.mockito.Mockito.verify(submissionService, org.mockito.Mockito.times(2))
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.eq(config),
+            org.mockito.ArgumentMatchers.eq(false),
+            org.mockito.ArgumentMatchers.anyString());
+  }
+
+  private void insertAuthorityAndHead(long resourceId) {
+    jdbc.update(
+        """
+        insert into form_resource_authorities(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, authority, authority_revision,
+            effective_at, created_at, updated_at)
+        values (?, 'default', ?, ?, 'merge_request', ?, 'code_review', ?, 'FORM', 1,
+                current_timestamp, current_timestamp, current_timestamp)
+        """,
+        configId,
+        URL,
+        PROJECT_ID,
+        resourceId,
+        scopeId);
+    jdbc.update(
+        """
+        insert into form_change_heads(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, latest_change_version,
+            consumed_change_version, pending_authority_revision, status, fencing_version,
+            created_at, updated_at)
+        values (?, 'default', ?, ?, 'merge_request', ?, 'code_review', ?, 1, 1, 1,
+                'CONSUMED', 0, current_timestamp, current_timestamp)
+        """,
+        configId,
+        URL,
+        PROJECT_ID,
+        resourceId,
+        scopeId);
+  }
+
   private void seedWokenMergeRequestHead() {
     jdbc.update(
         "update form_change_heads set latest_change_version = 1, consumed_change_version = 1,"
@@ -293,6 +461,11 @@ class FormHeadCaptureIntegrationTest {
             + " merge_request_id, merge_request_iid, title, deleted)"
             + " values ('GITLAB', 'default', ?, 9001, 9001, 'dir-event', false)"
             + " on conflict do nothing",
+        PROJECT_ID);
+    jdbc.update(
+        "insert into ods_gitlab_merge_requests(id, target_project_id, iid)"
+            + " values (9001, ?, 9001) on conflict (id) do update"
+            + " set target_project_id = excluded.target_project_id, iid = excluded.iid",
         PROJECT_ID);
     jdbc.update(
         """

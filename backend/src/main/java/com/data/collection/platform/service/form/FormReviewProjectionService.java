@@ -3,6 +3,10 @@ package com.data.collection.platform.service.form;
 import com.data.collection.platform.domain.form.FormFieldSpec;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.entity.MergeRequestFact;
+import com.data.collection.platform.service.form.FormCommonFieldService.FieldContract;
+import com.data.collection.platform.service.form.FormCommonFieldService.RecordValue;
+import com.data.collection.platform.service.form.FormCommonFieldService.Selection;
+import com.data.collection.platform.service.form.FormCommonFieldService.VersionInput;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -18,31 +22,40 @@ import org.springframework.stereotype.Service;
 /**
  * MR 逐记录走查投影：按持久 FORM 权威与目录读取有效记录，汇总到 MR 事实并保留逐记录行。
  *
- * <p>只读取 {@code AUTHORITATIVE} 且已发布/退役版本，作废记录由目录排除；同一记录跨版本各一条，
- * 正常路径不会重复。人员按 {@code reviewer_user_id} 稳定身份去重，缺少稳定身份时退回记录姓名。
- * 未登记 FORM 权威的 MR 保持原评论/旧表路径，不进入投影。
+ * <p>只读取 {@code AUTHORITATIVE} 且已发布/退役版本，作废记录由目录排除；同一记录跨版本各一条。
+ * 字段参与与否由共同字段选择决定：未声明、冻结类型或声明冲突、域无法解析的字段显式不参与，
+ * 不再按固定 apiKey 或可解析数字文本判定可比。人员按稳定身份去重，缺字段/NULL 不补 0，0 保留。
  */
 @Service
 public class FormReviewProjectionService {
   private static final String TEMPLATE_KEY = "code_review";
   private static final String RESOURCE_TYPE = "merge_request";
-  private static final String REVIEWER_USER_ID = "reviewerUserId";
-  private static final String REVIEW_DURATION = "reviewDurationMinutes";
-  private static final String SPECIFICATION_COUNT = "specificationCount";
-  private static final String LOGIC_COUNT = "logicCount";
-  private static final String PERFORMANCE_COUNT = "performanceCount";
-  private static final String DESIGN_COUNT = "designCount";
-  private static final String OTHER_COUNT = "otherCount";
+  private static final String REVIEWER_SEMANTIC_KEY = "code_review.reviewer_user_id";
+  private static final String REVIEW_DURATION_SEMANTIC_KEY =
+      "code_review.review_duration_minutes";
+  private static final String SPECIFICATION_SEMANTIC_KEY = "code_review.specification_count";
+  private static final String LOGIC_SEMANTIC_KEY = "code_review.logic_count";
+  private static final String PERFORMANCE_SEMANTIC_KEY = "code_review.performance_count";
+  private static final String DESIGN_SEMANTIC_KEY = "code_review.design_count";
+  private static final String OTHER_SEMANTIC_KEY = "code_review.other_count";
 
   private final JdbcTemplate jdbcTemplate;
   private final FormRecordDirectoryReader reader;
-  private final ObjectMapper objectMapper;
+  private final FormCommonFieldService commonFieldService;
+  private final FormComparableRegistrationService registrationService;
+  private final FormRecordContextService contextService;
 
   public FormReviewProjectionService(
-      JdbcTemplate jdbcTemplate, FormRecordDirectoryReader reader, ObjectMapper objectMapper) {
+      JdbcTemplate jdbcTemplate,
+      FormRecordDirectoryReader reader,
+      FormCommonFieldService commonFieldService,
+      FormComparableRegistrationService registrationService,
+      FormRecordContextService contextService) {
     this.jdbcTemplate = jdbcTemplate;
     this.reader = reader;
-    this.objectMapper = objectMapper;
+    this.commonFieldService = commonFieldService;
+    this.registrationService = registrationService;
+    this.contextService = contextService;
   }
 
   /** 单条参与统计的走查记录。 */
@@ -111,7 +124,7 @@ public class FormReviewProjectionService {
     }
     Map<Long, Aggregate> aggregates = new LinkedHashMap<>();
     List<RecordRow> rows = new ArrayList<>();
-    Map<Long, Map<String, FormFieldSpec>> fieldCache = new LinkedHashMap<>();
+    Map<Long, VersionMeta> metaCache = new LinkedHashMap<>();
     for (Map.Entry<Long, Map<String, MergeRequestFact>> project : byProject.entrySet()) {
       long projectId = project.getKey();
       Map<String, MergeRequestFact> factsByIid = project.getValue();
@@ -138,9 +151,10 @@ public class FormReviewProjectionService {
           }
           List<FormRecordDirectoryReader.LocatedRecord> located =
               recordsByIid.getOrDefault(iid, List.of());
+          Selection selection = selectForRecords(scopeId, located, metaCache);
           List<RecordRow> recordRows = new ArrayList<>(located.size());
           for (FormRecordDirectoryReader.LocatedRecord record : located) {
-            recordRows.add(toRow(fact, record, fieldCache));
+            recordRows.add(toRow(fact, record, selection, metaCache));
           }
           rows.addAll(recordRows);
           aggregates.put(fact.getMergeRequestId(), aggregate(recordRows));
@@ -184,37 +198,67 @@ public class FormReviewProjectionService {
     }
   }
 
-  private List<Map<String, Object>> loadAuthorities(
-      String sourceInstance, long projectId, java.util.Collection<String> iids) {
-    List<String> ids = iids.stream().filter(Objects::nonNull).distinct().toList();
-    if (ids.isEmpty()) {
-      return List.of();
+  private Selection selectForRecords(
+      long scopeId,
+      List<FormRecordDirectoryReader.LocatedRecord> located,
+      Map<Long, VersionMeta> metaCache) {
+    if (located.isEmpty()) {
+      return new Selection(
+          "NO_COMMON_FIELDS", List.of(), List.of(), List.of(), List.of(), List.of(), Map.of());
     }
-    String placeholders = String.join(", ", java.util.Collections.nCopies(ids.size(), "?"));
-    List<Object> args = new ArrayList<>(ids.size() + 3);
-    args.add(sourceInstance);
-    args.add(projectId);
-    args.addAll(ids.stream().map(Long::valueOf).toList());
-    return jdbcTemplate.queryForList(
-        """
-        select scope_id, resource_id
-          from form_resource_authorities
-         where source_instance = ? and resource_type = 'merge_request'
-           and template_key = 'code_review' and authority = 'FORM'
-           and project_id = ? and resource_id in (%s)
-         order by resource_id
-        """
-            .formatted(placeholders),
-        args.toArray());
+    Map<Long, List<RecordValue>> recordsByVersion = new LinkedHashMap<>();
+    for (FormRecordDirectoryReader.LocatedRecord record : located) {
+      recordsByVersion
+          .computeIfAbsent(record.storageVersionId(), ignored -> new ArrayList<>())
+          .add(
+              new RecordValue(
+                  record.recordId(), record.storageVersionId(), record.deleted(), record.fields()));
+    }
+    List<VersionInput> inputs = new ArrayList<>(recordsByVersion.size());
+    for (Map.Entry<Long, List<RecordValue>> version : recordsByVersion.entrySet()) {
+      VersionMeta meta = metaCache.computeIfAbsent(version.getKey(), this::loadMeta);
+      inputs.add(
+          new VersionInput(
+              version.getKey(),
+              scopeId,
+              TEMPLATE_KEY,
+              meta.spec(),
+              meta.declarations(),
+              List.copyOf(version.getValue())));
+    }
+    return commonFieldService.select(inputs);
+  }
+
+  private VersionMeta loadMeta(long versionId) {
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            "select v.field_spec::text as field_spec, s.template_key"
+                + " from form_template_versions v join form_template_scopes s on s.id = v.scope_id"
+                + " where v.id = ?",
+            versionId);
+    if (rows.isEmpty() || rows.getFirst().get("field_spec") == null) {
+      throw new IllegalStateException("表单版本缺少冻结字段规格：" + versionId);
+    }
+    Map<String, Object> row = rows.getFirst();
+    FormTemplateSpec spec =
+        contextService.parseSpec(
+            (String) row.get("field_spec"), (String) row.get("template_key"));
+    Map<String, FormFieldSpec> fields = new LinkedHashMap<>();
+    for (FormFieldSpec field : spec.fields()) {
+      fields.put(field.name(), field);
+    }
+    return new VersionMeta(
+        spec, Map.copyOf(fields), registrationService.declarationsForVersion(versionId));
   }
 
   private RecordRow toRow(
       MergeRequestFact fact,
       FormRecordDirectoryReader.LocatedRecord record,
-      Map<Long, Map<String, FormFieldSpec>> fieldCache) {
-    Map<String, FormFieldSpec> fields =
-        fieldCache.computeIfAbsent(record.storageVersionId(), this::loadFields);
-    FormFieldSpec reviewer = fields.get(REVIEWER_USER_ID);
+      Selection selection,
+      Map<Long, VersionMeta> metaCache) {
+    VersionMeta meta = metaCache.computeIfAbsent(record.storageVersionId(), this::loadMeta);
+    Map<String, FieldContract> contracts = contractsOf(selection, record.storageVersionId());
+    FormFieldSpec reviewer = fieldOf(meta, contracts.get(REVIEWER_SEMANTIC_KEY));
     String reviewerId = text(record.fields(), reviewer == null ? null : column(reviewer, true));
     String reviewerName = text(record.fields(), reviewer == null ? null : column(reviewer, false));
     if (reviewerId == null) {
@@ -233,13 +277,35 @@ public class FormReviewProjectionService {
         record.recordSourceRole(),
         reviewerId,
         reviewerName,
-        integer(record.fields(), fields.get(REVIEW_DURATION)),
-        integer(record.fields(), fields.get(SPECIFICATION_COUNT)),
-        integer(record.fields(), fields.get(LOGIC_COUNT)),
-        integer(record.fields(), fields.get(PERFORMANCE_COUNT)),
-        integer(record.fields(), fields.get(DESIGN_COUNT)),
-        integer(record.fields(), fields.get(OTHER_COUNT)),
+        integer(record.fields(), fieldOf(meta, contracts.get(REVIEW_DURATION_SEMANTIC_KEY)),
+            contracts.get(REVIEW_DURATION_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, contracts.get(SPECIFICATION_SEMANTIC_KEY)),
+            contracts.get(SPECIFICATION_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, contracts.get(LOGIC_SEMANTIC_KEY)),
+            contracts.get(LOGIC_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, contracts.get(PERFORMANCE_SEMANTIC_KEY)),
+            contracts.get(PERFORMANCE_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, contracts.get(DESIGN_SEMANTIC_KEY)),
+            contracts.get(DESIGN_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, contracts.get(OTHER_SEMANTIC_KEY)),
+            contracts.get(OTHER_SEMANTIC_KEY)),
         record.createdAt());
+  }
+
+  private Map<String, FieldContract> contractsOf(Selection selection, long versionId) {
+    Map<String, FieldContract> bySemanticKey = new LinkedHashMap<>();
+    List<FieldContract> contracts = selection.perVersion().get(versionId);
+    if (contracts == null) {
+      return bySemanticKey;
+    }
+    for (FieldContract contract : contracts) {
+      bySemanticKey.putIfAbsent(contract.semanticKey(), contract);
+    }
+    return bySemanticKey;
+  }
+
+  private FormFieldSpec fieldOf(VersionMeta meta, FieldContract contract) {
+    return contract == null ? null : meta.fields().get(contract.name());
   }
 
   private Aggregate aggregate(List<RecordRow> rows) {
@@ -249,19 +315,7 @@ public class FormReviewProjectionService {
     Integer performance = sum(rows.stream().map(RecordRow::performanceCount).toList());
     Integer design = sum(rows.stream().map(RecordRow::designCount).toList());
     Integer other = sum(rows.stream().map(RecordRow::otherCount).toList());
-    Integer defect =
-        sum(
-            rows.stream()
-                .map(
-                    row ->
-                        sum(
-                            List.of(
-                                row.specificationCount(),
-                                row.logicCount(),
-                                row.performanceCount(),
-                                row.designCount(),
-                                row.otherCount())))
-                .toList());
+    Integer defect = sum(rows.stream().map(FormReviewProjectionService::defectOf).toList());
     LinkedHashMap<String, String> reviewers = new LinkedHashMap<>();
     LocalDateTime walkthroughDate = null;
     for (RecordRow row : rows) {
@@ -287,25 +341,52 @@ public class FormReviewProjectionService {
         rows.size());
   }
 
-  private Map<String, FormFieldSpec> loadFields(long versionId) {
-    List<String> specs =
-        jdbcTemplate.queryForList(
-            "select field_spec::text from form_template_versions where id = ?",
-            String.class,
-            versionId);
-    if (specs.isEmpty() || specs.getFirst() == null) {
-      throw new IllegalStateException("表单版本缺少冻结字段规格：" + versionId);
+  /** 单条记录缺陷数：只累加实际存在且参与共同字段的类别；全部缺失时为空，0 保留。 */
+  private static Integer defectOf(RecordRow row) {
+    List<Integer> values = new ArrayList<>(5);
+    addIfPresent(values, row.specificationCount());
+    addIfPresent(values, row.logicCount());
+    addIfPresent(values, row.performanceCount());
+    addIfPresent(values, row.designCount());
+    addIfPresent(values, row.otherCount());
+    if (values.isEmpty()) {
+      return null;
     }
-    try {
-      FormTemplateSpec spec = objectMapper.readValue(specs.getFirst(), FormTemplateSpec.class);
-      Map<String, FormFieldSpec> fields = new LinkedHashMap<>();
-      for (FormFieldSpec field : spec.fields()) {
-        fields.put(field.apiKey(), field);
-      }
-      return fields;
-    } catch (Exception error) {
-      throw new IllegalStateException("表单版本冻结字段规格无法解析：" + versionId, error);
+    int total = 0;
+    for (Integer value : values) {
+      total += value;
     }
+    return total;
+  }
+
+  private static void addIfPresent(List<Integer> values, Integer value) {
+    if (value != null) {
+      values.add(value);
+    }
+  }
+
+  private List<Map<String, Object>> loadAuthorities(
+      String sourceInstance, long projectId, java.util.Collection<String> iids) {
+    List<String> ids = iids.stream().filter(Objects::nonNull).distinct().toList();
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    String placeholders = String.join(", ", java.util.Collections.nCopies(ids.size(), "?"));
+    List<Object> args = new ArrayList<>(ids.size() + 3);
+    args.add(sourceInstance);
+    args.add(projectId);
+    args.addAll(ids.stream().map(Long::valueOf).toList());
+    return jdbcTemplate.queryForList(
+        """
+        select scope_id, resource_id
+          from form_resource_authorities
+         where source_instance = ? and resource_type = 'merge_request'
+           and template_key = 'code_review' and authority = 'FORM'
+           and project_id = ? and resource_id in (%s)
+         order by resource_id
+        """
+            .formatted(placeholders),
+        args.toArray());
   }
 
   private static String column(FormFieldSpec field, boolean idColumn) {
@@ -327,23 +408,20 @@ public class FormReviewProjectionService {
     return value.isEmpty() ? null : value;
   }
 
-  private static Integer integer(Map<String, Object> fields, FormFieldSpec field) {
-    if (field == null || field.storage() == null) {
+  /** 只接受共同字段确认的整数合同与真实数值，不把可解析文本当作可比整数。 */
+  private static Integer integer(
+      Map<String, Object> fields, FormFieldSpec field, FieldContract contract) {
+    if (field == null
+        || contract == null
+        || !"integer".equals(contract.valueType())
+        || field.storage() == null) {
       return null;
     }
     Object raw = fields.get(field.storage().resolvedColumn());
     if (raw instanceof Number number) {
       return number.intValue();
     }
-    if (raw == null) {
-      return null;
-    }
-    try {
-      return Integer.valueOf(String.valueOf(raw).trim());
-    } catch (NumberFormatException error) {
-      throw new IllegalStateException(
-          "走查记录字段不是整数：" + field.apiKey() + "=" + raw, error);
-    }
+    return null;
   }
 
   private static Integer sum(List<Integer> values) {
@@ -364,4 +442,9 @@ public class FormReviewProjectionService {
         .multiply(BigDecimal.valueOf(1000L))
         .divide(BigDecimal.valueOf(addedLines), 2, RoundingMode.HALF_UP);
   }
+
+  private record VersionMeta(
+      FormTemplateSpec spec,
+      Map<String, FormFieldSpec> fields,
+      Map<String, FormComparableRegistrationService.FieldDeclaration> declarations) {}
 }

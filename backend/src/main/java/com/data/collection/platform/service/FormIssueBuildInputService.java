@@ -260,6 +260,6 @@ class FormIssueBuildInputService {
     if (keys.isEmpty()) {
       return Map.of();
     }
-    return captureService.loadHeads(sourceInstance, keys);
+    return captureService.loadHeads(sourceInstance, RESOURCE_TYPE, keys);
   }
 }

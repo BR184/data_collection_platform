@@ -59,17 +59,24 @@ public class FormDirectoryEventWorker {
               }
               return result;
             });
-    if (consumption == null || consumption.woken().isEmpty()) {
-      return consumption == null ? 0 : consumption.consumed();
+    if (consumption == null) {
+      return 0;
+    }
+    java.util.LinkedHashSet<FormDirectoryEventCursorService.WokenResource> submit =
+        new java.util.LinkedHashSet<>(consumption.woken());
+    submit.addAll(consumption.retry());
+    if (submit.isEmpty()) {
+      return consumption.consumed();
     }
     try {
-      bridge.submit(consumption.woken());
+      bridge.submit(java.util.List.copyOf(submit));
     } catch (RuntimeException error) {
       log.warn(
           "Directory events and heads committed but fact refresh submission failed, consumed={},"
-              + " woken={}",
+              + " woken={}, retry={}",
           consumption.consumed(),
           consumption.woken().size(),
+          consumption.retry().size(),
           error);
     }
     return consumption.consumed();

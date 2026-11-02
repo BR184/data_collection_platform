@@ -10,6 +10,9 @@ import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,6 +32,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -50,9 +54,11 @@ public class FormRecordExportService {
   private static final DateTimeFormatter DATE_TIME =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+  private static final java.util.regex.Pattern SIMPLE_TABLE =
+      java.util.regex.Pattern.compile("^[a-z][a-z0-9_]{1,62}$");
   private static final List<String> SYSTEM_HEADERS =
       List.of("记录ID", "GitLab地址", "项目", "资源类型", "资源ID", "创建人", "创建时间",
-          "记录修订", "状态");
+          "记录修订", "结构版本", "状态");
 
   private final JdbcTemplate jdbcTemplate;
   private final FormRecordDirectoryReader reader;
@@ -61,6 +67,7 @@ public class FormRecordExportService {
   private final int maxRows;
   private final long maxBytes;
 
+  @Autowired
   public FormRecordExportService(
       JdbcTemplate jdbcTemplate,
       FormRecordDirectoryReader reader,
@@ -100,10 +107,6 @@ public class FormRecordExportService {
     VersionRow version = loadVersion(versionId);
     List<Long> projects = resolveProjects(version.projectIds(), requestedProjects);
     List<FormRecordDirectoryReader.LocatedRecord> records = loadRecords(version, projects);
-    if (records.size() > maxRows) {
-      throw new FormPayloadTooLargeException(
-          "表单记录导出行数超过上限：实际=" + records.size() + "，上限=" + maxRows);
-    }
     List<String> headers = headers(version.spec());
     byte[] content = writeWorkbook(version, headers, records);
     if (content.length > maxBytes) {
@@ -133,7 +136,8 @@ public class FormRecordExportService {
         jdbcTemplate.queryForList(
             """
             select v.id, v.scope_id, v.version_label, v.field_spec::text as field_spec,
-                   v.record_source_role, v.version_status, s.template_key, s.project_ids::text as project_ids
+                   v.record_source_role, v.version_status, v.instance_mode, v.record_table,
+                   v.source_table, s.template_key, s.project_ids::text as project_ids
               from form_template_versions v
               join form_template_scopes s on s.id = v.scope_id
              where v.id = ?
@@ -157,6 +161,9 @@ public class FormRecordExportService {
         scopeId,
         templateKey,
         (String) row.get("version_label"),
+        (String) row.get("instance_mode"),
+        (String) row.get("record_table"),
+        (String) row.get("source_table"),
         spec,
         parseProjectIds((String) row.get("project_ids")));
   }
@@ -187,25 +194,32 @@ public class FormRecordExportService {
   private List<FormRecordDirectoryReader.LocatedRecord> loadRecords(
       VersionRow version, List<Long> projects) {
     String placeholders = String.join(", ", java.util.Collections.nCopies(projects.size(), "?"));
-    List<Object> args = new ArrayList<>(projects.size() + 2);
+    List<Object> args = new ArrayList<>(projects.size() + 3);
     args.add(version.scopeId());
     args.add(version.versionId());
     args.addAll(projects);
+    args.add(maxRows + 1);
     List<Long> recordIds =
         jdbcTemplate.queryForList(
             """
             select l.record_id
               from form_record_locations l
               join form_template_versions v on v.id = l.storage_version_id
+              %s
              where l.scope_id = ? and l.storage_version_id = ?
                and l.project_id in (%s)
                and v.record_source_role = 'AUTHORITATIVE'
                and v.version_status in ('PUBLISHED', 'RETIRED')
              order by l.created_at, l.record_id
+             limit ?
             """
-                .formatted(placeholders),
+                .formatted(activeRecordJoin(version), placeholders),
             Long.class,
             args.toArray());
+    if (recordIds.size() > maxRows) {
+      throw new FormPayloadTooLargeException(
+          "表单记录导出行数超过上限：上限=" + maxRows);
+    }
     List<FormRecordDirectoryReader.LocatedRecord> records = new ArrayList<>(recordIds.size());
     for (Long recordId : recordIds) {
       FormRecordDirectoryReader.LocatedRecord record = reader.find(recordId).orElse(null);
@@ -219,6 +233,22 @@ public class FormRecordExportService {
       records.add(record);
     }
     return List.copyOf(records);
+  }
+
+  /** 只在目录候选阶段连接承载表排除作废行，读取预算最多探测超限一行。 */
+  private String activeRecordJoin(VersionRow version) {
+    String table;
+    if ("MATERIALIZED".equals(version.instanceMode())) {
+      table = version.recordTable();
+    } else if ("NONE".equals(version.instanceMode())) {
+      table = version.sourceTable();
+    } else {
+      throw new FormConflictException("承载版本实例模式不可导出：" + version.instanceMode());
+    }
+    if (table == null || !SIMPLE_TABLE.matcher(table).matches()) {
+      throw new FormConflictException("承载表名非法，无法导出：" + table);
+    }
+    return "join " + table + " ar on ar.id = l.record_id and coalesce(ar.deleted, false) = false";
   }
 
   private List<String> headers(FormTemplateSpec spec) {
@@ -236,7 +266,8 @@ public class FormRecordExportService {
       List<FormRecordDirectoryReader.LocatedRecord> records) {
     boolean streaming = records.size() > STREAMING_THRESHOLD;
     Workbook workbook = null;
-    try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+    try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+        BoundedOutputStream bounded = new BoundedOutputStream(output, maxBytes)) {
       if (streaming) {
         workbook = new SXSSFWorkbook(STREAMING_WINDOW);
       } else {
@@ -261,9 +292,16 @@ public class FormRecordExportService {
       }
       sheet.createFreezePane(0, 1);
       ExcelExportStyles.applyHeaderRows(sheet, 1);
-      workbook.write(output);
+      workbook.write(bounded);
+      bounded.flush();
       return output.toByteArray();
+    } catch (FormPayloadTooLargeException error) {
+      throw error;
     } catch (Exception error) {
+      FormPayloadTooLargeException overflow = findOverflow(error);
+      if (overflow != null) {
+        throw overflow;
+      }
       throw new IllegalStateException("表单记录 Excel 导出失败", error);
     } finally {
       if (workbook instanceof SXSSFWorkbook sxssf) {
@@ -291,6 +329,7 @@ public class FormRecordExportService {
         nullToEmpty(record.resourceId()),
         displayName(record.createdBy(), displayNames),
         format(record.createdAt()),
+        record.recordVersion() == null ? "" : Integer.toString(record.recordVersion()),
         version.versionLabel() == null
             ? Long.toString(record.storageVersionId())
             : version.versionLabel(),
@@ -416,8 +455,52 @@ public class FormRecordExportService {
     }
   }
 
+  /** 预算异常可能被 POI 包装成 IO 异常；沿 cause 链恢复为显式 413。 */
+  private static FormPayloadTooLargeException findOverflow(Throwable error) {
+    Throwable current = error;
+    while (current != null) {
+      if (current instanceof FormPayloadTooLargeException overflow) {
+        return overflow;
+      }
+      current = current.getCause();
+    }
+    return null;
+  }
+
   private static String nullToEmpty(String value) {
     return value == null ? "" : value;
+  }
+
+  /** 写出期间按字节预算中止，避免整份 byte[] 生成后才检查。 */
+  private static final class BoundedOutputStream extends FilterOutputStream {
+    private final long limit;
+    private long count;
+
+    BoundedOutputStream(OutputStream out, long limit) {
+      super(out);
+      this.limit = limit;
+    }
+
+    @Override
+    public void write(int value) throws IOException {
+      ensureCapacity(1);
+      out.write(value);
+      count++;
+    }
+
+    @Override
+    public void write(byte[] buffer, int offset, int length) throws IOException {
+      ensureCapacity(length);
+      out.write(buffer, offset, length);
+      count += length;
+    }
+
+    private void ensureCapacity(int additional) {
+      if (count + additional > limit) {
+        throw new FormPayloadTooLargeException(
+            "表单记录导出文件超过上限：上限=" + limit);
+      }
+    }
   }
 
   private record VersionRow(
@@ -425,6 +508,9 @@ public class FormRecordExportService {
       long scopeId,
       String templateKey,
       String versionLabel,
+      String instanceMode,
+      String recordTable,
+      String sourceTable,
       FormTemplateSpec spec,
       List<Long> projectIds) {}
 }

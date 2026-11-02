@@ -11,10 +11,11 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * 表单记录变化与既有议题事实任务之间的桥。
+ * 表单记录变化与既有事实任务之间的桥。
  *
- * <p>写事务内推进 {@code fact_change_heads} 的 ISSUE 版本，提交后再提交一次既有 FACT_REFRESH；
- * 事实公开事务提交后唤醒原来源级延期写回轮次。不新增旁路写回器，也不在事务提交前调用外部系统。
+ * <p>写事务内按资源类型推进 {@code fact_change_heads} 的 ISSUE/MERGE_REQUEST 版本，提交后再提交
+ * 一次既有 FACT_REFRESH；Issue 事实公开事务提交后唤醒原来源级延期写回轮次，MR 不进入 SLA 轮次。
+ * 不新增旁路写回器，也不在事务提交前调用外部系统。
  */
 @Service
 @Slf4j
@@ -39,14 +40,16 @@ public class FormIssueChangeBridge {
   }
 
   /**
-   * 在表单写事务内登记议题事实待发布变化。
+   * 在表单写事务内按资源类型登记事实待发布变化。
    *
    * @param context 已通过鉴权的写入上下文
    */
   public void record(FormVersionContext context) {
-    if (context == null
-        || !"issue".equals(context.resourceType())
-        || context.rootId() == null) {
+    if (context == null || context.rootId() == null) {
+      return;
+    }
+    String factType = factTypeOf(context.resourceType());
+    if (factType == null) {
       return;
     }
     jdbcTemplate.update(
@@ -54,7 +57,7 @@ public class FormIssueChangeBridge {
         insert into fact_change_heads(
             source_instance, fact_type, root_id, project_id, latest_change_version,
             published_version, updated_at)
-        values (?, 'ISSUE', ?, ?, nextval('fact_change_version_seq'), 0, current_timestamp)
+        values (?, ?, ?, ?, nextval('fact_change_version_seq'), 0, current_timestamp)
         on conflict (source_instance, fact_type, root_id) do update
            set latest_change_version = greatest(
                    fact_change_heads.latest_change_version,
@@ -63,18 +66,29 @@ public class FormIssueChangeBridge {
                updated_at = current_timestamp
         """,
         context.sourceInstance(),
+        factType,
         context.rootId(),
         context.projectId());
     events.publishEvent(
-        new FormIssueWriteEvent(
+        new FormWriteEvent(
             context.sourceConfigId(),
             context.sourceInstance(),
             context.projectId(),
             context.resourceId()));
   }
 
+  private static String factTypeOf(String resourceType) {
+    if ("issue".equals(resourceType)) {
+      return "ISSUE";
+    }
+    if ("merge_request".equals(resourceType)) {
+      return "MERGE_REQUEST";
+    }
+    return null;
+  }
+
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-  public void onFormWrite(FormIssueWriteEvent event) {
+  public void onFormWrite(FormWriteEvent event) {
     GitlabSyncConfig config = configService.getConfigById(event.configId());
     if (config == null || !configService.isSourceEnabled(config)) {
       log.warn(
@@ -85,14 +99,15 @@ public class FormIssueChangeBridge {
       return;
     }
     try {
-      submissionService.submitFactRefresh(config, false, "表单记录变化触发议题事实刷新");
+      submissionService.submitFactRefresh(config, false, "表单记录变化触发事实刷新");
     } catch (RuntimeException error) {
       log.warn(
-          "Failed to submit fact refresh after form write, configId={}, sourceInstance={}, projectId={}, issueIid={}",
+          "Failed to submit fact refresh after form write, configId={}, sourceInstance={},"
+              + " projectId={}, resourceId={}",
           event.configId(),
           event.sourceInstance(),
           event.projectId(),
-          event.issueIid(),
+          event.resourceId(),
           error);
     }
   }
@@ -102,6 +117,6 @@ public class FormIssueChangeBridge {
     orchestrator.requestSourceRound(event.sourceInstance(), "表单输入已消费并公开，重算延期标签");
   }
 
-  record FormIssueWriteEvent(
-      long configId, String sourceInstance, long projectId, long issueIid) {}
+  record FormWriteEvent(
+      long configId, String sourceInstance, long projectId, long resourceId) {}
 }

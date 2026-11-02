@@ -21,6 +21,34 @@ class FormComparableRegistrationIntegrationTest {
 
   private static final String URL = "http://gitlab.n1.local";
 
+  private static final String AUTO_V1 =
+      """
+      {"spec_version":1,"template_key":"code_review","conditions":[],"dictionaries":[],
+       "fields":[
+        {"name":"得分","apiKey":"score","type":"integer","required":false,
+         "storage":{"column":"score","columnType":"integer"}},
+        {"name":"补充","apiKey":"note","type":"string","required":false,
+         "storage":{"column":"note_text","columnType":"varchar(200)"}}]}
+      """;
+
+  private static final String AUTO_V2 =
+      """
+      {"spec_version":1,"template_key":"code_review","conditions":[],"dictionaries":[],
+       "fields":[
+        {"name":"得分（新）","apiKey":"score","type":"integer","required":false,
+         "storage":{"column":"score","columnType":"integer"}}]}
+      """;
+
+  private static final String AUTO_V3 =
+      """
+      {"spec_version":1,"template_key":"code_review","conditions":[],"dictionaries":[],
+       "fields":[
+        {"name":"得分（新）","apiKey":"score","type":"integer","required":false,
+         "storage":{"column":"score","columnType":"integer"}},
+        {"name":"补充","apiKey":"note","type":"string","required":false,
+         "storage":{"column":"note_text","columnType":"varchar(200)"}}]}
+      """;
+
   @Container
   private final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:16-alpine")
@@ -65,6 +93,55 @@ class FormComparableRegistrationIntegrationTest {
         services.comparableService().declarationsForVersion(versionId);
     assertThat(read).containsKeys("得分", "补充");
     assertThat(read.get("得分").declaredType()).isEqualTo("integer");
+  }
+
+  @Test
+  void autoDeclarationsKeepRenameIdentityAndDoNotReuseDeletedFieldIdentity() {
+    FormV6TestSupport.WiredServices services = wired();
+    JdbcTemplate jdbc = services.jdbc();
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId = FormV6TestSupport.insertScope(
+        jdbc, "code_review", "n1-auto", configId, URL, 19, "DRAFT");
+    FormV6TestSupport.FixtureTables v1 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "A1", AUTO_V1, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables v2 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "A2", AUTO_V2, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables v3 = FormV6TestSupport.createRecordVersion(
+        jdbc, scopeId, "code_review", "A3", AUTO_V3, "PUBLISHED", true);
+
+    services.comparableService().ensureVersionDeclarations(scopeId, v1.versionId(), null);
+    services.comparableService().ensureVersionDeclarations(scopeId, v2.versionId(), v1.versionId());
+    services.comparableService().ensureVersionDeclarations(scopeId, v3.versionId(), v2.versionId());
+
+    Map<String, FormComparableRegistrationService.FieldDeclaration> first =
+        services.comparableService().declarationsForVersion(v1.versionId());
+    Map<String, FormComparableRegistrationService.FieldDeclaration> renamed =
+        services.comparableService().declarationsForVersion(v2.versionId());
+    Map<String, FormComparableRegistrationService.FieldDeclaration> reAdded =
+        services.comparableService().declarationsForVersion(v3.versionId());
+
+    assertThat(renamed.get("得分（新）").stableId()).isEqualTo(first.get("得分").stableId());
+    assertThat(renamed.get("得分（新）").semanticKey()).isEqualTo(first.get("得分").semanticKey());
+    assertThat(reAdded.get("补充").stableId()).isNotEqualTo(first.get("补充").stableId());
+    assertThat(reAdded.get("补充").stableId()).contains("#v" + v3.versionId());
+
+    FormCommonFieldService commonFieldService =
+        new FormCommonFieldService(
+            jdbc,
+            services.contextService(),
+            services.reader(),
+            services.comparableService(),
+            services.objectMapper());
+    FormCommonFieldService.Selection selection =
+        commonFieldService.selectForVersions(List.of(v1.versionId(), v3.versionId()));
+
+    assertThat(selection.common())
+        .extracting(FormCommonFieldService.FieldContract::stableId)
+        .contains(first.get("得分").stableId())
+        .doesNotContain(first.get("补充").stableId(), reAdded.get("补充").stableId());
+    assertThat(selection.onlyInSome())
+        .extracting(FormCommonFieldService.OnlyInSomeField::stableId)
+        .contains(first.get("补充").stableId(), reAdded.get("补充").stableId());
   }
 
   @Test

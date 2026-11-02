@@ -124,20 +124,26 @@ final class GitlabIssueMirrorFixture {
           merge_user_id bigint,
           target_branch varchar(255),
           source_branch varchar(255),
+          state_id integer,
           created_at timestamp,
           updated_at timestamp,
           mirror_deleted boolean not null default false
         )
         """);
     jdbcTemplate.execute(
+        "alter table ods_gitlab_merge_requests add column if not exists state_id integer");
+    jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_merge_request_metrics (
           merge_request_id bigint,
           merged_at timestamp,
+          merged_by_id bigint,
           added_lines integer,
           mirror_deleted boolean not null default false
         )
         """);
+    jdbcTemplate.execute(
+        "alter table ods_gitlab_merge_request_metrics add column if not exists merged_by_id bigint");
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_namespaces (

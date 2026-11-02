@@ -340,8 +340,9 @@ class CodeReviewControllerTest {
                 28.04,
                 18.5,
                 64.2,
-                List.of(new CodeReviewMultiBoardBreakdownRowResponse("支付中心", "支付中心", 3, 2, 20.0, 4, 156, 25.64, 16.0, 52.0)),
-                List.of(new CodeReviewMultiBoardBreakdownRowResponse("张三", "张三", 2, 2, 22.5, 1, 96, 10.42, 14.0, 48.0))));
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("支付中心", "支付中心", 3, 2, 20.0, 4, 156, 25.64, 16.0, 52.0, List.of())),
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("张三", "张三", 2, 2, 22.5, 1, 96, 10.42, 14.0, 48.0, List.of())),
+                List.of()));
 
     mockMvc.perform(get("/api/code-review/multi-board/source-options"))
         .andExpect(status().isOk())

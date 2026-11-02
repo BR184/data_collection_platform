@@ -100,6 +100,7 @@ class FactBuildServiceTest {
             mock(FormIssueAuthorityRegistrar.class),
             mock(FormIssueBuildInputService.class),
             new com.data.collection.platform.config.FormAdoptionProperties(),
+            mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
 
     service.rebuildMergeRequestFactsForQueuedTask(config,
@@ -186,6 +187,7 @@ class FactBuildServiceTest {
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
         new com.data.collection.platform.config.FormAdoptionProperties(),
+        mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
 
     GitlabSyncConfig config = new GitlabSyncConfig();
@@ -322,6 +324,7 @@ class FactBuildServiceTest {
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
         new com.data.collection.platform.config.FormAdoptionProperties(),
+        mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
   }
 

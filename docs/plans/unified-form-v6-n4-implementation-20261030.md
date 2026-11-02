@@ -176,6 +176,19 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 | P3 事件游标与发送前证据守卫 | 补目录事件游标；作业与事实版本相同、仅表单 head 已推进时仍须 HTTP 0 | `FormDirectoryEventCursorService` 按事件单调推进游标并为该版本已落位资源唤醒 FORM head；`CustomerIssueDelayLabelWritebackWorkerService` 发送前检查 FORM 权威 head 未消费证据，命中则等待。反例 `directoryEventCursorWakesOnlyResourcesInPublishedVersion`、`shouldNotSendWhenOnlyFormEvidenceAdvancedAndFactVersionIsUnchanged` |
 | M01 升级证据无效 | 旧库由合并集预装新表单结构且缺主线 `V20261019_01`；要求用真实主线迁移集建旧库、保留全部已发布迁移、验证低版本新增迁移执行 | 见“M01 升级验证与旧库处置（2026-10-31 修订）”：140 条主线真实执行 → 26 条 out-of-order 新增 → 前缀/描述/validate/守恒/可用性断言 |
 
+## P4/P5 阶段复审整改（回执 `177fbe77`，2026-11-02）
+
+| 项 | 反例/要求 | 整改与验证 |
+| --- | --- | --- |
+| R01 Spring 启动阻塞 | 导出服务双构造器无显式注入，`No default constructor found` | 公共构造器加 `@Autowired`，保留包内预算构造器；`FormRecordExportSpringContextIntegrationTest` 用真实 `@SpringBootTest`+PG 断言 `CollectFormController`/`FormRecordExportService` 可创建，1/1 通过 |
+| R02 MR 消费闭环 | 写桥排除 MR；构建缺 FORM 证据捕获/根绑定/最终结算；完整性仅 ISSUE | `FormIssueChangeBridge` 同时登记 MR fact head/FACT_REFRESH，SLA 仍仅 ISSUE；新增 `FormMergeRequestBuildInputService` 在读取值前冻结完整 C/权威/源集合/head 并绑定候选；`FormHeadCaptureService` 将完整性扩展到 MERGE_REQUEST；`FactBuildService` 全量/定向/增量/单条入口统一调用。`FormMergeRequestFactPipelineIntegrationTest` 3/3：真实 MR 新增→编辑→作废 ODS 不变、交错写入零公开零结算、四条事实入口冻结绑定 |
+| R03 共同字段生产接入 | 算法无生产调用者；发布/登记不维护声明；投影固定 apiKey/物理列；删除“其他”字段 NPE | `FormPublicationTxService` 与 `FormV6RegistrationService` 在发布/登记时自动补齐声明；身份仅沿紧邻前版同字段或同 apiKey 延续，删除后重加生成新身份；投影改由 `FormCommonFieldService` 选择合同，只接受 integer 合同与真实数值，缺失/NULL 不补 0、0 保留。`FormCommonFieldServiceTest` 12/12、`FormComparableRegistrationIntegrationTest` 10/10、`FormReviewProjectionIntegrationTest` 2/2：删“其他”不 NPE、2+3=5、0 保留、改名合并、删后重加不合并、类型/单位变化不合并 |
+| R04 统计分区 | FORM 10/20 与 COMMENT 100 混算 43.33 | 按持久权威拆分 FORM（逐记录均值）与 COMMENT（每 MR）；混合口径整体均时显式为空；总览/模块/人员分桶同口径。`CodeReviewMultiBoardFormRecordsIntegrationTest` 2/2：全 COMMENT 保 100，混合分区 FORM=15/COMMENT=100、整体 null，分桶同样分区 |
+| R05 目录事件唤醒 | 空新版消费却唤醒 0；旧事件可能倒退；提交失败无补投 | 最新事件在 scope 锁内按全部 FORM 权威资源唤醒（含仅旧版/无实例资源），旧修订事件不覆盖更新 pending；事件/游标/双 head 同事务；未公开事实 head 作为每轮补投依据，无新事件和重启仍重提原 FACT_REFRESH。`FormHeadCaptureIntegrationTest` 9/9 覆盖空发布、旧事件防倒退、失败补投 |
+| R06 导出契约 | “记录修订”输出 V1；预算应在读取/写出过程 | 目录读取携带 `record_version`，系统列拆“记录修订/结构版本”，NONE 无修订留空；候选读取 `limit maxRows+1`，作废在连接阶段排除；字节预算在写出过程中止并还原 413。`FormRecordExportIntegrationTest` 5/5：实际修订 1、结构版本独立、NONE 留空、作废不触发误报、超一行/小字节提前 413 |
+
+回归：`FormTemplateAdminIntegrationTest` 22/22（含发布自动声明与写入权威前置）、`FormRecordServiceIntegrationTest` 38/38、`FormV6RegistrationIntegrationTest` 21/21（含登记自动声明）、`FormIssueAdoptionFactPipelineIntegrationTest` 23/23、FactBuild/编排/客户问题标记/输入解析/控制器 39/39；迁移锁 169 条，文本空白、产物、运行时路径与 `git diff --check` 通过。未跑默认全量/页面矩阵/黄金；未改批准 UI、既有迁移、共享库或外部数据；N4 收口、N5/main/出包/生产启用仍未准入。
+
 ## 用户裁定（2026-10-30，不再提供选择题）
 
 - **MR 跨版口径 C：逐记录投影**。所有有效、可比较的走查记录参与统计，不取 `max`、不只留最新一条：两条记录时长 10/20 分钟→总时长 30、平均 15；规范问题 2/3→5。MR 事实仍按资源唯一一行；质量分析按记录 sum/count。否决 A（逐列 max）与 B（仅最新）。

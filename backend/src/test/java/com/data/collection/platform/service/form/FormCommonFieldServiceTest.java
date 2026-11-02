@@ -270,6 +270,134 @@ class FormCommonFieldServiceTest {
     assertThat(metric.total()).isNull();
   }
 
+  @Test
+  void undeclaredFieldIsExplicitlyInvalidAndNotComparable() {
+    FormTemplateSpec spec = spec(FormTemplateSpecCatalog.CODE_REVIEW);
+    VersionInput version =
+        new VersionInput(
+            11L, 1L, spec.templateKey(), spec, Map.of(),
+            List.of(record(101L, 11L, false, spec, 2)));
+
+    FormCommonFieldService.Selection selection = service.select(List.of(version));
+
+    assertThat(selection.status()).isEqualTo("NO_COMMON_FIELDS");
+    assertThat(selection.invalidContracts())
+        .anySatisfy(
+            invalid -> {
+              assertThat(invalid.invalidReason()).isEqualTo("UNDECLARED_FIELD");
+              assertThat(invalid.name()).isEqualTo("specification_count");
+            });
+    assertThat(service.aggregate(selection, List.of(version), SPEC_SEMANTIC_KEY).total()).isNull();
+  }
+
+  @Test
+  void missingNullNumericTextAndZeroAreDistinguishedAndZeroIsPreserved() {
+    FormTemplateSpec spec = spec(FormTemplateSpecCatalog.CODE_REVIEW);
+    Map<String, FieldDeclaration> declarations =
+        Map.of(
+            "specification_count",
+            declaration("specification_count", SPEC_STABLE_ID, SPEC_SEMANTIC_KEY, "integer", "count"),
+            "review_duration_minutes",
+            declaration(
+                "review_duration_minutes",
+                DURATION_STABLE_ID,
+                DURATION_SEMANTIC_KEY,
+                "integer",
+                "minute"),
+            "logic_count",
+            declaration(
+                "logic_count", "code_review.logic_count", "code_review.logic_count", "integer",
+                "count"));
+    Map<String, Object> fields = new LinkedHashMap<>();
+    fields.put(column(spec, "specification_count"), 0);
+    fields.put(column(spec, "review_duration_minutes"), "10");
+    fields.put(column(spec, "logic_count"), null);
+    VersionInput version =
+        version(
+            11L, spec, declarations,
+            List.of(new RecordValue(101L, 11L, false, fields)));
+
+    FormCommonFieldService.Selection selection = service.select(List.of(version));
+    FormCommonFieldService.MetricResult specification =
+        service.aggregate(selection, List.of(version), SPEC_SEMANTIC_KEY);
+    assertThat(specification.total()).isZero();
+    assertThat(specification.zeros()).isEqualTo(1);
+    assertThat(specification.missing()).isZero();
+    FormCommonFieldService.MetricResult duration =
+        service.aggregate(selection, List.of(version), DURATION_SEMANTIC_KEY);
+    assertThat(duration.total()).isNull();
+    assertThat(duration.nonNumeric()).isEqualTo(1);
+    FormCommonFieldService.MetricResult logic =
+        service.aggregate(selection, List.of(version), "code_review.logic_count");
+    assertThat(logic.total()).isNull();
+    assertThat(logic.nulls()).isEqualTo(1);
+  }
+
+  @Test
+  void frozenTypeChangeIsUnmergedAndNotAggregated() {
+    FormTemplateSpec v1Spec = spec(FormTemplateSpecCatalog.CODE_REVIEW);
+    FormTemplateSpec v2Spec =
+        changeType(spec(FormTemplateSpecCatalog.CODE_REVIEW), "specification_count", "string");
+    VersionInput v1 =
+        version(
+            11L,
+            v1Spec,
+            Map.of(
+                "specification_count",
+                declaration(
+                    "specification_count", SPEC_STABLE_ID, SPEC_SEMANTIC_KEY, "integer", "count")),
+            List.of(record(101L, 11L, false, v1Spec, 2)));
+    VersionInput v2 =
+        version(
+            12L,
+            v2Spec,
+            Map.of(
+                "specification_count",
+                declaration(
+                    "specification_count", SPEC_STABLE_ID, SPEC_SEMANTIC_KEY, "string", "count")),
+            List.of(record(102L, 12L, false, v2Spec, 3)));
+
+    FormCommonFieldService.Selection selection = service.select(List.of(v1, v2));
+
+    assertThat(selection.unmerged())
+        .singleElement()
+        .extracting(FormCommonFieldService.UnmergedField::reason)
+        .isEqualTo("incompatible_value_type");
+    assertThat(service.aggregate(selection, List.of(v1, v2), SPEC_SEMANTIC_KEY).total()).isNull();
+  }
+
+  @Test
+  void unitChangeIsUnmergedAndNotAggregated() {
+    FormTemplateSpec v1Spec = spec(FormTemplateSpecCatalog.CODE_REVIEW);
+    FormTemplateSpec v2Spec = spec(FormTemplateSpecCatalog.CODE_REVIEW);
+    VersionInput v1 =
+        version(
+            11L,
+            v1Spec,
+            Map.of(
+                "specification_count",
+                declaration(
+                    "specification_count", SPEC_STABLE_ID, SPEC_SEMANTIC_KEY, "integer", "count")),
+            List.of(record(101L, 11L, false, v1Spec, 2)));
+    VersionInput v2 =
+        version(
+            12L,
+            v2Spec,
+            Map.of(
+                "specification_count",
+                declaration(
+                    "specification_count", SPEC_STABLE_ID, SPEC_SEMANTIC_KEY, "integer", "minute")),
+            List.of(record(102L, 12L, false, v2Spec, 3)));
+
+    FormCommonFieldService.Selection selection = service.select(List.of(v1, v2));
+
+    assertThat(selection.unmerged())
+        .singleElement()
+        .extracting(FormCommonFieldService.UnmergedField::reason)
+        .isEqualTo("incompatible_value_type");
+    assertThat(service.aggregate(selection, List.of(v1, v2), SPEC_SEMANTIC_KEY).total()).isNull();
+  }
+
   private VersionInput version(long versionId, FormTemplateSpec spec, List<RecordValue> records) {
     return version(versionId, spec, defaultDeclarations(), records);
   }
