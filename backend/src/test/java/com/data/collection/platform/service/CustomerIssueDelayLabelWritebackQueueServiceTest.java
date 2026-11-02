@@ -40,8 +40,6 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
         .as("必须从当前 ODS 标签读取，不能用事实里的旧标签补齐")
         .contains("coalesce(current_labels.label_names, '')")
         .doesNotContain("f.label_names, ''")
-        .as("必须携带标签快照的观测时刻，用于拒绝用早于成功写入的快照重开作业")
-        .contains("source_issue.mirror_synced_at as label_snapshot_at")
         .as("ODS 议题缺失时不能把未知标签当作空集合")
         .contains("join ods_gitlab_issues source_issue")
         .as("有效行谓词必须与动态索引谓词一致，不能包 coalesce")

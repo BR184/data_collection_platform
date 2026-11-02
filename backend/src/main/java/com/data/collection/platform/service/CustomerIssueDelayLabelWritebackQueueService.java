@@ -62,8 +62,9 @@ public class CustomerIssueDelayLabelWritebackQueueService {
    * <p>调用方必须位于"读取当前事实与真实标签、登记作业、推进游标"同一事务内，保证一页的输入与
    * 游标一致提交。作业携带本轮镜像、授权修订与授权事实版本，worker 执行前据此复核。
    *
-   * <p>候选的标签快照时刻早于该议题上一次成功写入时，不重开已完成的作业：该快照不可能包含本平台
-   * 自己的写入，按它重开只会重复发送同一次标签变更；等下一次快照晚于成功写入后仍有差异再重新入队。
+   * <p>只有同一目标、且本轮前置镜像的标签来源表完成时刻不晚于该议题上次成功写入时，才不重开已完成
+   * 的作业：此时本轮读到的标签可能早于本平台自己的写入，按它重开只会重复发送同一次变更。目标
+   * （延期目标与差异）发生任何变化都必须重新入队；标签来源没有完整刷新证据时同样不得抑制。
    *
    * @param config 当前数据源配置
    * @param authorizationRevision 本轮授权修订
@@ -82,6 +83,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
       int limit) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     List<IssueFact> candidates = loadCandidates(sourceInstance, afterIssueId, Math.max(1, limit));
+    LocalDateTime labelRefreshFinishedAt = labelRefreshFinishedAt(mirrorRunId);
     int enqueued = 0;
     for (IssueFact candidate : candidates) {
       CustomerIssueDelayLabelWritebackPlan plan = planner.plan(candidate);
@@ -95,7 +97,8 @@ public class CustomerIssueDelayLabelWritebackQueueService {
               authorizationRevision,
               requiredFactVersion,
               mirrorRunId,
-              DEFAULT_MAX_ATTEMPTS);
+              DEFAULT_MAX_ATTEMPTS,
+              labelRefreshFinishedAt);
       if (upserted > 0) {
         enqueued++;
       }
@@ -104,6 +107,28 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         candidates.isEmpty() ? afterIssueId : candidates.getLast().getIssueId();
     return new PageResult(
         enqueued, lastIssueId, candidates.size() >= Math.max(1, limit));
+  }
+
+  /**
+   * 本轮前置镜像中标签来源（{@code labels}、{@code label_links}）两张表的完成时刻。
+   *
+   * <p>两张表都有成功任务时取较早的完成时刻，作为“本轮标签读取可能早于成功写入”的显式证据；
+   * 运行不存在、表任务缺失或未成功时返回 {@code null}，调用方不得据此抑制重新入队。
+   */
+  LocalDateTime labelRefreshFinishedAt(Long mirrorRunId) {
+    if (mirrorRunId == null) {
+      return null;
+    }
+    return jdbcTemplate.queryForObject(
+        """
+        select case when count(distinct source_table) = 2 then min(finished_at) end
+          from sync_run_table_tasks
+         where run_id = ?
+           and source_table in ('labels', 'label_links')
+           and status = 'SUCCESS'
+        """,
+        LocalDateTime.class,
+        mirrorRunId);
   }
 
   /**
@@ -395,8 +420,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
   String candidateSql() {
     return """
         select f.*,
-               coalesce(current_labels.label_names, '') as current_label_names,
-               source_issue.mirror_synced_at as label_snapshot_at
+               coalesce(current_labels.label_names, '') as current_label_names
           from issue_fact f
           join ods_gitlab_issues source_issue
             on source_issue.project_id = f.project_id
@@ -444,7 +468,8 @@ public class CustomerIssueDelayLabelWritebackQueueService {
       long authorizationRevision,
       long requiredFactVersion,
       Long mirrorRunId,
-      int maxAttempts) {
+      int maxAttempts,
+      LocalDateTime labelRefreshFinishedAt) {
     IssueFact fact = plan.fact();
     return jdbcTemplate.update(
         """
@@ -543,6 +568,10 @@ public class CustomerIssueDelayLabelWritebackQueueService {
               updated_at = current_timestamp
          where not (
            customer_issue_delay_label_writeback_jobs.status = 'SUCCEEDED'
+           and customer_issue_delay_label_writeback_jobs.desired_response_delayed = ?
+           and customer_issue_delay_label_writeback_jobs.desired_resolve_delayed = ?
+           and customer_issue_delay_label_writeback_jobs.add_labels = ?
+           and customer_issue_delay_label_writeback_jobs.remove_labels = ?
            and coalesce(customer_issue_delay_label_writeback_jobs.finished_at >= ?, false)
          )
         """,
@@ -561,7 +590,11 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         mirrorRunId,
         authorizationRevision,
         requiredFactVersion,
-        fact.getLabelSnapshotAt() == null ? null : Timestamp.valueOf(fact.getLabelSnapshotAt()));
+        Boolean.TRUE.equals(fact.getResponseDelayed()),
+        Boolean.TRUE.equals(fact.getResolveDelayed()),
+        joinLabels(plan.change().addLabels()),
+        joinLabels(plan.change().removeLabels()),
+        labelRefreshFinishedAt == null ? null : Timestamp.valueOf(labelRefreshFinishedAt));
   }
 
   private boolean finish(
@@ -607,7 +640,6 @@ public class CustomerIssueDelayLabelWritebackQueueService {
     fact.setIssueState(text(rs, "issue_state", null));
     fact.setCreatedAtSource(toLocalDateTime(rs.getTimestamp("created_at_source")));
     fact.setLabelNames(text(rs, "current_label_names", ""));
-    fact.setLabelSnapshotAt(toLocalDateTime(rs.getTimestamp("label_snapshot_at")));
     fact.setIllegalReason(text(rs, "illegal_reason", null));
     fact.setIllegalReasons(text(rs, "illegal_reasons", null));
     fact.setResponseDelayed(rs.getBoolean("is_response_delayed"));
