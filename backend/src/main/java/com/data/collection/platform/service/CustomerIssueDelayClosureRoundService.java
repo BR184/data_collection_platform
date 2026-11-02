@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -10,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>三类写入必须原子：提交前置镜像与绑定进度、延期重算与阶段授权、一页候选登记与游标推进。
  * 事务失败时不得留下"已授权但未重算"或"已登记但游标未推进"的中间状态。
+ *
+ * <p>调用 {@code FactBuildService.refreshCustomerIssueDelayFactsForConfig} 的三个入口必须在最外层
+ * 建立 REPEATABLE READ：该重算按 REQUIRED 加入现有事务，内层声明的隔离级别无法提升默认
+ * READ COMMITTED；旁路事实构建要求稳定输入快照，否则整轮会被拒绝而停在 REQUESTED。
  */
 @Service
 public class CustomerIssueDelayClosureRoundService {
@@ -45,7 +50,7 @@ public class CustomerIssueDelayClosureRoundService {
    * @param config 当前数据源配置
    * @return 本轮启动结果；提交被拒绝时只重算延期事实，不取得写回授权
    */
-  @Transactional
+  @Transactional(isolation = Isolation.REPEATABLE_READ)
   public StartResult startMirrorRound(
       CustomerIssueDelayClosureProgressClaim claim, GitlabSyncConfig config) {
     CustomerIssueDelayClosureProgressClaim current =
@@ -82,7 +87,7 @@ public class CustomerIssueDelayClosureRoundService {
   /**
    * 写回关闭时只重算延期事实，不取得标签写入授权。
    */
-  @Transactional
+  @Transactional(isolation = Isolation.REPEATABLE_READ)
   public StartResult refreshFactsOnly(
       CustomerIssueDelayClosureProgressClaim claim, GitlabSyncConfig config, String reason) {
     CustomerIssueDelayClosureProgressClaim current =
@@ -109,7 +114,7 @@ public class CustomerIssueDelayClosureRoundService {
    * @param expectedFactVersion 资格评估时读到的事实版本
    * @return 授权结果
    */
-  @Transactional
+  @Transactional(isolation = Isolation.REPEATABLE_READ)
   public AuthorizationResult authorizeEnqueue(
       CustomerIssueDelayClosureProgressClaim claim,
       GitlabSyncConfig config,

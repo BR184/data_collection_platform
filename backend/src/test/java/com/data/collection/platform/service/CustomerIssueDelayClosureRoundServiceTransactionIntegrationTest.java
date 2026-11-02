@@ -42,6 +42,7 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
 
   @MockitoBean private FactBuildService factBuildService;
   @MockitoBean private CustomerIssueDelaySourceReadinessService readinessService;
+  @MockitoBean private CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
 
   private GitlabSyncConfig config;
 
@@ -92,6 +93,82 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
   }
 
   @Test
+  void refreshFactsOnlyRecalculatesInsideStableTransaction() {
+    CustomerIssueDelayClosureProgressClaim claim = claimForNewRound();
+    doAnswer(
+            invocation -> {
+              assertStableTransaction();
+              return null;
+            })
+        .when(factBuildService)
+        .refreshCustomerIssueDelayFactsForConfig(any(GitlabSyncConfig.class));
+
+    CustomerIssueDelayClosureRoundService.StartResult result =
+        roundService.refreshFactsOnly(claim, config, "写回关闭");
+
+    assertThat(result.status())
+        .isEqualTo(CustomerIssueDelayClosureRoundService.StartStatus.FACT_ONLY);
+    CustomerIssueDelayClosureProgress progress = repository.findBySource(SOURCE).orElseThrow();
+    assertThat(progress.stage()).isEqualTo(CustomerIssueDelayClosureStage.IDLE);
+    assertThat(progress.completedRevision()).isEqualTo(progress.requestRevision());
+    assertThat(progress.failureCount()).isZero();
+  }
+
+  @Test
+  void mirrorRejectedRoundRecalculatesInsideStableTransaction() {
+    when(preWritebackSyncService.submitPreWritebackSync(any()))
+        .thenReturn(
+            new CustomerIssueDelayPreWritebackSyncService.Outcome.Rejected("写回前置刷新关闭"));
+    CustomerIssueDelayClosureProgressClaim claim = claimForNewRound();
+    doAnswer(
+            invocation -> {
+              assertStableTransaction();
+              return null;
+            })
+        .when(factBuildService)
+        .refreshCustomerIssueDelayFactsForConfig(any(GitlabSyncConfig.class));
+
+    CustomerIssueDelayClosureRoundService.StartResult result =
+        roundService.startMirrorRound(claim, config);
+
+    assertThat(result.status())
+        .isEqualTo(CustomerIssueDelayClosureRoundService.StartStatus.FACT_ONLY);
+    CustomerIssueDelayClosureProgress progress = repository.findBySource(SOURCE).orElseThrow();
+    assertThat(progress.stage()).isEqualTo(CustomerIssueDelayClosureStage.IDLE);
+    assertThat(progress.completedRevision()).isEqualTo(progress.requestRevision());
+    assertThat(progress.failureCount()).isZero();
+  }
+
+  @Test
+  void authorizeEnqueueRecalculatesInsideStableTransaction() {
+    CustomerIssueDelayClosureProgressClaim claim = startWaitingClaim();
+    when(readinessService.currentFactVersion(SOURCE)).thenReturn(EXPECTED_VERSION);
+    doAnswer(
+            invocation -> {
+              assertStableTransaction();
+              return null;
+            })
+        .when(factBuildService)
+        .refreshCustomerIssueDelayFactsForConfig(any(GitlabSyncConfig.class));
+
+    CustomerIssueDelayClosureRoundService.AuthorizationResult result =
+        roundService.authorizeEnqueue(claim, config, EXPECTED_VERSION);
+
+    assertThat(result.authorized()).isTrue();
+  }
+
+  private CustomerIssueDelayClosureProgressClaim claimForNewRound() {
+    repository.requestRound(config, "test");
+    return repository.claimBySource(SOURCE, "owner-a", "token-a", 60).orElseThrow();
+  }
+
+  private void assertStableTransaction() {
+    assertThat(jdbcTemplate.queryForObject("show transaction_isolation", String.class))
+        .as("延期重算必须在外层稳定事务内执行")
+        .isEqualTo("repeatable read");
+  }
+
+  @Test
   void ownershipLostDuringRecalculationMustRollBackFactAndGenerationWrites() {
     CustomerIssueDelayClosureProgressClaim claim = startWaitingClaim();
     when(readinessService.currentFactVersion(SOURCE)).thenReturn(EXPECTED_VERSION);
@@ -105,7 +182,9 @@ class CustomerIssueDelayClosureRoundServiceTransactionIntegrationTest {
         .refreshCustomerIssueDelayFactsForConfig(any(GitlabSyncConfig.class));
 
     assertThatThrownBy(() -> roundService.authorizeEnqueue(claim, config, EXPECTED_VERSION))
-        .isInstanceOf(IllegalStateException.class);
+        .as("稳定事务内的并发接管要么被所有权检查拒绝，要么以序列化失败回滚")
+        .isInstanceOfAny(
+            IllegalStateException.class, org.springframework.dao.CannotAcquireLockException.class);
 
     assertFactAndGenerationRolledBack();
     CustomerIssueDelayClosureProgress progress = repository.findBySource(SOURCE).orElseThrow();

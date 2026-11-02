@@ -195,6 +195,89 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   @Test
+  void formDrivenRoundConvergesToIdleAndSameInputAddsNoRequest() {
+    insertSourceIssue(93014L, 81014L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93014L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+
+    rebuildAllIssueFacts();
+
+    Map<String, Object> converged = awaitDelayClosureSettled();
+    long requested = ((Number) converged.get("request_revision")).longValue();
+    assertThat(requested).as("一次表单变化只请求一轮").isEqualTo(1L);
+    assertThat(converged.get("stage")).as("轮次必须收敛到 IDLE").isEqualTo("IDLE");
+    assertThat(((Number) converged.get("completed_revision")).longValue())
+        .as("完成修订等于请求修订")
+        .isEqualTo(requested);
+    assertThat(((Number) converged.get("failure_count")).intValue())
+        .as("稳定输入检查不得拒绝轮次")
+        .isZero();
+    assertThat(String.valueOf(converged.get("last_error")))
+        .doesNotContain("REPEATABLE READ")
+        .doesNotContain("稳定输入");
+
+    // 发布 worker 在测试中关闭，先完成轮次留下的投影候选再发起同输入周期公开。
+    FactRevisionFixture.completeRequiredProjections(
+        jdbcTemplate,
+        factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
+    refreshDelayFacts();
+
+    Map<String, Object> after = delayClosureProgress();
+    assertThat(((Number) after.get("request_revision")).longValue())
+        .as("同一输入周期公开不新增请求")
+        .isEqualTo(requested);
+    assertThat(((Number) after.get("completed_revision")).longValue()).isEqualTo(requested);
+    assertThat(((Number) after.get("failure_count")).intValue()).isZero();
+  }
+
+  private Map<String, Object> awaitDelayClosureSettled() {
+    long deadline =
+        System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+    Map<String, Object> row = delayClosureProgress();
+    while (System.nanoTime() < deadline) {
+      row = delayClosureProgress();
+      if (row.isEmpty()) {
+        try {
+          Thread.sleep(50L);
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+          throw new IllegalStateException("等待延期轮次登记被中断", error);
+        }
+        continue;
+      }
+      long requested = ((Number) row.get("request_revision")).longValue();
+      long completed = ((Number) row.get("completed_revision")).longValue();
+      int failures = ((Number) row.get("failure_count")).intValue();
+      if (requested > 0 && completed == requested && "IDLE".equals(row.get("stage"))) {
+        return row;
+      }
+      if (failures > 0) {
+        return row;
+      }
+      try {
+        Thread.sleep(50L);
+      } catch (InterruptedException error) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("等待延期轮次终态被中断", error);
+      }
+    }
+    return row;
+  }
+
+  private Map<String, Object> delayClosureProgress() {
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            "select stage, request_revision, processed_revision, completed_revision,"
+                + " failure_count, last_error"
+                + " from customer_issue_delay_closure_requests where source_instance = ?",
+            SOURCE_INSTANCE);
+    return rows.isEmpty() ? Map.of() : rows.get(0);
+  }
+
+  @Test
   void consumedEvidenceSettlementLocksScopeBeforeHead() throws Exception {
     insertSourceIssue(93013L, 81013L, LocalDateTime.of(2026, 11, 1, 10, 0));
     insertResponseRecord(
