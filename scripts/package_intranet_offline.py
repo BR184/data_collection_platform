@@ -934,13 +934,37 @@ raise SystemExit(f"{service_name} has no named volume mounted at {target}")
 }
 
 resolve_health_addresses() {
-  BACKEND_HEALTH_ADDR="$(compose port backend 18080 2>/dev/null | tail -n 1)"
-  FRONTEND_HEALTH_ADDR="$(compose port frontend 80 2>/dev/null | tail -n 1)"
+  # 回滚会在应用停止后再启动，`compose port` 此时没有容器可查；
+  # 健康地址必须来自生效 Compose 的发布端口，而不是运行中容器的临时映射。
+  local config_json
+  config_json="$(compose config --format json)" || fail "cannot resolve effective Compose configuration"
+  {
+    read -r BACKEND_HEALTH_ADDR
+    read -r FRONTEND_HEALTH_ADDR
+  } < <(python3 -c '
+import json, sys
+
+config = json.load(sys.stdin)
+
+def address(service_name, target_port):
+    service = config.get("services", {}).get(service_name)
+    if service is None:
+        raise SystemExit(f"missing service: {service_name}")
+    for port in service.get("ports", []):
+        if int(port.get("target", 0)) == target_port:
+            published = str(port.get("published") or "")
+            if not published:
+                raise SystemExit(f"{service_name} port {target_port} has no published host port")
+            host = str(port.get("host_ip") or "127.0.0.1")
+            if host in ("0.0.0.0", "::", "[::]"):
+                host = "127.0.0.1"
+            return f"{host}:{published.split(\"-\")[0]}"
+    raise SystemExit(f"{service_name} has no published port {target_port}")
+
+print(address("backend", 18080))
+print(address("frontend", 80))
+' <<< "$config_json") || fail "cannot resolve published host ports from the effective Compose model"
   [[ -n "$BACKEND_HEALTH_ADDR" && -n "$FRONTEND_HEALTH_ADDR" ]] || fail "cannot resolve published host ports from the effective Compose model"
-  BACKEND_HEALTH_ADDR="${BACKEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}"
-  FRONTEND_HEALTH_ADDR="${FRONTEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}"
-  case "$BACKEND_HEALTH_ADDR" in \[::\]*) BACKEND_HEALTH_ADDR="127.0.0.1${BACKEND_HEALTH_ADDR#\[::\]}" ;; esac
-  case "$FRONTEND_HEALTH_ADDR" in \[::\]*) FRONTEND_HEALTH_ADDR="127.0.0.1${FRONTEND_HEALTH_ADDR#\[::\]}" ;; esac
 }
 
 probe_application_endpoint() {
