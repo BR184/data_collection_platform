@@ -77,6 +77,10 @@ class BuildContext:
     include_offline_docker_debs: bool
     container_names: dict[str, str] = field(default_factory=dict)
     require_ods_correction: bool = False
+    baseline_compose_text: str = ""
+    baseline_env_path: Path | None = None
+    extra_services: tuple[str, ...] = ()
+    preserve_baseline_topology: bool = False
 
 
 def log(message: str) -> None:
@@ -226,14 +230,150 @@ def latest_full_template(deploy_root: Path) -> Path:
 
 
 def read_deployment_image_tag(deployment_dir: Path, image: str) -> str:
-    """Read an application tag from the deployment's authoritative Compose file."""
+    """Read an application tag from the deployment's authoritative Compose file.
+
+    镜像值可能直接写死 tag，也可能通过现场 .env 变量引用；两种形式都必须还原为
+    实际运行的完整镜像引用后再取 tag，不能只用正则匹配写死的 ``image: repo:tag``。
+    """
+    reference = read_deployment_image(deployment_dir, image)
+    return reference.rsplit(":", 1)[1]
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    """读取 Compose 使用的朴素 KEY=VALUE 环境文件。"""
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            fail(f"invalid environment entry in {path.name}: {line}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            fail(f"invalid environment key in {path.name}: {key}")
+        values[key] = value
+    return values
+
+
+_COMPOSE_REFERENCE = re.compile(
+    r"\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-+?])([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*)"
+)
+
+
+def expand_compose_value(value: str, environment: dict[str, str], source: str) -> str:
+    """按 Compose 变量语义展开镜像引用，缺失必需变量时明确失败。"""
+    unresolved = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal unresolved
+        if match.group(0) == "$$":
+            return "$"
+        name = match.group(1) or match.group(4)
+        operator = match.group(2) or ""
+        argument = match.group(3) or ""
+        defined = name in environment
+        current = environment.get(name, "")
+        if operator in (":?", "?"):
+            if not defined or (operator == ":?" and current == ""):
+                fail(f"baseline {source} requires environment variable {name}: {argument or 'missing'}")
+            return current
+        if operator in (":-", "-"):
+            if not defined or (operator == ":-" and current == ""):
+                return argument
+            return current
+        if operator in (":+", "+"):
+            if not defined or (operator == ":+" and current == ""):
+                return ""
+            return argument
+        if not defined:
+            unresolved = True
+            return ""
+        return current
+
+    expanded = _COMPOSE_REFERENCE.sub(replace, value)
+    if unresolved:
+        fail(f"baseline {source} references an undefined environment variable: {value}")
+    return expanded
+
+
+def compose_service_names(text: str) -> list[str]:
+    """读取顶层 services 下的服务名，保持 Compose 中的声明顺序。"""
+    names: list[str] = []
+    inside_services = False
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")):
+            inside_services = line.rstrip() == "services:"
+            continue
+        if not inside_services:
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 2 and stripped.endswith(":") and stripped.count(":") == 1:
+            names.append(stripped[:-1])
+    return names
+
+
+def read_compose_service_image(text: str, service: str) -> str:
+    lines = text.splitlines()
+    start = _service_start(lines, service)
+    for line in lines[start + 1 :]:
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            break
+        stripped = line.strip()
+        if indent == 4 and stripped.startswith("image:"):
+            return stripped.split(":", 1)[1].strip().strip("\"'")
+    fail(f"baseline Compose service {service} does not declare an image")
+
+
+def _service_start(lines: list[str], service: str) -> int:
+    inside_services = False
+    for index, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")):
+            inside_services = line.rstrip() == "services:"
+            continue
+        if not inside_services:
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 2 and stripped == f"{service}:":
+            return index
+    fail(f"baseline Compose does not declare service {service}")
+
+
+def read_deployment_image(deployment_dir: Path, repository: str) -> str:
     compose_path = deployment_dir / "docker-compose.yml"
     require_path(compose_path, "baseline docker-compose.yml")
     text = compose_path.read_text(encoding="utf-8")
-    match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
-    if match:
-        return match.group("tag")
-    fail(f"cannot find image tag for {image} in deployment Compose files under {deployment_dir}")
+    environment = read_env_file(deployment_dir / ".env")
+    environment.update({key: value for key, value in os.environ.items() if key not in environment})
+    service = _application_service(repository)
+    raw = read_compose_service_image(text, service)
+    reference = expand_compose_value(raw, environment, f"service {service}")
+    if not reference.startswith(repository + ":"):
+        fail(f"baseline {service} image does not match repository identity: {reference}")
+    return reference
+
+
+def _application_service(repository: str) -> str:
+    mapping = {BACKEND_IMAGE: "backend", FRONTEND_IMAGE: "frontend"}
+    service = mapping.get(repository)
+    if service is None:
+        fail(f"unsupported application image repository: {repository}")
+    return service
+
 
 
 def read_baseline_container_names(deployment_dir: Path) -> dict[str, str]:
@@ -358,6 +498,10 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
     baseline_backend_tag = ""
     baseline_frontend_tag = ""
     container_names: dict[str, str] = {}
+    baseline_compose_text = ""
+    baseline_env_path: Path | None = None
+    extra_services: tuple[str, ...] = ()
+    preserve_baseline_topology = False
     if args.mode == "fresh-empty":
         package_name = f"{PACKAGE_PREFIX}-full-{release_id}"
         backend_tag = image_tag
@@ -373,6 +517,16 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         baseline_backend_tag = read_deployment_image_tag(baseline_dir, BACKEND_IMAGE)
         baseline_frontend_tag = read_deployment_image_tag(baseline_dir, FRONTEND_IMAGE)
         container_names = read_baseline_container_names(baseline_dir)
+        baseline_compose_path = baseline_dir / "docker-compose.yml"
+        baseline_compose_text = baseline_compose_path.read_text(encoding="utf-8")
+        site_env_path = baseline_dir / ".env"
+        if site_env_path.is_file():
+            baseline_env_path = site_env_path
+        services = compose_service_names(baseline_compose_text)
+        extra_services = tuple(
+            name for name in services if name not in ("postgres", "backend", "frontend")
+        )
+        preserve_baseline_topology = bool(extra_services)
         backend_tag = image_tag
         frontend_tag = image_tag
         baseline_name = baseline_dir.name
@@ -409,6 +563,10 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         postgres_port=args.postgres_port,
         ldap_base_url=args.ldap_base_url,
         include_offline_docker_debs=args.include_offline_docker_debs,
+        baseline_compose_text=baseline_compose_text,
+        baseline_env_path=baseline_env_path,
+        extra_services=extra_services,
+        preserve_baseline_topology=preserve_baseline_topology,
     )
 
 
@@ -690,10 +848,10 @@ normalized_networks = {
     for key, spec in networks.items()
 }
 services = {}
-for service_name in ("postgres", "backend", "frontend"):
+for service_name in sorted(config.get("services", {})):
     service = config.get("services", {}).get(service_name)
     if service is None:
-        raise SystemExit(f"missing service: {service_name}")
+        continue
     mounts = []
     for mount in service.get("volumes", []):
         source = mount.get("source", "")
@@ -737,16 +895,85 @@ import json, sys
 current, candidate = map(json.loads, sys.argv[1:3])
 if current["project"] != candidate["project"]:
     raise SystemExit("Compose project identity changed")
-for key in ("qaflex_pgdata", "qaflex_backend_logs"):
-    if current["volumes"].get(key) != candidate["volumes"].get(key):
-        raise SystemExit(f"persistent volume identity changed: {key}")
+if current["volumes"] != candidate["volumes"]:
+    raise SystemExit("persistent volume identity changed")
 if current["networks"] != candidate["networks"]:
     raise SystemExit("Compose network identity changed")
 if current["services"] != candidate["services"]:
-    raise SystemExit("Compose ports or mount identity changed")
-' "$current_identity" "$candidate_identity" || fail "candidate Compose changes project, volume, network, port, or mount identity"
-  CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$current_identity")" || fail "PostgreSQL volume is not declared"
-  CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$current_identity")" || fail "backend log volume is not declared"
+    raise SystemExit("Compose service, ports or mount identity changed")
+' "$current_identity" "$candidate_identity" || fail "candidate Compose changes project, volume, network, service, port, or mount identity"
+  CURRENT_POSTGRES_VOLUME="$(resolve_volume_for_mount "$current_json" postgres /var/lib/postgresql/data)" || fail "PostgreSQL volume is not declared"
+  CURRENT_BACKEND_LOG_VOLUME="$(resolve_volume_for_mount "$current_json" backend /app/logs)" || fail "backend log volume is not declared"
+}
+
+resolve_volume_for_mount() {
+  # Resolve the named volume behind a service mount from the effective Compose
+  # model. 不同基线的卷键与 `.env` 变量名不同（验收套件为 platform_db/platform_logs，
+  # 标准包为 qaflex_pgdata/qaflex_backend_logs），不能按固定键读取。
+  local config_json="$1" service="$2" target="$3"
+  python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+service_name, target = sys.argv[1:3]
+service = config.get("services", {}).get(service_name)
+if service is None:
+    raise SystemExit(f"missing service: {service_name}")
+volumes = config.get("volumes", {})
+project = config.get("name")
+for mount in service.get("volumes", []):
+    if mount.get("type") == "volume" and mount.get("target") == target:
+        source = mount.get("source", "")
+        spec = volumes.get(source, {})
+        name = spec.get("name") or (f"{project}_{source}" if project else source)
+        if not name:
+            raise SystemExit(f"{service_name} mount {target} has no persistent volume name")
+        print(name)
+        raise SystemExit(0)
+raise SystemExit(f"{service_name} has no named volume mounted at {target}")
+' "$service" "$target" <<< "$config_json" || fail "cannot resolve persistent volume for $service mount $target"
+}
+
+resolve_health_addresses() {
+  # 回滚会在应用停止后再启动，`compose port` 此时没有容器可查；
+  # 健康地址必须来自生效 Compose 的发布端口，而不是运行中容器的临时映射。
+  local config_json
+  config_json="$(compose config --format json)" || fail "cannot resolve effective Compose configuration"
+  {
+    read -r BACKEND_HEALTH_ADDR
+    read -r FRONTEND_HEALTH_ADDR
+  } < <(python3 -c '
+import json, sys
+
+config = json.load(sys.stdin)
+
+def address(service_name, target_port):
+    service = config.get("services", {}).get(service_name)
+    if service is None:
+        raise SystemExit(f"missing service: {service_name}")
+    for port in service.get("ports", []):
+        if int(port.get("target", 0)) == target_port:
+            published = str(port.get("published") or "")
+            if not published:
+                raise SystemExit(f"{service_name} port {target_port} has no published host port")
+            host = str(port.get("host_ip") or "127.0.0.1")
+            if host in ("0.0.0.0", "::", "[::]"):
+                host = "127.0.0.1"
+            return f"{host}:{published.split(chr(45))[0]}"
+    raise SystemExit(f"{service_name} has no published port {target_port}")
+
+print(address("backend", 18080))
+print(address("frontend", 80))
+' <<< "$config_json") || fail "cannot resolve published host ports from the effective Compose model"
+  [[ -n "$BACKEND_HEALTH_ADDR" && -n "$FRONTEND_HEALTH_ADDR" ]] || fail "cannot resolve published host ports from the effective Compose model"
+}
+
+probe_application_endpoint() {
+  local service="$1"
+  case "$service" in
+    backend) curl -fsS "http://$BACKEND_HEALTH_ADDR/actuator/health" >/dev/null ;;
+    frontend) curl -fsS "http://$FRONTEND_HEALTH_ADDR/" >/dev/null ;;
+    *) return 1 ;;
+  esac
 }
 
 verify_container_volume_mount() {
@@ -926,6 +1153,107 @@ volumes:
 """
 
 
+def preserved_compose_content(ctx: BuildContext) -> str:
+    """在基线完整 Compose 上只替换应用镜像并补运行模式开关。
+
+    验收套件等实例的 Compose 除 postgres/backend/frontend 外还包含 gitlab 等服务和
+    变量镜像引用；重新生成标准三服务模型会删除这些服务、卷和端口。这里保留基线全文，
+    只变更平台应用镜像和迁移/调度开关，其它服务、卷、网络、挂载、端口与变量约定不变。
+    """
+    text = ctx.baseline_compose_text
+    if not text.strip():
+        fail("baseline Compose content is unavailable for a topology-preserving package")
+    lines = text.splitlines()
+    lines = _replace_service_image(lines, "backend", f"{BACKEND_IMAGE}:{ctx.backend_tag}")
+    lines = _replace_service_image(lines, "frontend", f"{FRONTEND_IMAGE}:{ctx.frontend_tag}")
+    lines = _ensure_service_setting(
+        lines, "backend", "PLATFORM_RUN_MODE", "${PLATFORM_RUN_MODE:-service}"
+    )
+    lines = _ensure_service_setting(
+        lines,
+        "backend",
+        "PLATFORM_BACKGROUND_JOBS_ENABLED",
+        "${PLATFORM_BACKGROUND_JOBS_ENABLED:-${BACKGROUND_JOBS_ENABLED:-false}}",
+    )
+    result = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+    services = compose_service_names(result)
+    expected = {"postgres", "backend", "frontend", *ctx.extra_services}
+    if set(services) != expected:
+        fail(
+            "baseline service topology changed while preparing the release Compose: "
+            f"{services} -> {sorted(expected)}"
+        )
+    return result
+
+
+def _replace_service_image(lines: list[str], service: str, reference: str) -> list[str]:
+    start = _service_start(lines, service)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            break
+        if indent == 4 and line.strip().startswith("image:"):
+            lines[index] = f"    image: {reference}"
+            return lines
+    fail(f"baseline Compose service {service} does not declare an image")
+
+
+def _ensure_service_setting(
+    lines: list[str], service: str, key: str, value: str
+) -> list[str]:
+    start = _service_start(lines, service)
+    block_end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.strip() and not line.startswith((" ", "\t")):
+            block_end = index
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            block_end = index
+            break
+    environment_index: int | None = None
+    environment_end = block_end
+    for index in range(start + 1, block_end):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 4 and stripped == "environment:":
+            environment_index = index
+            for candidate in range(index + 1, block_end):
+                candidate_line = lines[candidate]
+                candidate_indent = len(candidate_line) - len(candidate_line.lstrip())
+                if candidate_line.strip() and candidate_indent <= 4:
+                    environment_end = candidate
+                    break
+            break
+    entry = f"      {key}: \"{value}\""
+    if environment_index is not None:
+        for index in range(environment_index + 1, environment_end):
+            line = lines[index]
+            indent = len(line) - len(line.lstrip())
+            if indent == 6 and line.strip().startswith(f"{key}:"):
+                lines[index] = entry
+                return lines
+    else:
+        image_index = next(
+            index
+            for index in range(start + 1, block_end)
+            if (len(lines[index]) - len(lines[index].lstrip())) == 4
+            and lines[index].strip().startswith("image:")
+        )
+        lines.insert(image_index + 1, "    environment:")
+        environment_index = image_index + 1
+        environment_end = environment_index + 1
+    lines.insert(environment_end, entry)
+    return lines
+
+
 def initialize_layout(ctx: BuildContext) -> None:
     if ctx.archive_path.exists():
         fail(f"archive already exists: {ctx.archive_path}")
@@ -1074,6 +1402,26 @@ def incremental_readme(ctx: BuildContext) -> str:
         "all": "议题事实与 MR 事实（all）",
     }
     scope_label = scope_labels[ctx.fact_rebuild_scope] if ctx.require_fact_rebuild else "无"
+    if ctx.preserve_baseline_topology:
+        extra_services = "、".join(ctx.extra_services)
+        container_inventory = (
+            f"列出的容器必须包含本实例的 postgres、backend、frontend 三个平台服务；"
+            f"基线中的其它服务（{extra_services}）必须保留，升级和回滚不得停止或重建它们。"
+        )
+        volume_warning = "- 不要删除任何平台 PostgreSQL volume，也不要删除或重建基线中的其它数据卷（包括 GitLab 数据卷）。"
+        running_inventory = (
+            f"检查当前平台三个服务均在运行（postgres 必须为 healthy），"
+            f"基线中的其它服务（{extra_services}）保持原状："
+        )
+        topology_note = (
+            f"本包沿用直接基线的完整服务拓扑（postgres、backend、frontend、{extra_services}），"
+            "只替换 backend/frontend 应用镜像；GitLab 等其它服务、网络、卷、挂载、端口与现场 `.env` 均保持不变。"
+        )
+    else:
+        container_inventory = "列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。"
+        volume_warning = "- 不要删除 `qaflex_pgdata` 或任何 PostgreSQL volume。"
+        running_inventory = "检查当前三个服务均在运行，postgres 必须为 healthy："
+        topology_note = ""
     if ctx.require_fact_rebuild:
         fact_section = f"""\
 ## 6. 事实层重建与完成判据
@@ -1303,7 +1651,7 @@ sudo docker ps --format '{{{{.Names}}}} project={{{{.Label "com.docker.compose.p
   | grep -F "$(grep '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2)"
 ```
 
-列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。
+{container_inventory}
 """
 
     restore_step_no = 6 if ctx.require_ods_correction else 4
@@ -1364,6 +1712,8 @@ SQL
 
 本包用于既有内网实例的受控升级。它保留现有 PostgreSQL 容器、volume、镜像表、事实表、同步状态、平台配置和业务数据，只重新创建后端与前端应用容器。
 
+{topology_note}
+
 打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）：
 
 ```text
@@ -1385,7 +1735,8 @@ SQL
 ## 禁止操作
 
 - 不要执行 `docker compose down -v`。
-- 不要删除 `qaflex_pgdata` 或任何 PostgreSQL volume。
+{volume_warning}
+- 不要执行 `init-env.py`、`transfer.sh target --init-target/--package` 或任何样本导入；本包不含 `.env`，现场 `.env` 在升级和回滚中保持原样。
 - 不要重建、替换或删除 postgres 容器。
 - 不要清空镜像表、事实表、同步状态、用户、页面设置或平台配置。
 - 不要在内网服务器执行 `docker build`。
@@ -1436,7 +1787,7 @@ pwd
 ls -la .env docker-compose.yml
 ```
 
-检查当前三个服务均在运行，postgres 必须为 healthy：
+{running_inventory}
 
 ```bash
 sudo docker compose --env-file .env ps
@@ -1544,8 +1895,8 @@ FRONTEND_HEALTH_ADDR="$(sudo docker compose --env-file .env port frontend 80 | t
 if [ -z "$BACKEND_HEALTH_ADDR" ] || [ -z "$FRONTEND_HEALTH_ADDR" ]; then echo "无法从有效 Compose 解析发布端口"; exit 1; fi
 BACKEND_HEALTH_ADDR="${{BACKEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
 FRONTEND_HEALTH_ADDR="${{FRONTEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
-case "$BACKEND_HEALTH_ADDR" in \[::\]*) BACKEND_HEALTH_ADDR="127.0.0.1${{BACKEND_HEALTH_ADDR#\[::\]}}" ;; esac
-case "$FRONTEND_HEALTH_ADDR" in \[::\]*) FRONTEND_HEALTH_ADDR="127.0.0.1${{FRONTEND_HEALTH_ADDR#\[::\]}}" ;; esac
+case "$BACKEND_HEALTH_ADDR" in \\[::\\]*) BACKEND_HEALTH_ADDR="127.0.0.1${{BACKEND_HEALTH_ADDR#\\[::\\]}}" ;; esac
+case "$FRONTEND_HEALTH_ADDR" in \\[::\\]*) FRONTEND_HEALTH_ADDR="127.0.0.1${{FRONTEND_HEALTH_ADDR#\\[::\\]}}" ;; esac
 echo "backend=$BACKEND_HEALTH_ADDR frontend=$FRONTEND_HEALTH_ADDR"
 curl -fsS "http://${{BACKEND_HEALTH_ADDR}}/actuator/health"
 curl -fsS "http://${{FRONTEND_HEALTH_ADDR}}/"
@@ -1738,13 +2089,14 @@ db_query() {{
 
 BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
 verify_compose_images "$BASE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"
-BASE_IDENTITY="$(compose_identity <<< "$BASE_CONFIG")" || fail "current Compose identity cannot be read"
-CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$BASE_IDENTITY")" || fail "PostgreSQL volume is not declared"
-CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$BASE_IDENTITY")" || fail "backend log volume is not declared"
+CURRENT_POSTGRES_VOLUME="$(resolve_volume_for_mount "$BASE_CONFIG" postgres /var/lib/postgresql/data)" || fail "PostgreSQL volume is not declared"
+CURRENT_BACKEND_LOG_VOLUME="$(resolve_volume_for_mount "$BASE_CONFIG" backend /app/logs)" || fail "backend log volume is not declared"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ -n "$ENV_POSTGRES_VOLUME" && "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ -n "$ENV_BACKEND_LOG_VOLUME" && "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+# 标准基线通过 .env 声明卷变量；验收套件基线不声明，其卷身份由完整 Compose 的
+# 服务挂载与容器实际挂载交叉验证。若变量存在则必须与解析结果一致。
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
@@ -1876,8 +2228,8 @@ verify_compose_images "$TARGET_CONFIG" "{BACKEND_IMAGE}:{ctx.backend_tag}" "{FRO
 verify_configured_volumes "$BASE_CONFIG" "$TARGET_CONFIG"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
@@ -1927,17 +2279,7 @@ cp "$TARGET_COMPOSE" "$TEMP_COMPOSE"
 "${{DOCKER[@]}}" compose --env-file .env -f "$TEMP_COMPOSE" config >/dev/null
 mv -f "$TEMP_COMPOSE" docker-compose.yml
 trap - EXIT
-BACKEND_HEALTH_ADDR="$(compose port backend 18080 2>/dev/null | tail -n 1)"
-FRONTEND_HEALTH_ADDR="$(compose port frontend 80 2>/dev/null | tail -n 1)"
-[[ -n "$BACKEND_HEALTH_ADDR" && -n "$FRONTEND_HEALTH_ADDR" ]] || fail "cannot resolve published host ports from the effective Compose model"
-# 通配地址不是可连接目标，统一收敛到本机回环；具体端口一律取自已生效 Compose 映射。
-BACKEND_HEALTH_ADDR="${{BACKEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
-FRONTEND_HEALTH_ADDR="${{FRONTEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
-# 只替换位于开头的 IPv6 通配前缀。不能用 `${{var/[::]/...}}`：bash 会把 [::] 当作字符集，
-# 命中第一个冒号，产生 127.0.0.1127.0.0.1:port 这类不可解析地址。
-case "$BACKEND_HEALTH_ADDR" in \[::\]*) BACKEND_HEALTH_ADDR="127.0.0.1${{BACKEND_HEALTH_ADDR#\[::\]}}" ;; esac
-case "$FRONTEND_HEALTH_ADDR" in \[::\]*) FRONTEND_HEALTH_ADDR="127.0.0.1${{FRONTEND_HEALTH_ADDR#\[::\]}}" ;; esac
-
+resolve_health_addresses
 wait_healthy() {{
   local service="$1" timeout_seconds="$2" started container status
   started="$(date +%s)"
@@ -1945,6 +2287,11 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
+    # 基线可能未声明应用健康检查；此时以实际 HTTP 端点作为健康判据，
+    # 不能把 running 当成 healthy，也不能为适配而放宽 unhealthy 判据。
+    if [[ "$status" == "running" || "$status" == "created" || -z "$status" ]]; then
+      probe_application_endpoint "$service" && return 0
+    fi
     if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
       compose logs --no-color --tail 80 "$service" >&2 || true
       fail "$service entered state $status (service health is separate from migration completion)"
@@ -2105,8 +2452,8 @@ verify_compose_images "$CANDIDATE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEN
 verify_configured_volumes "$CURRENT_CONFIG" "$CANDIDATE_CONFIG"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 [[ "$POSTGRES_ID" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
@@ -2136,6 +2483,9 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
+    if [[ "$status" == "running" || "$status" == "created" || -z "$status" ]]; then
+      probe_application_endpoint "$service" && return 0
+    fi
     [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && return 1
     (( $(date +%s) - started < timeout_seconds )) || return 1
     sleep 5
@@ -2143,6 +2493,7 @@ wait_healthy() {{
 }}
 
 start_application() {{
+  resolve_health_addresses || return 1
   (
     export PLATFORM_BACKGROUND_JOBS_ENABLED=false
     compose up -d --no-deps --force-recreate backend
@@ -2215,10 +2566,12 @@ def write_operational_files(ctx: BuildContext) -> None:
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
-        write_text(
-            ctx.package_dir / "docker-compose.yml",
-            compose_content(ctx, external_postgres_volume=True),
+        release_compose = (
+            preserved_compose_content(ctx)
+            if ctx.preserve_baseline_topology
+            else compose_content(ctx, external_postgres_volume=True)
         )
+        write_text(ctx.package_dir / "docker-compose.yml", release_compose)
         write_text(ctx.package_dir / "backup.sh", backup_helper(ctx))
         write_text(ctx.package_dir / "upgrade.sh", upgrade_helper(ctx))
         write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
@@ -2443,6 +2796,16 @@ def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
         fail("package contains forbidden delivery items: " + ", ".join(offenders))
 
 
+def package_compose_validation_args(ctx: BuildContext) -> tuple[str | Path, ...]:
+    args: list[str | Path] = ["docker", "compose"]
+    if ctx.preserve_baseline_topology and ctx.baseline_env_path is not None:
+        # 继承现场拓扑时 Compose 仍引用现场变量，校验必须使用同一份 .env，
+        # 但该文件不进入包内，站点升级时继续使用现场原文件。
+        args.extend(("--env-file", ctx.baseline_env_path))
+    args.extend(("-f", ctx.package_dir / "docker-compose.yml", "config"))
+    return tuple(args)
+
+
 def validate_layout(ctx: BuildContext) -> None:
     for path in required_files(ctx):
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
@@ -2459,13 +2822,7 @@ def validate_layout(ctx: BuildContext) -> None:
             }
         )
         run(
-            (
-                "docker",
-                "compose",
-                "-f",
-                ctx.package_dir / "docker-compose.yml",
-                "config",
-            ),
+            package_compose_validation_args(ctx),
             cwd=ctx.package_dir,
             env=compose_env,
         )
@@ -2599,6 +2956,12 @@ def main(argv: Sequence[str]) -> int:
                 log(f"baseline: {ctx.baseline_name}")
                 log(f"baseline backend: {BACKEND_IMAGE}:{ctx.baseline_backend_tag}")
                 log(f"baseline frontend: {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}")
+                topology = ["postgres", "backend", "frontend", *ctx.extra_services]
+                log(f"baseline services: {', '.join(topology)}")
+                log(
+                    "compose model: "
+                    + ("preserve-baseline-topology" if ctx.preserve_baseline_topology else "standard-three-service")
+                )
             return 0
 
         backend_fallback_used, backend_build_note = build_products(args)
