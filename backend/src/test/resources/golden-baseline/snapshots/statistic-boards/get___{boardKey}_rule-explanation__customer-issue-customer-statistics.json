@@ -124,7 +124,7 @@
       "title" : "延期范围",
       "description" : "常规缺陷且无 GitLab 接口异常、open、命中响应或解决延期，形成集合 L。",
       "inputCount" : 352,
-      "outputCount" : 142,
+      "outputCount" : 110,
       "samples" : [ {
         "label" : "#1809 CCProduct",
         "detail" : "【检入】装配模型检入后可视化查看配合报错与CC中状态不一致——博诚 | 模块:  | 严重程度: LEVEL2 | 优先级: P1"
@@ -135,11 +135,11 @@
         "label" : "#1936 CCProduct",
         "detail" : "【新建工程图】特定操作下，新建工程图中出现其它工程图视图。——博诚 | 模块: 工程图 | 严重程度: LEVEL2 | 优先级: P1"
       }, {
-        "label" : "#2072 CCProduct",
-        "detail" : "【退出编辑零部件】Topdown下编辑零部件尺寸，退出时加载超时，页面崩溃——新佰人（自测） | 模块: 工具、装配 | 严重程度: LEVEL1 | 优先级: P1"
-      }, {
         "label" : "#1963 CCProduct",
         "detail" : "【分割】创建分割3，装饰螺纹效果丢失——售前 | 模块: 特征 | 严重程度: LEVEL2 | 优先级: P1"
+      }, {
+        "label" : "#2197 CCProduct",
+        "detail" : "【模型视图】导入模型创建装饰螺纹线后，生成工程图，只显示一个装饰螺纹线——优云智能 | 模块: 工程图 | 严重程度: LEVEL1 | 优先级: P1"
       } ]
     }, {
       "key" : "requirement-scope",
