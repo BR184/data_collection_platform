@@ -1067,12 +1067,37 @@ public class ReadPublicationRepository {
         connection.rollback(boundary);
         connection.releaseSavepoint(boundary);
         if ("55P03".equals(error.getSQLState())) {
-          LOGGER.info("初始完整版本接管让位，factTable={}, SQLState=55P03, reason={}",table.tableName(),error.getMessage());
+          LOGGER.info("初始完整版本接管让位，factTable={}, SQLState=55P03, reason={}, holders={}",
+              table.tableName(), error.getMessage(), inputLockHolders(tables));
           return false;
         }
         throw error;
       }
     }));
+  }
+
+  /** 让位时记录仍持有输入表锁的其它会话，区分后台维护任务与在途写事务。 */
+  private List<Map<String, Object>> inputLockHolders(List<String> tables) {
+    try {
+      return jdbcTemplate.queryForList(
+          """
+          select a.pid, c.relname, l.mode, a.state, a.xact_start,
+                 left(a.query, 200) as query
+            from pg_locks l
+            join pg_stat_activity a on a.pid = l.pid
+            join pg_class c on c.oid = l.relation
+            join pg_namespace n on n.oid = c.relnamespace
+           where l.locktype = 'relation' and l.granted
+             and a.pid <> pg_backend_pid()
+             and c.relname = any(string_to_array(?, ','))
+             and n.nspname = any(current_schemas(false))
+           order by a.pid, c.relname
+           limit 20
+          """,
+          String.join(",", tables));
+    } catch (RuntimeException diagnosticError) {
+      return List.of(Map.of("diagnosticError", String.valueOf(diagnosticError.getMessage())));
+    }
   }
 
   /** 关闭本候选触及根在该代际的已发布开放修订，使它们停在序号 S。 */

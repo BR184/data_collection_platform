@@ -60,6 +60,8 @@ class IncrementalDeleteTargetedPublicationIntegrationTest {
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:16-alpine")
+          // 一致性夹具不依赖后台维护时序；初始接管遇维护锁的 NOWAIT 让位另有显式锁回归。
+          .withCommand("postgres", "-c", "autovacuum=off")
           .withDatabaseName("qaflex")
           .withUsername("qaflex")
           .withPassword("isolated-test");

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -8,6 +9,7 @@ import com.data.collection.platform.entity.SourceCursorStrategy;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.entity.read.ReadPublication;
 import com.data.collection.platform.entity.read.ReadPublicationDomainKey;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
@@ -24,11 +26,14 @@ import com.data.collection.platform.service.sync.SyncRunFactPublicationCoordinat
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import com.data.collection.platform.service.sync.SyncRunWorkerService;
 import java.net.URI;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,6 +98,8 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:16-alpine")
+          // 一致性夹具不依赖后台维护时序；初始接管遇维护锁的 NOWAIT 让位另有显式锁回归。
+          .withCommand("postgres", "-c", "autovacuum=off")
           .withDatabaseName("qaflex")
           .withUsername("qaflex")
           .withPassword("isolated-test");
@@ -109,6 +116,7 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
   }
 
   @Autowired private JdbcTemplate jdbcTemplate;
+  @Autowired private DataSource dataSource;
   @Autowired private DataSourceProperties dataSourceProperties;
   @Autowired private GitlabConfigService configService;
   @Autowired private GitlabMirrorSchemaService mirrorSchemaService;
@@ -460,6 +468,36 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
     assertIssueFactNotDuplicated(ISSUE_A);
   }
 
+  /**
+   * 定位套件级误报：初始接管的 NOWAIT 让位必须显式失败，不能继续向不存在的基线写入。
+   *
+   * <p>维护锁（与 VACUUM/ANALYZE 同级）与接管竞争时，让位返回空后夹具必须立即失败；
+   * 维护锁释放后同一域仍可完成接管，证明失败只源于并发栅栏而非资料不可采纳。
+   */
+  @Test
+  void initialTakeoverYieldsUnderMaintenanceLockInsteadOfPublishingWithoutBaseline() throws Exception {
+    jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
+    jdbcTemplate.update(
+        "update issue_fact set publication_epoch_id = null, created_by_publication_id = null,"
+            + " visible_from = null, visible_to = null");
+    try (Connection maintenance = dataSource.getConnection()) {
+      maintenance.setAutoCommit(false);
+      try {
+        try (Statement statement = maintenance.createStatement()) {
+          statement.execute("lock table issue_fact in share update exclusive mode");
+        }
+        assertThat(bootstrapIssueDomain()).as("维护锁存在时初始接管让位").isNull();
+        assertThatThrownBy(() -> publishIssueFactsWithinCandidate(List.of(ISSUE_A, ISSUE_B)))
+            .as("让位后不得把定向写入伪装成首个完整版本")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("尚无已认证的完整基线");
+      } finally {
+        maintenance.rollback();
+      }
+    }
+    assertThat(bootstrapIssueDomain()).as("维护锁释放后同一域可以完成接管").isNotNull();
+  }
+
   /** 扫描标签与标签关联两张表，并走完事实发布与投影推进。 */
   private long syncLabelTables() {
     return syncTables(List.of(LABELS_TABLE, LABEL_LINKS_TABLE));
@@ -586,13 +624,25 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
    * <p>域尚无已认证完整基线时增量候选会被拒绝，因此先做初始接管，再在候选内按根构建并发布。
    */
   private void seedIssueFactsThroughPublication(List<Long> rootIds) {
-    readPublicationService.bootstrapInitialVersion(
+    assertThat(bootstrapIssueDomain())
+        .as("初始完整版本接管必须在无并发事务时完成")
+        .isNotNull();
+    publishIssueFactsWithinCandidate(rootIds);
+    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE), null);
+  }
+
+  private ReadPublication bootstrapIssueDomain() {
+    return readPublicationService.bootstrapInitialVersion(
         ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
         "GITLAB",
         Instant.now(),
         SEED_SEAL,
         0L,
         key -> InitialVersionVerification.VerificationResult.accepted());
+  }
+
+  private void publishIssueFactsWithinCandidate(List<Long> rootIds) {
     factTargetPublicationService.publishWithinCandidate(
         new BypassPublicationRequest(
             ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
@@ -603,8 +653,6 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
             null,
             Instant.now(), false),
         target -> factBuildService.rebuildIssueFactsByRootIds(target, rootIds));
-    FactRevisionFixture.completeRequiredProjections(jdbcTemplate, factTargetPublicationService,
-        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE), null);
   }
 
   private void establishReadyIssueGeneration() {

@@ -4,20 +4,44 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
+import com.data.collection.platform.domain.customerissue.CustomerIssueEfficiencyRules;
 import com.data.collection.platform.domain.form.FormScopeBinding;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
+import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.form.FormActorContext;
+import com.data.collection.platform.entity.form.FormCreateRequest;
+import com.data.collection.platform.entity.form.FormCreateResponse;
+import com.data.collection.platform.entity.form.FormRecordView;
+import com.data.collection.platform.entity.form.FormUpdateRequest;
+import com.data.collection.platform.entity.form.FormVoidRequest;
+import com.data.collection.platform.entity.read.FactReadQueryContext;
+import com.data.collection.platform.entity.read.FactReadSelection;
+import com.data.collection.platform.entity.read.PublicationFactTable;
+import com.data.collection.platform.entity.read.PublishedReadContext;
 import com.data.collection.platform.entity.read.ReadPublicationDomainKey;
+import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
+import com.data.collection.platform.entity.statistics.StatisticCellData;
+import com.data.collection.platform.entity.statistics.StatisticRowData;
+import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.service.form.FormRecordService;
 import com.data.collection.platform.service.form.FormVersionSchemaService;
 import com.data.collection.platform.service.read.BypassPublicationRequest;
 import com.data.collection.platform.service.read.FactReadVisibility;
 import com.data.collection.platform.service.read.InitialVersionVerification;
 import com.data.collection.platform.service.read.ReadPublicationService;
+import com.data.collection.platform.service.statistics.CustomerIssueDefectCauseBoardService;
+import com.data.collection.platform.service.statistics.CustomerIssueDelayIssuesBoardService;
+import com.data.collection.platform.service.statistics.CustomerIssueResponseEfficiencyBoardService;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayInputStream;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,7 +50,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,6 +107,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:16-alpine")
+          // 一致性夹具不依赖后台维护时序；初始接管遇维护锁的 NOWAIT 让位另有显式锁回归。
+          .withCommand("postgres", "-c", "autovacuum=off")
           .withDatabaseName("qaflex")
           .withUsername("qaflex")
           .withPassword("isolated-test");
@@ -105,6 +133,12 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private com.data.collection.platform.service.form.FormHeadCaptureService
       formHeadCaptureService;
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
+  @Autowired private FormRecordService formRecordService;
+  @Autowired private CustomerIssueRecordService customerIssueRecordService;
+  @Autowired private CustomerIssueDefectCauseBoardService defectCauseBoardService;
+  @Autowired private CustomerIssueDelayIssuesBoardService delayIssuesBoardService;
+  @Autowired private CustomerIssueResponseEfficiencyBoardService responseEfficiencyBoardService;
+  @Autowired private BusinessDateProvider businessDateProvider;
 
   @Autowired
   @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
@@ -119,6 +153,17 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   private long responseScopeId;
   private long replyScopeId;
   private String responseSpec;
+  private boolean delayRoundsSuppressed;
+
+  private static final Set<String> FORM_RECORD_PERMISSIONS =
+      Set.of(
+          PlatformPermissionCodes.FORM_RECORD_CREATE,
+          PlatformPermissionCodes.FORM_RECORD_EDIT_OWN,
+          PlatformPermissionCodes.FORM_RECORD_DELETE_OWN);
+  private final FormActorContext responseActor =
+      new FormActorContext("u-response", "响应人", FORM_RECORD_PERMISSIONS);
+  private final FormActorContext replyActor =
+      new FormActorContext("u-jia", "甲", FORM_RECORD_PERMISSIONS);
 
   @BeforeEach
   void setUp() {
@@ -130,6 +175,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
             org.mockito.ArgumentMatchers.any(FactType.class));
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanSourceAndFacts();
+    insertFormSourceConfig();
     cleanFormDirectory();
     jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     LabelEventHistoryTestSupport.markComplete(jdbcTemplate, SOURCE_INSTANCE);
@@ -137,6 +183,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     responseSpec = catalog.rawJson(FormTemplateSpecCatalog.ISSUE_RESPONSE);
     responseScopeId = createScope(FormTemplateSpecCatalog.ISSUE_RESPONSE, "issue-response-scope");
     replyScopeId = createScope(FormTemplateSpecCatalog.ISSUE_REPLY, "issue-reply-scope");
+    // 默认不启动后台轮次：多数用例同步重算并断言发布状态，只有显式验证轮次编排的用例才恢复调度。
+    suppressDelayRounds();
   }
 
   @AfterEach
@@ -156,8 +204,31 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     }
   }
 
+  /** 暂停表单公开后的后台轮次，避免异步轮次与测试线程竞争同一域候选。 */
+  private void suppressDelayRounds() {
+    delayRoundsSuppressed = true;
+    org.mockito.Mockito.doNothing()
+        .when(orchestrator)
+        .requestSourceRound(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+  }
+
+  /** 恢复真实轮次调度；仅供显式验证轮次编排的用例使用。 */
+  private void resumeDelayRounds() {
+    if (delayRoundsSuppressed) {
+      delayRoundsSuppressed = false;
+      org.mockito.Mockito.reset(orchestrator);
+    }
+  }
+
+  @AfterEach
+  void restoreDelayRounds() {
+    resumeDelayRounds();
+  }
+
   @Test
   void formPlanWinsOverStaleCommentPlanOnFirstFactAndPeriodicRefresh() {
+    resumeDelayRounds();
     insertSourceIssue(93001L, 81001L, LocalDateTime.of(2026, 11, 1, 10, 0));
     insertResponseNote(93001L, "2026.11.09", LocalDateTime.of(2026, 11, 2, 9, 0));
     insertResponseRecord(
@@ -202,6 +273,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @Test
   void onlyNewFormConsumptionTriggersOneSourceRoundAndUnchangedRunConverges() {
+    resumeDelayRounds();
     insertSourceIssue(93012L, 81012L, LocalDateTime.of(2026, 11, 1, 10, 0));
     insertResponseRecord(
         93012L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
@@ -226,6 +298,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @Test
   void formDrivenRoundConvergesToIdleAndSameInputAddsNoRequest() {
+    resumeDelayRounds();
     insertSourceIssue(93014L, 81014L, LocalDateTime.of(2026, 11, 1, 10, 0));
     insertResponseRecord(
         93014L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
@@ -291,6 +364,28 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       }
     }
     return row;
+  }
+
+  /** 等待平台异步轮次真实收尾，再执行需要独占域候选的同步重算。 */
+  private void awaitPlatformTasksSettled() {
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+    while (System.nanoTime() < deadline) {
+      if (platformExecutorIdle()) {
+        return;
+      }
+      try {
+        Thread.sleep(25L);
+      } catch (InterruptedException error) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("等待平台异步任务收尾被中断", error);
+      }
+    }
+    throw new IllegalStateException("平台异步任务未在期限内收尾");
+  }
+
+  private boolean platformExecutorIdle() {
+    return platformAsyncExecutor.getActiveCount() == 0
+        && platformAsyncExecutor.getThreadPoolExecutor().getQueue().isEmpty();
   }
 
   private Map<String, Object> delayClosureProgress() {
@@ -528,6 +623,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @Test
   void periodicPublishesBusinessChangeEvenWhenBothDelayFlagsStayTrue() {
+    resumeDelayRounds();
     insertSourceIssue(93106L, 81106L, LocalDateTime.of(2026, 11, 2, 10, 0));
     insertResponseRecord(
         93106L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
@@ -685,6 +781,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @Test
   void voidedFormResponseAndReplyClearBusinessValuesAndCommentTemplateReasons() {
+    resumeDelayRounds();
     insertSourceIssue(93105L, 81105L, LocalDateTime.of(2026, 11, 1, 10, 0));
     insertResponseNote(93105L, "2026.11.09", LocalDateTime.of(2026, 11, 2, 9, 0));
     insertCommentFixNote(93105L, LocalDateTime.of(2026, 11, 2, 10, 0));
@@ -960,6 +1057,210 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
   }
 
+  /**
+   * 表单到页面贯通：真实记录入口保存/改期后，客户问题记录、筛选、详情、Excel、原因与延期统计同步换版。
+   *
+   * <p>同一批数据保留旧评论计划 11-09 与一条 COMMENT 权威对照；表单权威下的页面只认表单响应计划，
+   * 改期到 11-15 后延期标记与延期统计同步收敛，周期重算不得回退旧评论。
+   */
+  @Test
+  void formRecordSaveAndEditDriveCustomerIssuePagesStatisticsAndExport() throws Exception {
+    long formIssueId = 93301L;
+    long formIid = 81301L;
+    long commentIssueId = 93302L;
+    long commentIid = 81302L;
+    insertSourceMilestone(701L, "CC2026 R5");
+    insertSourceIssue(formIssueId, formIid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    attachIssueMilestone(formIssueId, 701L);
+    addIssueLabel(formIssueId, 801L, "P1");
+    addIssueLabel(formIssueId, 802L, "模块：草图");
+    insertResponseNote(formIssueId, "2026.11.09", LocalDateTime.of(2026, 11, 1, 12, 0));
+    insertSourceIssue(commentIssueId, commentIid, LocalDateTime.of(2026, 10, 1, 10, 0));
+    attachIssueMilestone(commentIssueId, 701L);
+    insertResponseNote(commentIssueId, "2026.11.09", LocalDateTime.of(2026, 10, 2, 9, 0));
+    registerFormAuthority(formIid, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId);
+    registerFormAuthority(formIid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId);
+
+    FormCreateResponse response = createResponseRecord(formIid, "2026-10-20", "CC2026R4");
+    FormCreateResponse reply = createReplyRecord(formIid);
+    assertThat(response.outcome()).isEqualTo("CREATED");
+    assertThat(reply.outcome()).isEqualTo("CREATED");
+
+    rebuildAllIssueFacts();
+    completeIssueProjections();
+
+    LocalDateTime formResponseAt =
+        formRecordCreatedAt(
+            Long.parseLong(response.record().id()),
+            FormTemplateSpecCatalog.ISSUE_RESPONSE,
+            responseScopeId);
+    Map<String, Object> firstFact = liveFact(formIssueId);
+    assertThat(firstFact.get("planned_resolution_at"))
+        .isEqualTo(LocalDateTime.of(2026, 10, 20, 0, 0));
+    assertThat(firstFact.get("fix_user")).isEqualTo("甲");
+    assertThat(firstFact.get("reason_category")).isEqualTo("编码规范错误");
+    assertThat(firstFact.get("research_template_time"))
+        .as("首次响应时间读取表单记录，而不是旧评论")
+        .isEqualTo(formResponseAt);
+    assertThat(firstFact.get("is_resolve_delayed")).isEqualTo(true);
+
+    awaitPlatformTasksSettled();
+    FactReadSelection beforeEdit = publishedIssueSelection();
+    CustomerIssueRecordRowResponse overdueRow = ccProductRow(beforeEdit, formIid);
+    assertThat(overdueRow.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 10, 20, 0, 0));
+    assertThat(overdueRow.plannedResolutionText()).isEqualTo("2026-10-20");
+    assertThat(overdueRow.plannedMergeVersionBranch()).isEqualTo("CC2026R4");
+    assertThat(overdueRow.fixUser()).isEqualTo("甲");
+    assertThat(overdueRow.reasonCategory()).isEqualTo("编码规范错误");
+    assertThat(overdueRow.resolveDelayed()).isTrue();
+    assertThat(ccProductRow(beforeEdit, commentIid).plannedResolutionAt())
+        .as("COMMENT 对照保持旧评论计划")
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+    assertThat(causeCount(beforeEdit, "standard_error")).isEqualTo(1L);
+    assertThat(delayCount(beforeEdit, "fix_delay_sum")).isEqualTo(1L);
+    assertThat(efficiencyHours(beforeEdit)).isEqualTo(expectedResponseHours(formIssueId, commentIssueId));
+
+    FormRecordView edited =
+        updateResponseRecord(formIid, response.record(), "2026-11-15", "CC2026R4");
+    assertThat(edited.recordVersion()).isGreaterThan(response.record().recordVersion());
+    awaitPlatformTasksSettled();
+    refreshDelayFacts();
+
+    Map<String, Object> refreshed = liveFact(formIssueId);
+    assertThat(refreshed.get("planned_resolution_at"))
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(refreshed.get("is_resolve_delayed")).isEqualTo(false);
+    assertThat(refreshed.get("fix_user")).isEqualTo("甲");
+    assertThat(refreshed.get("reason_category")).isEqualTo("编码规范错误");
+    assertThat(liveFact(commentIssueId).get("planned_resolution_at"))
+        .as("COMMENT 对照不随表单改期变化")
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+
+    FactReadSelection afterEdit = publishedIssueSelection();
+    CustomerIssueRecordRowResponse currentRow = ccProductRow(afterEdit, formIid);
+    assertThat(currentRow.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(currentRow.plannedResolutionText()).isEqualTo("2026-11-15");
+    assertThat(currentRow.plannedMergeVersionBranch()).isEqualTo("CC2026R4");
+    assertThat(currentRow.fixUser()).isEqualTo("甲");
+    assertThat(currentRow.reasonCategory()).isEqualTo("编码规范错误");
+    assertThat(currentRow.resolveDelayed()).isFalse();
+    assertThat(delayCount(afterEdit, "fix_delay_sum"))
+        .as("改期后延期统计减少 1")
+        .isZero();
+    assertThat(causeCount(afterEdit, "standard_error")).isEqualTo(1L);
+    assertThat(efficiencyHours(afterEdit)).isEqualTo(expectedResponseHours(formIssueId, commentIssueId));
+
+    assertThat(filteredIids(afterEdit, new CustomerIssueRecordFilters(
+            null, null, null, null, null, null, null,
+            new CustomerIssueRecordFilters.CcProductFilters(
+                null, "2026-11-15", "2026-11-15", null, null, null))))
+        .contains(formIid)
+        .doesNotContain(commentIid);
+    assertThat(filteredIids(afterEdit, new CustomerIssueRecordFilters(
+            null, null, null, null, null, "甲", null,
+            CustomerIssueRecordFilters.CcProductFilters.empty())))
+        .contains(formIid);
+    assertThat(filteredIids(afterEdit, new CustomerIssueRecordFilters(
+            "编码规范错误", null, null, null, null, null, null,
+            CustomerIssueRecordFilters.CcProductFilters.empty())))
+        .contains(formIid)
+        .doesNotContain(commentIid);
+    assertThat(filteredIids(afterEdit, new CustomerIssueRecordFilters(
+            null, null, null, null, null, null, null,
+            new CustomerIssueRecordFilters.CcProductFilters(
+                null, null, null, "CC2026R4", null, null))))
+        .contains(formIid);
+    CustomerIssueRecordRowResponse detail = customerIssueRecordService.forRead(afterEdit)
+        .findRecord(SOURCE_INSTANCE, PROJECT_ID, formIssueId);
+    assertThat(detail.plannedResolutionAt()).isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(detail.fixUser()).isEqualTo("甲");
+    assertThat(detail.reasonCategory()).isEqualTo("编码规范错误");
+
+    List<String> exportRow = exportedIidRow(afterEdit, formIid);
+    assertThat(exportRow.get(16)).isEqualTo("甲");
+    assertThat(exportRow.get(17)).isEqualTo("2026-11-15");
+    assertThat(exportRow.get(18)).isEqualTo("CC2026R4");
+
+    awaitPlatformTasksSettled();
+    assertThat(liveFact(formIssueId).get("planned_resolution_at"))
+        .as("周期重算仍保持表单计划")
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+  }
+
+  /**
+   * 作废真实保存的响应与回复后，页面、导出与统计同步清空，不得回退旧评论计划。
+   */
+  @Test
+  void voidingFormResponseAndReplyClearsCustomerIssuePagesWithoutCommentFallback() throws Exception {
+    long formIssueId = 93311L;
+    long formIid = 81311L;
+    long commentIssueId = 93312L;
+    long commentIid = 81312L;
+    insertSourceMilestone(711L, "CC2026 R6");
+    insertSourceIssue(formIssueId, formIid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    attachIssueMilestone(formIssueId, 711L);
+    addIssueLabel(formIssueId, 811L, "P1");
+    addIssueLabel(formIssueId, 812L, "模块：工程图");
+    insertResponseNote(formIssueId, "2026.11.09", LocalDateTime.of(2026, 11, 1, 12, 0));
+    insertSourceIssue(commentIssueId, commentIid, LocalDateTime.of(2026, 10, 1, 10, 0));
+    attachIssueMilestone(commentIssueId, 711L);
+    insertResponseNote(commentIssueId, "2026.11.09", LocalDateTime.of(2026, 10, 2, 9, 0));
+    registerFormAuthority(formIid, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId);
+    registerFormAuthority(formIid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId);
+
+    FormCreateResponse response = createResponseRecord(formIid, "2026-11-15", "CC2026R4");
+    FormCreateResponse reply = createReplyRecord(formIid);
+    rebuildAllIssueFacts();
+    completeIssueProjections();
+
+    awaitPlatformTasksSettled();
+    FactReadSelection adopted = publishedIssueSelection();
+    assertThat(ccProductRow(adopted, formIid).plannedResolutionAt())
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(causeCount(adopted, "standard_error")).isEqualTo(1L);
+
+    voidFormRecord(formIid, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        response.record(), responseActor);
+    voidFormRecord(formIid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId,
+        reply.record(), replyActor);
+    awaitPlatformTasksSettled();
+    refreshDelayFacts();
+
+    Map<String, Object> voided = liveFact(formIssueId);
+    assertThat(voided.get("planned_resolution_at")).isNull();
+    assertThat(voided.get("research_template_time")).isNull();
+    assertThat(voided.get("fix_user")).isNull();
+    assertThat(voided.get("reason_category")).isEqualTo("");
+    assertThat(voided.get("planned_resolution_text")).isEqualTo("");
+
+    FactReadSelection afterVoid = publishedIssueSelection();
+    CustomerIssueRecordRowResponse voidedRow = ccProductRow(afterVoid, formIid);
+    assertThat(voidedRow.plannedResolutionAt()).isNull();
+    assertThat(voidedRow.plannedResolutionText()).isEmpty();
+    assertThat(voidedRow.fixUser()).isEmpty();
+    assertThat(voidedRow.reasonCategory()).isEmpty();
+    assertThat(causeCount(afterVoid, "standard_error")).isZero();
+    assertThat(delayCount(afterVoid, "fix_delay_sum")).isZero();
+    assertThat(efficiencyHours(afterVoid))
+        .as("作废后样本不再贡献响应周期")
+        .isEqualTo(expectedResponseHours(commentIssueId));
+
+    assertThat(filteredIids(afterVoid, new CustomerIssueRecordFilters(
+            null, null, null, null, null, null, null,
+            new CustomerIssueRecordFilters.CcProductFilters(
+                null, "2026-11-09", "2026-11-09", null, null, null))))
+        .as("不回落旧评论计划，但 COMMENT 对照仍按旧评论出现")
+        .contains(commentIid)
+        .doesNotContain(formIid);
+    assertThat(ccProductRow(afterVoid, commentIid).plannedResolutionAt())
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
+
+    List<String> exportRow = exportedIidRow(afterVoid, formIid);
+    assertThat(exportRow.get(16)).isEmpty();
+    assertThat(exportRow.get(17)).isEmpty();
+    assertThat(exportRow.get(18)).isEmpty();
+  }
+
   private UUID currentIssuePublication() {
     List<UUID> ids = jdbcTemplate.queryForList(
         "select current_publication_id from read_publication_domains"
@@ -1016,6 +1317,342 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         templateKey,
         scopeId,
         authority);
+  }
+
+  private void insertSourceMilestone(long milestoneId, String title) {
+    jdbcTemplate.update(
+        "insert into ods_gitlab_milestones(id, title, project_id, mirror_deleted)"
+            + " values (?, ?, ?, false)",
+        milestoneId,
+        title,
+        PROJECT_ID);
+  }
+
+  private void attachIssueMilestone(long issueId, long milestoneId) {
+    jdbcTemplate.update(
+        "update ods_gitlab_issues set milestone_id = ? where id = ?", milestoneId, issueId);
+  }
+
+  private void addIssueLabel(long issueId, long labelId, String title) {
+    jdbcTemplate.update(
+        "insert into ods_gitlab_labels(id, title, mirror_deleted) values (?, ?, false)",
+        labelId,
+        title);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_label_links(id, label_id, target_id, target_type, mirror_deleted)
+        values (?, ?, ?, 'Issue', false)
+        """,
+        labelId + 9000L,
+        labelId,
+        issueId);
+  }
+
+  /** 复用既有夹具登记持久权威；真实记录入口只负责写入业务值。 */
+  private void registerFormAuthority(long iid, String templateKey, long scopeId) {
+    jdbcTemplate.update(
+        """
+        insert into form_resource_authorities(
+            source_config_id, source_instance, canonical_gitlab_base_url, project_id,
+            resource_type, resource_id, template_key, scope_id, authority, authority_revision,
+            effective_at, created_at, updated_at)
+        select s.source_config_id, s.source_instance, s.canonical_gitlab_base_url, ?, 'issue', ?,
+               ?, s.id, 'FORM', 1, current_timestamp, current_timestamp, current_timestamp
+          from form_template_scopes s where s.id = ?
+        on conflict (source_config_id, project_id, resource_type, resource_id, template_key)
+        do nothing
+        """,
+        PROJECT_ID,
+        iid,
+        templateKey,
+        scopeId);
+  }
+
+  /** 真实写入入口会核验生效范围的来源配置；配置在标记标签事件历史前建立。 */
+  private void insertFormSourceConfig() {
+    jdbcTemplate.update(
+        """
+        insert into gitlab_sync_configs(
+            id, name, db_name, db_username, db_password, web_base_url)
+        values (?, 'form-page-source', 'qaflex', 'qaflex', 'secret', ?)
+        """,
+        SOURCE_CONFIG_ID,
+        CANONICAL_URL);
+  }
+
+  private FormCreateResponse createResponseRecord(long iid, String plannedDate, String branch) {
+    return formRecordService.create(
+        new FormCreateRequest(
+            CANONICAL_URL,
+            PROJECT_ID,
+            "issue",
+            Long.toString(iid),
+            FormTemplateSpecCatalog.ISSUE_RESPONSE,
+            Long.toString(responseScopeId),
+            Long.toString(currentVersionId(responseScopeId)),
+            UUID.randomUUID().toString(),
+            false,
+            formFields(responseFields(plannedDate, branch))),
+        responseActor,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private FormCreateResponse createReplyRecord(long iid) {
+    return formRecordService.create(
+        new FormCreateRequest(
+            CANONICAL_URL,
+            PROJECT_ID,
+            "issue",
+            Long.toString(iid),
+            FormTemplateSpecCatalog.ISSUE_REPLY,
+            Long.toString(replyScopeId),
+            Long.toString(currentVersionId(replyScopeId)),
+            UUID.randomUUID().toString(),
+            false,
+            formFields(replyFields())),
+        replyActor,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private FormRecordView updateResponseRecord(
+      long iid, FormRecordView current, String plannedDate, String branch) {
+    long versionId = currentVersionId(responseScopeId);
+    return formRecordService.update(
+        current.id(),
+        new FormUpdateRequest(
+            CANONICAL_URL,
+            PROJECT_ID,
+            "issue",
+            Long.toString(iid),
+            FormTemplateSpecCatalog.ISSUE_RESPONSE,
+            Long.toString(responseScopeId),
+            Long.toString(versionId),
+            Long.toString(versionId),
+            current.recordVersion(),
+            formFields(responseFields(plannedDate, branch))),
+        responseActor,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private FormRecordView voidFormRecord(
+      long iid,
+      String templateKey,
+      long scopeId,
+      FormRecordView current,
+      FormActorContext actor) {
+    long versionId = currentVersionId(scopeId);
+    return formRecordService.voidRecord(
+        current.id(),
+        new FormVoidRequest(
+            CANONICAL_URL,
+            PROJECT_ID,
+            "issue",
+            Long.toString(iid),
+            templateKey,
+            Long.toString(scopeId),
+            Long.toString(versionId),
+            Long.toString(versionId),
+            current.recordVersion(),
+            true,
+            "作废"),
+        actor,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private ObjectNode responseFields(String plannedDate, String branch) {
+    ObjectNode node = objectMapper.createObjectNode();
+    node.put("problemType", "DEFECT");
+    node.put("problemCause", "部署后响应超时");
+    node.put("modificationPlan", "调整超时阈值");
+    node.putNull("ownerConfirmation");
+    node.put("plannedResolutionDate", plannedDate);
+    node.put("plannedMergeVersionBranch", branch);
+    node.putNull("supplementNote");
+    return node;
+  }
+
+  private ObjectNode replyFields() {
+    ObjectNode node = objectMapper.createObjectNode();
+    node.put("fixStatus", "RESOLVED");
+    node.set("causeKeys", array("standard_error"));
+    node.put("specificReason", "编码规范错误");
+    node.put("modificationPlan", "补充校验");
+    node.put("causedByOtherDefect", false);
+    node.set("affectedKinds", array("NONE"));
+    node.putNull("knownAffectedFunctions");
+    node.putNull("newAffectedFunctions");
+    node.put("impactTestStatus", "NOT_APPLICABLE");
+    node.put("hasResidualImpact", false);
+    node.putNull("residualImpactDetail");
+    node.put("relationTableUpdated", "NOT_APPLICABLE");
+    node.putNull("supplementNote");
+    return node;
+  }
+
+  private ArrayNode array(String... values) {
+    ArrayNode node = objectMapper.createArrayNode();
+    for (String value : values) {
+      node.add(value);
+    }
+    return node;
+  }
+
+  private Map<String, JsonNode> formFields(ObjectNode node) {
+    Map<String, JsonNode> fields = new LinkedHashMap<>();
+    node.fields().forEachRemaining(entry -> fields.put(entry.getKey(), entry.getValue()));
+    return fields;
+  }
+
+  private LocalDateTime formRecordCreatedAt(long recordId, String templateKey, long scopeId) {
+    long versionId = currentVersionId(scopeId);
+    Timestamp created =
+        jdbcTemplate.queryForObject(
+            "select created_at from " + recordTable(versionId, templateKey, scopeId) + " where id = ?",
+            Timestamp.class,
+            recordId);
+    return created == null ? null : created.toLocalDateTime();
+  }
+
+  /** 页面读取必须绑定链路真实发布出来的版本，而不是另造发布身份。 */
+  private FactReadSelection publishedIssueSelection() {
+    List<FactReadQueryContext> contexts =
+        jdbcTemplate.query(
+            """
+            select d.source_instance, p.epoch_id, p.sequence_no, p.id, p.data_as_of
+              from read_publication_domains d
+              join read_publications p on p.id = d.current_publication_id
+             where d.fact_type = 'ISSUE' and p.state = 'PUBLISHED'
+             order by d.source_instance
+            """,
+            (rs, row) ->
+                new PublishedReadContext(
+                    rs.getString(1),
+                    PublicationFactTable.ISSUE,
+                    rs.getObject(2, UUID.class),
+                    rs.getLong(3),
+                    rs.getObject(4, UUID.class),
+                    rs.getTimestamp(5).toInstant()));
+    assertThat(contexts).as("页面读取必须绑定真实已发布版本").isNotEmpty();
+    return new FactReadSelection(contexts, businessDateProvider.businessDate());
+  }
+
+  private CustomerIssueRecordQueryRequest ccProductQuery(CustomerIssueRecordFilters filters) {
+    return new CustomerIssueRecordQueryRequest(
+        "cc-product",
+        new IssueFactRecordListRequest(
+            PROJECT_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            50,
+            "updatedAt",
+            "desc"),
+        filters,
+        null);
+  }
+
+  private List<Long> filteredIids(
+      FactReadSelection selection, CustomerIssueRecordFilters filters) {
+    return customerIssueRecordService.forRead(selection)
+        .listRecords(ccProductQuery(filters)).records().stream()
+        .map(row -> row.issueIid() == null ? null : row.issueIid().longValue())
+        .toList();
+  }
+
+  private CustomerIssueRecordRowResponse ccProductRow(FactReadSelection selection, long iid) {
+    return customerIssueRecordService.forRead(selection)
+        .listRecords(ccProductQuery(CustomerIssueRecordFilters.empty())).records().stream()
+        .filter(row -> row.issueIid() != null && row.issueIid().longValue() == iid)
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("客户问题列表缺少议题 " + iid));
+  }
+
+  private List<String> exportedIidRow(FactReadSelection selection, long iid) throws Exception {
+    byte[] workbook =
+        customerIssueRecordService.forRead(selection)
+            .exportRecordsWorkbook(ccProductQuery(CustomerIssueRecordFilters.empty()));
+    try (XSSFWorkbook book = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
+      var sheet = book.getSheet("CCProduct议题查询结果");
+      for (int index = 1; index <= sheet.getLastRowNum(); index++) {
+        var row = sheet.getRow(index);
+        if (row == null || row.getCell(0) == null) {
+          continue;
+        }
+        if (("#" + iid).equals(row.getCell(0).getStringCellValue())) {
+          List<String> values = new ArrayList<>();
+          for (int column = 0; column < row.getLastCellNum(); column++) {
+            values.add(row.getCell(column) == null ? "" : row.getCell(column).getStringCellValue());
+          }
+          return values;
+        }
+      }
+    }
+    throw new AssertionError("导出文件缺少议题 " + iid);
+  }
+
+  private long causeCount(FactReadSelection selection, String metricKey) {
+    StatisticBoardResponse board = defectCauseBoardService.forRead(selection).loadBoard(Map.of());
+    return statisticCell(statisticRow(board, "__total__"), metricKey).numericValue();
+  }
+
+  private long delayCount(FactReadSelection selection, String metricKey) {
+    StatisticBoardResponse board =
+        delayIssuesBoardService.forRead(selection).loadBoard(Map.of());
+    return statisticCell(statisticRow(board, "__total__"), metricKey).numericValue();
+  }
+
+  private long efficiencyHours(FactReadSelection selection) {
+    StatisticBoardResponse board =
+        responseEfficiencyBoardService.forRead(selection).loadBoard(Map.of());
+    return statisticCell(statisticRow(board, "__total__"), "response_cycle_hours").numericValue();
+  }
+
+  private long expectedResponseHours(long... issueIds) {
+    List<Long> hours = new ArrayList<>();
+    for (long issueId : issueIds) {
+      Map<String, Object> fact = liveFact(issueId);
+      LocalDateTime research = (LocalDateTime) fact.get("research_template_time");
+      if (research != null) {
+        hours.add(
+            CustomerIssueEfficiencyRules.responseCycleHours(
+                (LocalDateTime) fact.get("created_at_source"), research));
+      }
+    }
+    return CustomerIssueEfficiencyRules.averageResponseHours(hours);
+  }
+
+  private StatisticRowData statisticRow(StatisticBoardResponse board, String rowKey) {
+    return board.rows().stream()
+        .filter(row -> rowKey.equals(row.rowKey()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("看板缺少行 " + rowKey));
+  }
+
+  private StatisticCellData statisticCell(StatisticRowData row, String columnKey) {
+    return row.cells().stream()
+        .filter(cell -> columnKey.equals(cell.columnKey()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("看板缺少列 " + columnKey));
   }
 
   private long createScope(String templateKey, String scopeKey) {
@@ -1533,6 +2170,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     jdbcTemplate.update("delete from form_publication_captures");
     jdbcTemplate.update("delete from form_head_captures");
     jdbcTemplate.update("delete from form_change_heads");
+    jdbcTemplate.update("delete from form_record_audit_logs");
     jdbcTemplate.update("delete from form_resource_authorities");
     jdbcTemplate.update("delete from form_directory_event_cursors");
     jdbcTemplate.update("delete from form_directory_events");
