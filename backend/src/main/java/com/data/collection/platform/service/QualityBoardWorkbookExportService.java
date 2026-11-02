@@ -6,7 +6,9 @@ import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowRespons
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
@@ -73,21 +75,38 @@ public class QualityBoardWorkbookExportService {
     };
   }
 
+  /** 按当前读模式导出走查明细；兼容模式将MR去重后的速率写回原速率列。 */
   public byte[] exportCodeReviewRecordsWorkbook(String projectName, String source) {
     CodeReviewDataReadMode readMode = codeReviewReadSupport.configuredReadMode();
     return exportCodeReviewRecordsWorkbook(projectName, source, readMode);
   }
 
+  /**
+   * 导出当前版本范围内的代码走查明细。兼容模式按固定来源和正数MR IID汇总同一MR的
+   * 新增行数与走查工时，并将累计速率写回原明细的LOC/H、KLOC/H列；正式模式保留原有速率。
+   *
+   * @param projectName 启用的产品版本业务键；为空时使用管理员设置的默认版本
+   * @param source 业务来源；dgm不区分大小写，其它值按cc处理
+   * @param readMode 本次导出冻结的正式或兼容读模式
+   * @return XLSX字节，只有原ALL明细工作表，兼容模式无效MR的两列速率为空
+   */
   public byte[] exportCodeReviewRecordsWorkbook(
       String projectName, String source, CodeReviewDataReadMode readMode) {
     List<QualityBoardCodeReviewRecordExportRow> rows =
         codeReviewReadSupport.codeReviewRecordRows(
             source, normalizeProjectName(projectName), readMode);
+    String normalizedSource = "dgm".equalsIgnoreCase(source == null ? "" : source.trim()) ? "dgm" : "cc";
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       CellStyle header = ExcelExportStyles.createHeaderStyle(workbook);
       CellStyle body = ExcelExportStyles.createBodyStyle(workbook);
+      CellStyle rate = workbook.createCellStyle();
+      rate.cloneStyleFrom(body);
+      rate.setDataFormat(workbook.createDataFormat().getFormat("0.00"));
       Sheet sheet = workbook.createSheet("ALL");
+      Map<String, ReviewRate> reviewRates = readMode == CodeReviewDataReadMode.MATCH_MODE
+          ? summarizeReviewRates(rows, normalizedSource)
+          : Map.of();
       writeHeader(
           sheet,
           header,
@@ -149,8 +168,16 @@ public class QualityBoardWorkbookExportService {
         write(row, 17, item.designSpecificationCount(), body);
         write(row, 18, item.otherSpecificationCount(), body);
         write(row, 19, item.defectCount(), body);
-        write(row, 20, item.reviewSpeedLocPerHour(), body);
-        write(row, 21, item.reviewSpeedKlocPerHour(), body);
+        if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
+          // 兼容模式-MatchMode：原速率列使用MR累计值，无法计算时保留空值。
+          ReviewRate reviewRate = reviewRates.getOrDefault(
+              rateKey(item, normalizedSource), new ReviewRate(null, null));
+          write(row, 20, reviewRate.locPerHour(), rate);
+          write(row, 21, reviewRate.klocPerHour(), rate);
+        } else {
+          write(row, 20, item.reviewSpeedLocPerHour(), body);
+          write(row, 21, item.reviewSpeedKlocPerHour(), body);
+        }
         write(row, 22, item.reviewDefectDensityPerKloc(), body);
         write(row, 23, item.reviewEfficiencyPerHour(), body);
         write(row, 24, item.targetBranch(), body);
@@ -171,6 +198,56 @@ public class QualityBoardWorkbookExportService {
       return output.toByteArray();
     } catch (IOException error) {
       throw new IllegalStateException("Failed to export quality board code review records", error);
+    }
+  }
+
+  private Map<String, ReviewRate> summarizeReviewRates(
+      List<QualityBoardCodeReviewRecordExportRow> rows, String requestedSource) {
+    Map<String, RateAccumulator> accumulators = new LinkedHashMap<>();
+    for (QualityBoardCodeReviewRecordExportRow row : rows) {
+      if (row.mergeRequestIid() != null && row.mergeRequestIid() > 0) {
+        accumulators.computeIfAbsent(rateKey(row, requestedSource), ignored -> new RateAccumulator())
+            .accept(row);
+      }
+    }
+    Map<String, ReviewRate> rates = new LinkedHashMap<>();
+    accumulators.forEach((key, accumulator) -> rates.put(key, accumulator.toRate()));
+    return rates;
+  }
+
+  private String rateKey(QualityBoardCodeReviewRecordExportRow row, String requestedSource) {
+    return requestedSource + ":iid=" + row.mergeRequestIid();
+  }
+
+  private record ReviewRate(Double locPerHour, Double klocPerHour) {}
+
+  private static final class RateAccumulator {
+    private long addedLines;
+    private long minutes;
+    private Integer expectedAddedLines;
+    private boolean invalid;
+
+    private void accept(QualityBoardCodeReviewRecordExportRow row) {
+      if (row.addedLines() == null || row.addedLines() < 0
+          || row.reviewDurationMinutes() == null || row.reviewDurationMinutes() <= 0) {
+        invalid = true;
+        return;
+      }
+      if (expectedAddedLines == null) {
+        expectedAddedLines = row.addedLines();
+        addedLines = row.addedLines();
+      } else if (!expectedAddedLines.equals(row.addedLines())) {
+        invalid = true;
+      }
+      minutes += row.reviewDurationMinutes();
+    }
+
+    private ReviewRate toRate() {
+      if (invalid || expectedAddedLines == null || minutes <= 0) {
+        return new ReviewRate(null, null);
+      }
+      double locPerHour = addedLines * 60D / minutes;
+      return new ReviewRate(locPerHour, locPerHour / 1000D);
     }
   }
 

@@ -71,7 +71,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public String ruleVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-rules@1";
+    return "quality-rd-rules@2";
   }
 
   @Override
@@ -288,14 +288,14 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "code-review-density-cc",
                 "CC代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
-                projectName + " 的 CC 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
+                projectName + " 的 CC：已合并代码走查数据，普通版本读取 dev，SP 版本读取对应精确发布分支，组合版本按成员共享；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
                 "[3.00, 12.00] KLOC",
                 "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
                 "code-review-density-dgm",
                 "DGM代码走查缺陷密度",
                 "合并请求缺陷数合计 / 新增代码行数合计 × 1000",
-                projectName + " 的 DGM 已合并 dev 分支数据；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
+                projectName + " 的 DGM：已合并代码走查数据，普通版本读取 dev，SP 版本读取对应精确发布分支，组合版本按成员共享；按合并请求去重，重复行缺陷数相加、新增行数取第一条",
                 "[3.00, 12.00] KLOC",
                 "同一合并请求仅计一次新增行，重复走查记录的缺陷数累计。"),
             rule(
