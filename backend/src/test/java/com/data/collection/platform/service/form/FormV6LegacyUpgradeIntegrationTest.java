@@ -37,9 +37,9 @@ class FormV6LegacyUpgradeIntegrationTest {
 
   private static final String URL = "http://gitlab.n1-upgrade.local";
   private static final String MAINLINE_HEAD = "20261022.03";
-  private static final String V6_HEAD = "20261102.01";
+  private static final String V6_HEAD = "20261102.05";
   private static final int MAINLINE_MIGRATIONS = 140;
-  private static final int BRANCH_MIGRATIONS = 27;
+  private static final int BRANCH_MIGRATIONS = 31;
   private static final FormActorContext ALICE =
       new FormActorContext("alice", "Alice", java.util.Set.of());
 
@@ -71,7 +71,11 @@ class FormV6LegacyUpgradeIntegrationTest {
       "V20261029_02__form_publication_origin_binding.sql",
       "V20261030_01__form_consumption_capture_foundation.sql",
       "V20261030_02__form_publication_capture_binding.sql",
-      "V20261102_01__form_input_evidence.sql");
+      "V20261102_01__form_input_evidence.sql",
+      "V20261102_02__form_review_fact_projection.sql",
+      "V20261102_03__form_record_export.sql",
+      "V20261102_04__merge_request_fact_form_authority.sql",
+      "V20261102_05__merge_request_fact_form_authority_evidence.sql");
 
   @Container
   private final PostgreSQLContainer<?> POSTGRES =

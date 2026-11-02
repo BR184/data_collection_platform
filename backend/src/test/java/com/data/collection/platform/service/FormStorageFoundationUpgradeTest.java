@@ -119,7 +119,8 @@ class FormStorageFoundationUpgradeTest {
             jdbcTemplate.queryForObject(
                 "select count(*) from platform_permissions where permission_code like 'form.%'",
                 Integer.class))
-        .isEqualTo(4);
+        .as("含新增导出权限键")
+        .isEqualTo(5);
     assertThat(
             jdbcTemplate.queryForObject(
                 "select count(*) from platform_default_role_permissions "

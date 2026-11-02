@@ -740,7 +740,8 @@ class CustomerIssueRequirementLabelAutoChainIntegrationTest {
         """
         select bug_status from issue_fact
          where source_instance = ? and project_id = ? and issue_id = ?
-        """,
+        """
+            + LIVE_REVISION,
         String.class,
         SOURCE_INSTANCE,
         CUSTOMER_PROJECT_ID,
