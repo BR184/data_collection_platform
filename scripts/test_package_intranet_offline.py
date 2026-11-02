@@ -929,6 +929,12 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING')", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
 
+    def test_incremental_readme_forbids_reinitializing_or_reimporting_kit_data(self):
+        content = MODULE.incremental_readme(self.build_context())
+
+        self.assertIn("不要执行 `init-env.py`、`transfer.sh target --init-target/--package` 或任何样本导入", content)
+        self.assertIn("现场 `.env` 在升级和回滚中保持原样", content)
+
     def test_incremental_readme_does_not_claim_application_outputs_are_unchanged(self):
         context = MODULE.BuildContext(
             **{**self.build_context().__dict__, "require_fact_rebuild": False}
