@@ -958,7 +958,7 @@ def address(service_name, target_port):
             host = str(port.get("host_ip") or "127.0.0.1")
             if host in ("0.0.0.0", "::", "[::]"):
                 host = "127.0.0.1"
-            return f"{host}:{published.split(\"-\")[0]}"
+            return f"{host}:{published.split(chr(45))[0]}"
     raise SystemExit(f"{service_name} has no published port {target_port}")
 
 print(address("backend", 18080))
