@@ -189,6 +189,15 @@ drop schema residue_20261030;  -- 仅在确认其中无其他对象时
 
 回归：`FormTemplateAdminIntegrationTest` 22/22（含发布自动声明与写入权威前置）、`FormRecordServiceIntegrationTest` 38/38、`FormV6RegistrationIntegrationTest` 21/21（含登记自动声明）、`FormIssueAdoptionFactPipelineIntegrationTest` 23/23、FactBuild/编排/客户问题标记/输入解析/控制器 39/39；迁移锁 169 条，文本空白、产物、运行时路径与 `git diff --check` 通过。未跑默认全量/页面矩阵/黄金；未改批准 UI、既有迁移、共享库或外部数据；N4 收口、N5/main/出包/生产启用仍未准入。
 
+## c6928276 复验整改（R03/R04，2026-11-02）
+
+| 项 | 反例与根因 | 整改与验证 |
+| --- | --- | --- |
+| R03 共同字段被投影绕过 | 两版规范数 2/3、同为 integer 但登记单位不同，选择器返回 `incompatible_value_type`，`FormReviewProjectionService` 仍从 `perVersion` 取各版合同并加成 5 | 共同集合按范围内全部权威版本一次判定，分片/分 MR 读取不再缩小参与版本集；投影只保留 `selection.common()` 的稳定身份，先用 common 确定准入、再用各版合同定位真实字段；五类问题数任一类别不完整时缺陷合计显式为 null，不报部分合计。回归：不同单位下规范数为 null（不再 5）、时长 30 保留、缺陷/密度 null；删“其他”时独有字段不参与汇总、原记录 0 不变、真正共同字段 0 保留。`FormReviewProjectionIntegrationTest` 3/3、`FormMergeRequestFactPipelineIntegrationTest` 3/3 |
+| R04 空 FORM 被算成 COMMENT | 一个持久 FORM 权威 MR 无记录、一个 COMMENT MR 有 100 分钟，overview 与分桶仅凭 `form_review_fact` 是否存在推断，返回 COMMENT MR=2、均时 100 | 新增前向迁移 `V20261102_04__merge_request_fact_form_authority.sql` 与 `merge_request_fact_authority` 表，事实持久化在候选事务内按冻结输入权威写入，随事实修订原子公开；历史事实一次性回填，新构建不再按投影行数推断。overview 与分桶改用发布事实的权威分区：空 FORM 仍为 FORM，MR 数 1、记录数 0、均时 null，不计入 COMMENT 的 MR 数或分母；混合/分桶整体均时仍为 null。回归：纯 COMMENT=100、混合 FORM=15/COMMENT=100、空 FORM+COMMENT 得 FORM(1,0,null)/COMMENT(1,1,100)，`CodeReviewMultiBoardFormRecordsIntegrationTest` 3/3；MR 新增/编辑/作废后权威仍 FORM，`FormMergeRequestFactPipelineIntegrationTest` 3/3 |
+
+回归：`MergeRequestFactPersistenceServiceTest` 5/5、`CodeReviewMultiBoardServiceTest` 3/3；170 条迁移锁、文本空白、产物、运行时路径与 `git diff --check` 通过。R01/R02/R05/R06 与 P1—P3 不重做；未跑默认全量/页面矩阵/黄金，未改批准 UI、既有迁移、共享库或外部数据；N4 整体、N5/main/出包及生产启用仍未准入。
+
 ## 用户裁定（2026-10-30，不再提供选择题）
 
 - **MR 跨版口径 C：逐记录投影**。所有有效、可比较的走查记录参与统计，不取 `max`、不只留最新一条：两条记录时长 10/20 分钟→总时长 30、平均 15；规范问题 2/3→5。MR 事实仍按资源唯一一行；质量分析按记录 sum/count。否决 A（逐列 max）与 B（仅最新）。

@@ -191,6 +191,7 @@ class FormMergeRequestFactPipelineIntegrationTest {
         "JUnit");
     rebuildAndPublish();
     assertThat(formReviewFactCount()).isZero();
+    assertFormAuthority("FORM");
     Map<String, Object> voided = liveFact();
     assertThat(voided.get("review_duration_minutes")).isNull();
     assertThat(voided.get("code_specification_count")).isNull();
@@ -346,6 +347,22 @@ class FormMergeRequestFactPipelineIntegrationTest {
     assertThat(fact.get("defect_count")).isEqualTo(defect);
     assertThat(fact.get("review_status")).isEqualTo("COMPLETED");
     assertThat(fact.get("reviewer_names")).isEqualTo("走查人");
+    assertFormAuthority("FORM");
+  }
+
+  private void assertFormAuthority(String expected) {
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select authority.form_authority from merge_request_fact_authority authority"
+                    + " join merge_request_fact f on f.id = authority.merge_request_revision_id"
+                    + " where f.source_instance = ? and f.project_id = ?"
+                    + " and f.merge_request_iid = ? and "
+                    + FactReadVisibility.liveRevisionPredicate("f"),
+                String.class,
+                SOURCE_INSTANCE,
+                PROJECT_ID,
+                MR_IID))
+        .isEqualTo(expected);
   }
 
   private Map<String, Object> liveFact() {

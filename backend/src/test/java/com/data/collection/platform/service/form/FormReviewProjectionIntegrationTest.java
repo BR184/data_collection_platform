@@ -94,6 +94,8 @@ class FormReviewProjectionIntegrationTest {
         projectionService.load("default", List.of(formFact, commentFact));
     projectionService.apply(List.of(formFact, commentFact), projection);
 
+    assertThat(formFact.getFormAuthority()).isEqualTo("FORM");
+    assertThat(commentFact.getFormAuthority()).isEqualTo("COMMENT");
     assertThat(projection.records()).as("两版各一记录").hasSize(2);
     assertThat(projection.records())
         .as("记录 2、MR 1")
@@ -202,14 +204,119 @@ class FormReviewProjectionIntegrationTest {
     assertThat(projection.records())
         .filteredOn(record -> record.recordId() == 9001L)
         .singleElement()
-        .satisfies(record -> assertThat(record.otherCount()).as("显式 0 保留").isZero());
+        .satisfies(record -> {
+          assertThat(record.otherCount()).as("独有字段不进入共同汇总").isNull();
+          assertThat(record.performanceCount()).as("真正共同字段的 0 保留").isZero();
+        });
+    assertThat(
+            jdbc.queryForObject(
+                "select other_count from " + v1.recordTable() + " where id = 9001", Integer.class))
+        .as("原记录值不被修改")
+        .isZero();
     assertThat(formFact.getReviewDurationMinutes()).isEqualTo(30);
     assertThat(formFact.getCodeSpecificationCount()).isEqualTo(5);
-    assertThat(formFact.getOtherSpecificationCount()).isZero();
-    assertThat(formFact.getDefectCount()).isEqualTo(5);
-    assertThat(formFact.getReviewDefectDensityPerKloc())
-        .isEqualByComparingTo(new BigDecimal("50.00"));
+    assertThat(formFact.getOtherSpecificationCount()).isNull();
+    assertThat(formFact.getPerformanceSpecificationCount()).isZero();
+    assertThat(formFact.getDefectCount()).as("类别不完整时不报部分合计").isNull();
+    assertThat(formFact.getReviewDefectDensityPerKloc()).isNull();
     assertThat(formFact.getReviewStatus()).isEqualTo("COMPLETED");
+    assertThat(formFact.getFormAuthority()).isEqualTo("FORM");
+  }
+
+  @Test
+  void incompatibleUnitsExcludeSpecificationFromProductionAggregation() {
+    JdbcTemplate jdbc = FormV6TestSupport.migrate(postgres);
+    FormV6TestSupport.WiredServices services = FormV6TestSupport.wire(jdbc);
+    long configId = FormV6TestSupport.insertSourceConfig(jdbc, URL);
+    long scopeId =
+        FormV6TestSupport.insertScope(
+            jdbc, "code_review", "p4-unit-conflict", configId, URL, PROJECT_ID, "DRAFT");
+    String spec = new FormTemplateSpecCatalog(new ObjectMapper())
+        .rawJson(FormTemplateSpecCatalog.CODE_REVIEW);
+    FormV6TestSupport.FixtureTables v1 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "V1", spec, "PUBLISHED", true);
+    FormV6TestSupport.FixtureTables v2 =
+        FormV6TestSupport.createRecordVersion(
+            jdbc, scopeId, "code_review", "V2", spec, "PUBLISHED", true);
+    long v1Id = versionId(jdbc, scopeId, v1.recordTable());
+    long v2Id = versionId(jdbc, scopeId, v2.recordTable());
+    long instanceV1 =
+        FormV6TestSupport.insertInstance(
+            jdbc, v1.instanceTable(), scopeId, configId, URL, PROJECT_ID, ISSUE_IID);
+    long instanceV2 =
+        FormV6TestSupport.insertInstance(
+            jdbc, v2.instanceTable(), scopeId, configId, URL, PROJECT_ID, ISSUE_IID);
+    insertRecord(
+        jdbc, v1.recordTable(), instanceV1, v1Id, 9001L, "u-alice", "Alice", 10, 2,
+        LocalDateTime.of(2026, 1, 1, 10, 0), false);
+    insertRecord(
+        jdbc, v2.recordTable(), instanceV2, v2Id, 9002L, "u-bob", "Bob", 20, 3,
+        LocalDateTime.of(2026, 1, 2, 10, 0), false);
+    insertLocation(jdbc, scopeId, v1Id, v1Id, "MATERIALIZED", instanceV1, configId, 9001L, v1Id);
+    insertLocation(jdbc, scopeId, v2Id, v2Id, "MATERIALIZED", instanceV2, configId, 9002L, v2Id);
+    FormV6TestSupport.insertFormAuthority(
+        jdbc, scopeId, "code_review", "merge_request", PROJECT_ID, ISSUE_IID);
+    registerSpecification(services, scopeId, v1Id, "count");
+    registerSpecification(services, scopeId, v2Id, "minute");
+    services.comparableService().ensureVersionDeclarations(scopeId, v1Id, null);
+    services.comparableService().ensureVersionDeclarations(scopeId, v2Id, v1Id);
+
+    MergeRequestFact formFact = fact(ISSUE_ID, ISSUE_IID, 100);
+    FormCommonFieldService commonFieldService =
+        new FormCommonFieldService(
+            jdbc,
+            services.contextService(),
+            services.reader(),
+            services.comparableService(),
+            new ObjectMapper());
+    FormReviewProjectionService projectionService =
+        new FormReviewProjectionService(
+            jdbc,
+            services.reader(),
+            commonFieldService,
+            services.comparableService(),
+            services.contextService());
+    FormCommonFieldService.Selection selection =
+        commonFieldService.selectForVersions(List.of(v1Id, v2Id));
+    FormReviewProjectionService.Projection projection =
+        projectionService.load("default", List.of(formFact));
+    projectionService.apply(List.of(formFact), projection);
+
+    assertThat(selection.unmerged())
+        .anySatisfy(
+            field -> {
+              assertThat(field.stableId()).isEqualTo("code_review.specification_count");
+              assertThat(field.reason()).isEqualTo("incompatible_value_type");
+            });
+    assertThat(projection.records()).hasSize(2);
+    assertThat(projection.records())
+        .allSatisfy(record -> assertThat(record.specificationCount()).isNull());
+    assertThat(formFact.getReviewDurationMinutes()).as("其余共同字段仍参与").isEqualTo(30);
+    assertThat(formFact.getCodeSpecificationCount()).as("不得再用 perVersion 加成 5").isNull();
+    assertThat(formFact.getDefectCount()).as("类别不完整时不报部分合计").isNull();
+    assertThat(formFact.getReviewDefectDensityPerKloc()).isNull();
+    assertThat(formFact.getFormAuthority()).isEqualTo("FORM");
+  }
+
+  private static void registerSpecification(
+      FormV6TestSupport.WiredServices services, long scopeId, long versionId, String unit) {
+    services.tx().execute(
+        status ->
+            services
+                .comparableService()
+                .register(
+                    scopeId,
+                    versionId,
+                    List.of(
+                        new FormComparableRegistrationService.FieldDeclaration(
+                            "specification_count",
+                            "code_review.specification_count",
+                            "code_review.specification_count",
+                            "integer",
+                            unit,
+                            "规范问题数")),
+                    "tester"));
   }
 
   private static String withoutField(ObjectMapper mapper, String raw, String fieldName) {

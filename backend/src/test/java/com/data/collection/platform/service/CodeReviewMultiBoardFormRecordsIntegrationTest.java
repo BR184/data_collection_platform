@@ -31,7 +31,7 @@ class CodeReviewMultiBoardFormRecordsIntegrationTest {
   void formRecordsAverageDurationUsesPerRecordSumOverCount() {
     JdbcTemplate jdbc = migrated();
     long revisionId =
-        insertFact(jdbc, 9001L, 501L, "Alice, Bob", 30, 5, 100, "mod");
+        insertFact(jdbc, 9001L, 501L, "Alice, Bob", 30, 5, 100, "mod", "FORM");
     insertReview(jdbc, revisionId, 9101L, "u-alice", "Alice", 10);
     insertReview(jdbc, revisionId, 9102L, "u-bob", "Bob", 20);
 
@@ -50,7 +50,7 @@ class CodeReviewMultiBoardFormRecordsIntegrationTest {
   @Test
   void mixedFormAndCommentKeepPartitionsAndLeaveOverallDurationEmpty() {
     JdbcTemplate jdbc = migrated();
-    insertFact(jdbc, 9002L, 502L, "Alice, Bob", 100, 0, 50, "mod");
+    insertFact(jdbc, 9002L, 502L, "Alice, Bob", 100, 0, 50, "mod", "COMMENT");
 
     CodeReviewMultiBoardOverviewResponse commentOnly =
         service(jdbc).getOverview(new CodeReviewMultiBoardOverviewRequest("cc"));
@@ -61,7 +61,7 @@ class CodeReviewMultiBoardFormRecordsIntegrationTest {
     assertThat(commentOnly.reviewDurationPartitions().getFirst().recordCount()).isEqualTo(1);
 
     long revisionId =
-        insertFact(jdbc, 9001L, 501L, "Alice, Bob", 30, 5, 100, "mod");
+        insertFact(jdbc, 9001L, 501L, "Alice, Bob", 30, 5, 100, "mod", "FORM");
     insertReview(jdbc, revisionId, 9101L, "u-alice", "Alice, Bob", 10);
     insertReview(jdbc, revisionId, 9102L, "u-bob", "Alice, Bob", 20);
 
@@ -95,12 +95,48 @@ class CodeReviewMultiBoardFormRecordsIntegrationTest {
     assertPartition(module.reviewDurationPartitions().get(1), "COMMENT", 1, 1, 100.0);
   }
 
+  @Test
+  void emptyFormAndCommentKeepAuthoritiesSeparated() {
+    JdbcTemplate jdbc = migrated();
+    insertFact(jdbc, 9003L, 503L, "Alice, Bob", 30, 0, 10, "mod", "FORM");
+    insertFact(jdbc, 9004L, 504L, "Alice, Bob", 100, 0, 50, "mod", "COMMENT");
+
+    CodeReviewMultiBoardOverviewResponse overview =
+        service(jdbc).getOverview(new CodeReviewMultiBoardOverviewRequest("cc"));
+
+    assertThat(overview.mergeRequestCount()).isEqualTo(2);
+    assertThat(overview.averageReviewDurationMinutes()).isNull();
+    assertThat(overview.reviewDurationPartitions()).hasSize(2);
+    assertPartition(overview.reviewDurationPartitions().get(0), "FORM", 1, 0, null);
+    assertPartition(overview.reviewDurationPartitions().get(1), "COMMENT", 1, 1, 100.0);
+
+    CodeReviewMultiBoardBreakdownRowResponse owner =
+        overview.ownerRows().stream()
+            .filter(row -> "Alice, Bob".equals(row.rowLabel()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(owner.mergeRequestCount()).isEqualTo(2);
+    assertThat(owner.averageReviewDurationMinutes()).isNull();
+    assertThat(owner.reviewDurationPartitions()).hasSize(2);
+    assertPartition(owner.reviewDurationPartitions().get(0), "FORM", 1, 0, null);
+    assertPartition(owner.reviewDurationPartitions().get(1), "COMMENT", 1, 1, 100.0);
+
+    CodeReviewMultiBoardBreakdownRowResponse module =
+        overview.moduleRows().stream()
+            .filter(row -> "mod".equals(row.rowLabel()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(module.reviewDurationPartitions()).hasSize(2);
+    assertPartition(module.reviewDurationPartitions().get(0), "FORM", 1, 0, null);
+    assertPartition(module.reviewDurationPartitions().get(1), "COMMENT", 1, 1, 100.0);
+  }
+
   private static void assertPartition(
       com.data.collection.platform.entity.CodeReviewDurationPartitionResponse partition,
       String authority,
       int mergeRequestCount,
       int recordCount,
-      double average) {
+      Double average) {
     assertThat(partition.authority()).isEqualTo(authority);
     assertThat(partition.mergeRequestCount()).isEqualTo(mergeRequestCount);
     assertThat(partition.recordCount()).isEqualTo(recordCount);
@@ -123,27 +159,38 @@ class CodeReviewMultiBoardFormRecordsIntegrationTest {
       int duration,
       int defectCount,
       int addedLines,
-      String moduleName) {
-    return jdbc.queryForObject(
+      String moduleName,
+      String formAuthority) {
+    Long revisionId =
+        jdbc.queryForObject(
+            """
+            insert into merge_request_fact(
+                source_system, source_instance, project_id, merge_request_id, merge_request_iid,
+                title, module_name, merge_request_state, reviewer_names, review_status,
+                review_duration_minutes, defect_count, added_lines, deleted,
+                fact_refreshed_at, created_at, updated_at)
+            values ('GITLAB', 'default', 9, ?, ?, 'form-review', ?, 'MERGED',
+                    ?, 'COMPLETED', ?, ?, ?, false,
+                    current_timestamp, current_timestamp, current_timestamp)
+            returning id
+            """,
+            Long.class,
+            mergeRequestId,
+            iid,
+            moduleName,
+            reviewerNames,
+            duration,
+            defectCount,
+            addedLines);
+    jdbc.update(
         """
-        insert into merge_request_fact(
-            source_system, source_instance, project_id, merge_request_id, merge_request_iid,
-            title, module_name, merge_request_state, reviewer_names, review_status,
-            review_duration_minutes, defect_count, added_lines, deleted,
-            fact_refreshed_at, created_at, updated_at)
-        values ('GITLAB', 'default', 9, ?, ?, 'form-review', ?, 'MERGED',
-                ?, 'COMPLETED', ?, ?, ?, false,
-                current_timestamp, current_timestamp, current_timestamp)
-        returning id
+        insert into merge_request_fact_authority(
+            merge_request_revision_id, form_authority, created_at, updated_at)
+        values (?, ?, current_timestamp, current_timestamp)
         """,
-        Long.class,
-        mergeRequestId,
-        iid,
-        moduleName,
-        reviewerNames,
-        duration,
-        defectCount,
-        addedLines);
+        revisionId,
+        formAuthority);
+    return revisionId;
   }
 
   private static void insertReview(

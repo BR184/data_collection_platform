@@ -13,9 +13,11 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -75,6 +77,7 @@ public class FormReviewProjectionService {
       Integer performanceCount,
       Integer designCount,
       Integer otherCount,
+      boolean defectCategoriesComplete,
       LocalDateTime recordCreatedAt) {}
 
   /** 同一 MR 下有效记录的聚合；即使记录为空也保留条目，表示 FORM 权威下不得回退旧值。 */
@@ -95,19 +98,23 @@ public class FormReviewProjectionService {
     }
   }
 
-  /** 一次加载结果：按 MR 根 ID 的聚合与待写入投影行。 */
-  public record Projection(Map<Long, Aggregate> aggregates, List<RecordRow> records) {
+  /** 一次加载结果：按 MR 根 ID 的聚合、待写入投影行与冻结的 FORM 输入权威。 */
+  public record Projection(
+      Map<Long, Aggregate> aggregates, List<RecordRow> records, Set<Long> formMergeRequestIds) {
     public static Projection empty() {
-      return new Projection(Map.of(), List.of());
+      return new Projection(Map.of(), List.of(), Set.of());
     }
   }
 
   /**
    * 读取本批 MR 中已登记 FORM 权威的有效走查记录并计算逐 MR 聚合。
    *
+   * <p>共同字段按同一范围内本次参与的全部版本一次判定，跨 MR 复用同一份 common 集合，
+   * 不按单 MR 的单版合同先通过再混加；无记录的 FORM 资源仍登记为 FORM。
+   *
    * @param sourceInstance 来源实例
    * @param facts 本批 MR 事实；无项目或 IID 的行跳过
-   * @return 聚合与逐记录行；无 FORM 权威时为空
+   * @return 聚合、逐记录行与 FORM 根 ID；无 FORM 权威时为空
    */
   public Projection load(String sourceInstance, List<MergeRequestFact> facts) {
     if (facts == null || facts.isEmpty()) {
@@ -124,6 +131,7 @@ public class FormReviewProjectionService {
     }
     Map<Long, Aggregate> aggregates = new LinkedHashMap<>();
     List<RecordRow> rows = new ArrayList<>();
+    Set<Long> formMergeRequestIds = new LinkedHashSet<>();
     Map<Long, VersionMeta> metaCache = new LinkedHashMap<>();
     for (Map.Entry<Long, Map<String, MergeRequestFact>> project : byProject.entrySet()) {
       long projectId = project.getKey();
@@ -132,17 +140,27 @@ public class FormReviewProjectionService {
           loadAuthorities(sourceInstance, projectId, factsByIid.keySet());
       Map<Long, List<String>> iidsByScope = new LinkedHashMap<>();
       for (Map<String, Object> authority : authorities) {
-        iidsByScope
-            .computeIfAbsent(((Number) authority.get("scope_id")).longValue(), ignored -> new ArrayList<>())
-            .add(String.valueOf(((Number) authority.get("resource_id")).longValue()));
+        long scopeId = ((Number) authority.get("scope_id")).longValue();
+        String iid = String.valueOf(((Number) authority.get("resource_id")).longValue());
+        MergeRequestFact fact = factsByIid.get(iid);
+        if (fact != null && fact.getMergeRequestId() != null) {
+          formMergeRequestIds.add(fact.getMergeRequestId());
+        }
+        iidsByScope.computeIfAbsent(scopeId, ignored -> new ArrayList<>()).add(iid);
       }
       for (Map.Entry<Long, List<String>> scope : iidsByScope.entrySet()) {
         long scopeId = scope.getKey();
+        List<FormRecordDirectoryReader.LocatedRecord> locatedForScope =
+            reader.listByResources(scopeId, RESOURCE_TYPE, scope.getValue(), projectId);
         Map<String, List<FormRecordDirectoryReader.LocatedRecord>> recordsByIid =
             new LinkedHashMap<>();
-        for (FormRecordDirectoryReader.LocatedRecord record :
-            reader.listByResources(scopeId, RESOURCE_TYPE, scope.getValue(), projectId)) {
+        for (FormRecordDirectoryReader.LocatedRecord record : locatedForScope) {
           recordsByIid.computeIfAbsent(record.resourceId(), ignored -> new ArrayList<>()).add(record);
+        }
+        Selection selection = selectForRecords(scopeId, locatedForScope, metaCache);
+        Set<String> commonStableIds = new LinkedHashSet<>();
+        for (FieldContract contract : selection.common()) {
+          commonStableIds.add(contract.stableId());
         }
         for (String iid : scope.getValue()) {
           MergeRequestFact fact = factsByIid.get(iid);
@@ -151,31 +169,36 @@ public class FormReviewProjectionService {
           }
           List<FormRecordDirectoryReader.LocatedRecord> located =
               recordsByIid.getOrDefault(iid, List.of());
-          Selection selection = selectForRecords(scopeId, located, metaCache);
           List<RecordRow> recordRows = new ArrayList<>(located.size());
           for (FormRecordDirectoryReader.LocatedRecord record : located) {
-            recordRows.add(toRow(fact, record, selection, metaCache));
+            recordRows.add(toRow(fact, record, selection, commonStableIds, metaCache));
           }
           rows.addAll(recordRows);
           aggregates.put(fact.getMergeRequestId(), aggregate(recordRows));
         }
       }
     }
-    return new Projection(Map.copyOf(aggregates), List.copyOf(rows));
+    return new Projection(Map.copyOf(aggregates), List.copyOf(rows), Set.copyOf(formMergeRequestIds));
   }
 
   /**
-   * 把 FORM 权威聚合覆盖到 MR 事实；未登记 FORM 的 MR 保持来源 SQL 结果。
+   * 把 FORM 权威聚合覆盖到 MR 事实，并冻结本次构建的输入权威。
    *
-   * <p>五类问题数、时长、人员与走查日期均来自同一批有效记录；密度按本 MR 去重后的新增行计算，
+   * <p>只有 FORM 权威的 MR 才覆盖聚合；FORM 无记录时聚合为空但仍标记 FORM，不回落 COMMENT。
+   * 五类问题数、时长、人员与走查日期均来自同一批有效记录；密度按本 MR 去重后的新增行计算，
    * 新增行缺失或不为正时显式为空，不造 0。
    */
   public void apply(List<MergeRequestFact> facts, Projection projection) {
-    if (facts == null || facts.isEmpty() || projection == null || projection.aggregates().isEmpty()) {
+    if (facts == null || facts.isEmpty()) {
       return;
     }
+    Set<Long> formMergeRequestIds =
+        projection == null ? Set.of() : projection.formMergeRequestIds();
     for (MergeRequestFact fact : facts) {
-      Aggregate aggregate = projection.aggregates().get(fact.getMergeRequestId());
+      fact.setFormAuthority(
+          formMergeRequestIds.contains(fact.getMergeRequestId()) ? "FORM" : "COMMENT");
+      Aggregate aggregate =
+          projection == null ? null : projection.aggregates().get(fact.getMergeRequestId());
       if (aggregate == null) {
         continue;
       }
@@ -202,10 +225,6 @@ public class FormReviewProjectionService {
       long scopeId,
       List<FormRecordDirectoryReader.LocatedRecord> located,
       Map<Long, VersionMeta> metaCache) {
-    if (located.isEmpty()) {
-      return new Selection(
-          "NO_COMMON_FIELDS", List.of(), List.of(), List.of(), List.of(), List.of(), Map.of());
-    }
     Map<Long, List<RecordValue>> recordsByVersion = new LinkedHashMap<>();
     for (FormRecordDirectoryReader.LocatedRecord record : located) {
       recordsByVersion
@@ -213,6 +232,15 @@ public class FormReviewProjectionService {
           .add(
               new RecordValue(
                   record.recordId(), record.storageVersionId(), record.deleted(), record.fields()));
+    }
+    // 共同集合按范围内全部权威版本判定，分片/分 MR 读取不能缩小参与版本集。
+    for (FormRecordDirectoryReader.VersionEntry version :
+        reader.captureSourceSet(scopeId).versions()) {
+      recordsByVersion.computeIfAbsent(version.versionId(), ignored -> new ArrayList<>());
+    }
+    if (recordsByVersion.isEmpty()) {
+      return new Selection(
+          "NO_COMMON_FIELDS", List.of(), List.of(), List.of(), List.of(), List.of(), Map.of());
     }
     List<VersionInput> inputs = new ArrayList<>(recordsByVersion.size());
     for (Map.Entry<Long, List<RecordValue>> version : recordsByVersion.entrySet()) {
@@ -255,9 +283,11 @@ public class FormReviewProjectionService {
       MergeRequestFact fact,
       FormRecordDirectoryReader.LocatedRecord record,
       Selection selection,
+      Set<String> commonStableIds,
       Map<Long, VersionMeta> metaCache) {
     VersionMeta meta = metaCache.computeIfAbsent(record.storageVersionId(), this::loadMeta);
-    Map<String, FieldContract> contracts = contractsOf(selection, record.storageVersionId());
+    Map<String, FieldContract> contracts =
+        contractsOf(selection, record.storageVersionId(), commonStableIds);
     FormFieldSpec reviewer = fieldOf(meta, contracts.get(REVIEWER_SEMANTIC_KEY));
     String reviewerId = text(record.fields(), reviewer == null ? null : column(reviewer, true));
     String reviewerName = text(record.fields(), reviewer == null ? null : column(reviewer, false));
@@ -267,6 +297,18 @@ public class FormReviewProjectionService {
     if (reviewerName == null) {
       reviewerName = reviewerId;
     }
+    FieldContract durationContract = contracts.get(REVIEW_DURATION_SEMANTIC_KEY);
+    FieldContract specificationContract = contracts.get(SPECIFICATION_SEMANTIC_KEY);
+    FieldContract logicContract = contracts.get(LOGIC_SEMANTIC_KEY);
+    FieldContract performanceContract = contracts.get(PERFORMANCE_SEMANTIC_KEY);
+    FieldContract designContract = contracts.get(DESIGN_SEMANTIC_KEY);
+    FieldContract otherContract = contracts.get(OTHER_SEMANTIC_KEY);
+    boolean defectCategoriesComplete =
+        specificationContract != null
+            && logicContract != null
+            && performanceContract != null
+            && designContract != null
+            && otherContract != null;
     return new RecordRow(
         fact.getProjectId(),
         fact.getMergeRequestId(),
@@ -277,29 +319,28 @@ public class FormReviewProjectionService {
         record.recordSourceRole(),
         reviewerId,
         reviewerName,
-        integer(record.fields(), fieldOf(meta, contracts.get(REVIEW_DURATION_SEMANTIC_KEY)),
-            contracts.get(REVIEW_DURATION_SEMANTIC_KEY)),
-        integer(record.fields(), fieldOf(meta, contracts.get(SPECIFICATION_SEMANTIC_KEY)),
-            contracts.get(SPECIFICATION_SEMANTIC_KEY)),
-        integer(record.fields(), fieldOf(meta, contracts.get(LOGIC_SEMANTIC_KEY)),
-            contracts.get(LOGIC_SEMANTIC_KEY)),
-        integer(record.fields(), fieldOf(meta, contracts.get(PERFORMANCE_SEMANTIC_KEY)),
-            contracts.get(PERFORMANCE_SEMANTIC_KEY)),
-        integer(record.fields(), fieldOf(meta, contracts.get(DESIGN_SEMANTIC_KEY)),
-            contracts.get(DESIGN_SEMANTIC_KEY)),
-        integer(record.fields(), fieldOf(meta, contracts.get(OTHER_SEMANTIC_KEY)),
-            contracts.get(OTHER_SEMANTIC_KEY)),
+        integer(record.fields(), fieldOf(meta, durationContract), durationContract),
+        integer(record.fields(), fieldOf(meta, specificationContract), specificationContract),
+        integer(record.fields(), fieldOf(meta, logicContract), logicContract),
+        integer(record.fields(), fieldOf(meta, performanceContract), performanceContract),
+        integer(record.fields(), fieldOf(meta, designContract), designContract),
+        integer(record.fields(), fieldOf(meta, otherContract), otherContract),
+        defectCategoriesComplete,
         record.createdAt());
   }
 
-  private Map<String, FieldContract> contractsOf(Selection selection, long versionId) {
+  /** 只保留本次共同集合中的稳定身份；单版合同不能绕过跨版可比性直接进入生产汇总。 */
+  private Map<String, FieldContract> contractsOf(
+      Selection selection, long versionId, Set<String> commonStableIds) {
     Map<String, FieldContract> bySemanticKey = new LinkedHashMap<>();
     List<FieldContract> contracts = selection.perVersion().get(versionId);
     if (contracts == null) {
       return bySemanticKey;
     }
     for (FieldContract contract : contracts) {
-      bySemanticKey.putIfAbsent(contract.semanticKey(), contract);
+      if (commonStableIds.contains(contract.stableId())) {
+        bySemanticKey.putIfAbsent(contract.semanticKey(), contract);
+      }
     }
     return bySemanticKey;
   }
@@ -315,7 +356,10 @@ public class FormReviewProjectionService {
     Integer performance = sum(rows.stream().map(RecordRow::performanceCount).toList());
     Integer design = sum(rows.stream().map(RecordRow::designCount).toList());
     Integer other = sum(rows.stream().map(RecordRow::otherCount).toList());
-    Integer defect = sum(rows.stream().map(FormReviewProjectionService::defectOf).toList());
+    Integer defect =
+        rows.stream().allMatch(RecordRow::defectCategoriesComplete)
+            ? sum(rows.stream().map(FormReviewProjectionService::defectOf).toList())
+            : null;
     LinkedHashMap<String, String> reviewers = new LinkedHashMap<>();
     LocalDateTime walkthroughDate = null;
     for (RecordRow row : rows) {

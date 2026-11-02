@@ -47,11 +47,47 @@ public class MergeRequestFactPersistenceService {
     }
     publicationRepository.requireWritableTarget(target);
     for (int offset = 0; offset < facts.size(); offset += BATCH_SIZE) {
-      factMapper.batchUpsert(
-          facts.subList(offset, Math.min(offset + BATCH_SIZE, facts.size())),
-          target.epochId(),
-          target.publicationId());
+      List<MergeRequestFact> batch = facts.subList(offset, Math.min(offset + BATCH_SIZE, facts.size()));
+      factMapper.batchUpsert(batch, target.epochId(), target.publicationId());
+      upsertFormAuthorityRows(target, batch);
     }
+  }
+
+  /** 在事实修订同一候选事务内冻结输入权威，供统计按发布事实分区。 */
+  private void upsertFormAuthorityRows(
+      FactRevisionTarget target, List<MergeRequestFact> facts) {
+    if (facts.isEmpty()) {
+      return;
+    }
+    jdbcTemplate.batchUpdate(
+        """
+        insert into merge_request_fact_authority(
+          merge_request_revision_id, form_authority, created_at, updated_at)
+        select fact.id, ?, current_timestamp, current_timestamp
+          from merge_request_fact fact
+         where fact.created_by_publication_id = ?
+           and fact.source_system = ?
+           and fact.source_instance = ?
+           and fact.project_id = ?
+           and fact.merge_request_id = ?
+        on conflict (merge_request_revision_id) do update set
+          form_authority = excluded.form_authority,
+          updated_at = current_timestamp
+        """,
+        facts,
+        BATCH_SIZE,
+        (statement, fact) -> {
+          statement.setString(1, normalizeFormAuthority(fact.getFormAuthority()));
+          statement.setObject(2, target.publicationId());
+          statement.setString(3, fact.getSourceSystem());
+          statement.setString(4, fact.getSourceInstance());
+          statement.setObject(5, fact.getProjectId());
+          statement.setObject(6, fact.getMergeRequestId());
+        });
+  }
+
+  private static String normalizeFormAuthority(String authority) {
+    return "FORM".equals(authority) ? "FORM" : "COMMENT";
   }
 
   /**

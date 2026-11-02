@@ -72,7 +72,10 @@ public class CodeReviewMultiBoardService {
             ? queryForMap(
                 """
                 with base as (
-                  select * from %s
+                  select b0.*, coalesce(a.form_authority, 'COMMENT') as form_authority
+                    from %s b0
+                    left join merge_request_fact_authority a
+                      on a.merge_request_revision_id = b0.id
                   %s
                 )
                 select
@@ -86,30 +89,26 @@ public class CodeReviewMultiBoardService {
                   (select round(avg(added_lines)::numeric, 2) from base) as average_added_lines,
                   (select round(avg(r.review_duration_minutes)::numeric, 2)
                      from base b join form_review_fact r on r.merge_request_revision_id = b.id
-                    where r.review_duration_minutes is not null) as form_average_duration,
+                    where b.form_authority = 'FORM'
+                      and r.review_duration_minutes is not null) as form_average_duration,
                   (select count(*)
                      from base b join form_review_fact r on r.merge_request_revision_id = b.id
-                    where r.review_duration_minutes is not null) as form_record_count,
+                    where b.form_authority = 'FORM'
+                      and r.review_duration_minutes is not null) as form_record_count,
                   (select count(distinct b.merge_request_id)
-                     from base b join form_review_fact r on r.merge_request_revision_id = b.id
-                    where r.review_duration_minutes is not null) as form_merge_request_count,
+                     from base b
+                    where b.form_authority = 'FORM') as form_merge_request_count,
                   (select round(avg(b.review_duration_minutes)::numeric, 2)
                      from base b
-                    where b.review_duration_minutes is not null
-                      and not exists (
-                        select 1 from form_review_fact r
-                         where r.merge_request_revision_id = b.id)) as comment_average_duration,
+                    where b.form_authority = 'COMMENT'
+                      and b.review_duration_minutes is not null) as comment_average_duration,
                   (select count(*)
                      from base b
-                    where b.review_duration_minutes is not null
-                      and not exists (
-                        select 1 from form_review_fact r
-                         where r.merge_request_revision_id = b.id)) as comment_record_count,
+                    where b.form_authority = 'COMMENT'
+                      and b.review_duration_minutes is not null) as comment_record_count,
                   (select count(*)
                      from base b
-                    where not exists (
-                      select 1 from form_review_fact r
-                       where r.merge_request_revision_id = b.id)) as comment_merge_request_count
+                    where b.form_authority = 'COMMENT') as comment_merge_request_count
                 """.formatted(readScope.tableName(), scopeSql.whereClause()),
                 scopeSql.args().toArray())
             : queryForMap(
@@ -243,11 +242,15 @@ public class CodeReviewMultiBoardService {
     List<Object> args = new ArrayList<>(scopeSql.args());
     args.add(emptyLabel);
     args.add(emptyLabel);
+    args.add(emptyLabel);
     List<Map<String, Object>> rows =
         queryForList(
             """
             with base as (
-              select * from %s
+              select b0.*, coalesce(a.form_authority, 'COMMENT') as form_authority
+                from %s b0
+                left join merge_request_fact_authority a
+                  on a.merge_request_revision_id = b0.id
               %s
             ), record_rows as (
               select 'FORM' as authority, %s as row_label,
@@ -255,14 +258,23 @@ public class CodeReviewMultiBoardService {
                      b.project_id, b.merge_request_id,
                      r.review_duration_minutes as duration
                 from base b join form_review_fact r on r.merge_request_revision_id = b.id
+               where b.form_authority = 'FORM'
               union all
               select 'COMMENT' as authority, %s as row_label,
                      b.review_status, b.comment_rate, b.defect_count, b.added_lines,
                      b.project_id, b.merge_request_id,
                      b.review_duration_minutes as duration
                 from base b
-               where not exists (
-                 select 1 from form_review_fact r where r.merge_request_revision_id = b.id)
+               where b.form_authority = 'COMMENT'
+              union all
+              select 'FORM' as authority, %s as row_label,
+                     b.review_status, b.comment_rate, b.defect_count, b.added_lines,
+                     b.project_id, b.merge_request_id,
+                     null::integer as duration
+                from base b
+               where b.form_authority = 'FORM'
+                 and not exists (
+                   select 1 from form_review_fact r where r.merge_request_revision_id = b.id)
             ), mr_rows as (
               select distinct row_label, project_id, merge_request_id, review_status,
                      comment_rate, defect_count, added_lines
@@ -281,15 +293,17 @@ public class CodeReviewMultiBoardService {
               select row_label,
                      round(avg(duration) filter (where authority = 'FORM')::numeric, 2)
                        as form_average_duration,
-                     count(*) filter (where authority = 'FORM') as form_record_count,
+                     count(*) filter (where authority = 'FORM' and duration is not null)
+                       as form_record_count,
                      count(distinct (project_id, merge_request_id))
                        filter (where authority = 'FORM') as form_merge_request_count,
                      round(avg(duration) filter (where authority = 'COMMENT')::numeric, 2)
                        as comment_average_duration,
-                     count(*) filter (where authority = 'COMMENT') as comment_record_count,
+                     count(*) filter (where authority = 'COMMENT' and duration is not null)
+                       as comment_record_count,
                      count(distinct (project_id, merge_request_id))
                        filter (where authority = 'COMMENT') as comment_merge_request_count
-                from record_rows where duration is not null group by row_label
+                from record_rows group by row_label
             )
             select m.row_label,
                    m.merge_request_count,
@@ -309,13 +323,17 @@ public class CodeReviewMultiBoardService {
              order by m.merge_request_count desc, m.row_label
             """
                 .formatted(
-                    readScope.tableName(), scopeSql.whereClause(), recordLabel, nonFormLabel),
+                    readScope.tableName(),
+                    scopeSql.whereClause(),
+                    recordLabel,
+                    nonFormLabel,
+                    nonFormLabel),
             args.toArray());
     List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       String label = String.valueOf(row.get("row_label"));
       List<CodeReviewDurationPartitionResponse> partitions = new ArrayList<>();
-      if (intValue(row.get("form_record_count")) > 0) {
+      if (intValue(row.get("form_merge_request_count")) > 0) {
         partitions.add(
             new CodeReviewDurationPartitionResponse(
                 "FORM",
@@ -323,7 +341,7 @@ public class CodeReviewMultiBoardService {
                 intValue(row.get("form_record_count")),
                 doubleValue(row.get("form_average_duration"))));
       }
-      if (intValue(row.get("comment_record_count")) > 0) {
+      if (intValue(row.get("comment_merge_request_count")) > 0) {
         partitions.add(
             new CodeReviewDurationPartitionResponse(
                 "COMMENT",
@@ -358,7 +376,7 @@ public class CodeReviewMultiBoardService {
       Map<String, Object> summary, boolean formEnabled) {
     List<CodeReviewDurationPartitionResponse> partitions = new ArrayList<>();
     if (formEnabled) {
-      if (intValue(summary.get("form_record_count")) > 0) {
+      if (intValue(summary.get("form_merge_request_count")) > 0) {
         partitions.add(
             new CodeReviewDurationPartitionResponse(
                 "FORM",
@@ -366,7 +384,7 @@ public class CodeReviewMultiBoardService {
                 intValue(summary.get("form_record_count")),
                 doubleValue(summary.get("form_average_duration"))));
       }
-      if (intValue(summary.get("comment_record_count")) > 0) {
+      if (intValue(summary.get("comment_merge_request_count")) > 0) {
         partitions.add(
             new CodeReviewDurationPartitionResponse(
                 "COMMENT",
