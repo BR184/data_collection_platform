@@ -258,6 +258,48 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
   }
 
   @Test
+  void laterLabelLinksRefreshMustReopenEvenIfLabelsFinishedBeforeSucceededWrite() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    insertLabelRefreshRun(
+        MIRROR_RUN_ID + 1, LocalDateTime.now().minusMinutes(5), LocalDateTime.now().plusMinutes(5));
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+
+    assertThat(page.enqueued())
+        .as("以两张表的最晚完成时刻判断：后完成的一张晚于成功写入时必须重新入队")
+        .isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("PENDING");
+  }
+
+  @Test
+  void missingFinishedAtMustNotCountAsRefreshEvidence() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    insertLabelRefreshRun(MIRROR_RUN_ID + 1, LocalDateTime.now().minusMinutes(5));
+    jdbcTemplate.update(
+        "update sync_run_table_tasks set finished_at = null where run_id = ? and source_table = 'label_links'",
+        MIRROR_RUN_ID + 1);
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+
+    assertThat(page.enqueued())
+        .as("任一张表完成时间缺失时刷新证据不完整，必须重新入队")
+        .isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("PENDING");
+  }
+
+  @Test
   void succeededJobMustReopenWhenResponseDelayTargetDisappears() {
     insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
     insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
@@ -373,6 +415,19 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
   }
 
   private void insertLabelRefreshRun(long runId, LocalDateTime finishedAt) {
+    insertLabelRefreshRun(runId, finishedAt, finishedAt);
+  }
+
+  private void insertLabelRefreshRun(
+      long runId, LocalDateTime labelsFinishedAt, LocalDateTime labelLinksFinishedAt) {
+    LocalDateTime runFinishedAt =
+        labelsFinishedAt == null
+            ? labelLinksFinishedAt
+            : labelLinksFinishedAt == null
+                ? labelsFinishedAt
+                : (labelsFinishedAt.isAfter(labelLinksFinishedAt)
+                    ? labelsFinishedAt
+                    : labelLinksFinishedAt);
     jdbcTemplate.update(
         """
         insert into sync_runs(
@@ -386,23 +441,27 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
         configId,
         SOURCE,
         "source:" + configId + ":" + SOURCE + ":mirror",
-        finishedAt,
+        runFinishedAt,
+        runFinishedAt);
+    insertLabelRefreshTask(runId, "labels", labelsFinishedAt);
+    insertLabelRefreshTask(runId, "label_links", labelLinksFinishedAt);
+  }
+
+  private void insertLabelRefreshTask(
+      long runId, String table, LocalDateTime finishedAt) {
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_tasks(
+            run_id, config_id, source_instance, source_table, mirror_table,
+            task_type, status, row_strategy, finished_at)
+        values (?, ?, ?, ?, ?, 'TABLE', 'SUCCESS', 'UPDATED_AT', ?)
+        """,
+        runId,
+        configId,
+        SOURCE,
+        table,
+        "ods_gitlab_" + table,
         finishedAt);
-    for (String table : List.of("labels", "label_links")) {
-      jdbcTemplate.update(
-          """
-          insert into sync_run_table_tasks(
-              run_id, config_id, source_instance, source_table, mirror_table,
-              task_type, status, row_strategy, finished_at)
-          values (?, ?, ?, ?, ?, 'TABLE', 'SUCCESS', 'UPDATED_AT', ?)
-          """,
-          runId,
-          configId,
-          SOURCE,
-          table,
-          "ods_gitlab_" + table,
-          finishedAt);
-    }
   }
 
   private void insertIssue(

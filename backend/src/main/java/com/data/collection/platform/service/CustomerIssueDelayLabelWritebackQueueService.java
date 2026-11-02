@@ -62,9 +62,10 @@ public class CustomerIssueDelayLabelWritebackQueueService {
    * <p>调用方必须位于"读取当前事实与真实标签、登记作业、推进游标"同一事务内，保证一页的输入与
    * 游标一致提交。作业携带本轮镜像、授权修订与授权事实版本，worker 执行前据此复核。
    *
-   * <p>只有同一目标、且本轮前置镜像的标签来源表完成时刻不晚于该议题上次成功写入时，才不重开已完成
-   * 的作业：此时本轮读到的标签可能早于本平台自己的写入，按它重开只会重复发送同一次变更。目标
-   * （延期目标与差异）发生任何变化都必须重新入队；标签来源没有完整刷新证据时同样不得抑制。
+   * <p>只有同一目标、且本轮前置镜像的标签来源表都完成、完成时间均非空、最晚完成时刻不晚于该议题
+   * 上次成功写入时，才不重开已完成的作业：此时本轮读到的标签可能早于本平台自己的写入，按它重开
+   * 只会重复发送同一次变更。目标（延期目标与差异）发生任何变化都必须重新入队；标签来源没有完整
+   * 刷新证据（缺少表、未成功或完成时间缺失）时同样不得抑制。
    *
    * @param config 当前数据源配置
    * @param authorizationRevision 本轮授权修订
@@ -112,8 +113,10 @@ public class CustomerIssueDelayLabelWritebackQueueService {
   /**
    * 本轮前置镜像中标签来源（{@code labels}、{@code label_links}）两张表的完成时刻。
    *
-   * <p>两张表都有成功任务时取较早的完成时刻，作为“本轮标签读取可能早于成功写入”的显式证据；
-   * 运行不存在、表任务缺失或未成功时返回 {@code null}，调用方不得据此抑制重新入队。
+   * <p>两张表的成功任务都存在且完成时间均非空时，取最晚完成时刻：只有最后一张表也早于旧作业
+   * 成功写入，才说明整轮标签快照不可能包含本平台自己的写入。取较早值会掩盖其中一张表的更新
+   * 证据，聚合忽略 {@code NULL} 会把缺失证据当成有效证据；运行不存在、表任务缺失、未成功或
+   * 完成时间缺失时返回 {@code null}，调用方不得据此抑制重新入队。
    */
   LocalDateTime labelRefreshFinishedAt(Long mirrorRunId) {
     if (mirrorRunId == null) {
@@ -121,7 +124,11 @@ public class CustomerIssueDelayLabelWritebackQueueService {
     }
     return jdbcTemplate.queryForObject(
         """
-        select case when count(distinct source_table) = 2 then min(finished_at) end
+        select case
+                 when count(distinct source_table) = 2
+                  and count(finished_at) = count(*)
+                 then max(finished_at)
+               end
           from sync_run_table_tasks
          where run_id = ?
            and source_table in ('labels', 'label_links')
