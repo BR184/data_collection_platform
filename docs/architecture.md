@@ -74,6 +74,16 @@
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
 - `code_review_external_metrics` 是 GitLab diff 派生行数和 MR 标题功能名的权威补齐模型。既有或手工导入指标默认视为 `SUCCESS`，只有历史/已完成运行扫描明确发现的 CC MR 才进入补齐队列；后台以持久化 keyset 游标分别扫描历史 MR 和已完成镜像运行，队列按 `source_instance` 隔离并经历 `PENDING/RUNNING/RETRY/ENRICHED/SUCCESS/FAILED`。网络、限流和服务端错误使用封顶指数退避持续重试，认证、资源不存在、非法地址和截断响应进入确定性失败。补齐只通过 API Token 访问 GitLab v4 changes 接口，页面请求不得实时访问 GitLab；成功指标在事实构建互斥内定向发布到 `merge_request_fact`，构建忙时保持 `ENRICHED` 等待下一批次。全局调度关闭时补齐任务必须停止。
 
+### 表单 v6 与发布式读取
+
+- 页面读取的完整版本唯一由 `read_publications`/`read_publication_domains` 发布：候选在独立事务内完成事实写入与投影，读取只认 `PUBLISHED` 且满足 live revision 谓词的行；`created_by_publication_id`、epoch/sequence 与可见区间共同区分同一业务实体的多代修订。初始完整版本接管在输入表被占用时按 `lock ... nowait` 让位（`55P03`），不得在无完整基线时公开定向写入；隔离一致性测试容器关闭 autovacuum，维护锁场景由显式反例覆盖。
+- 表单记录按“范围→结构版本→物理记录表/实例表→全局定位目录”组织：`form_template_scopes/versions` 冻结字段结构，`form_record_locations` 为跨版唯一权威位置，新建记录只写当前已发布版本，旧记录不迁移、不改绑；`form_change_heads` 以 `latest_change_version/consumed_change_version` 表达待消费水位，记录、位置、审计与 head 在同一事务提交。
+- FORM/COMMENT 权威在首次登记时冻结到 `form_resource_authorities`：启用点后且范围可覆盖的 Issue 首次登记 FORM，其余登记 COMMENT；已有权威/head 只核验不重置。写入口缺权威拒绝，不自行补登记；MR 在 T_mr 前保持 COMMENT。
+- 消费前必须冻结本次读取涉及的完整 FORM 证据（目录事件、源集合、head、权威与 `form_input_hash`），他人持有 head 时整份候选让位；读取、事实构建、候选公开与 consumed 结算使用统一“范围→head”锁序，目录/权威/证据漂移时零公开、零结算。事实与写回作业保存同一输入签名，当前/事实/作业三方不一致时重算，不以 head 守卫替代。
+- Issue 事实的响应与回复分别按各自权威模板读取，最新整份、首次模板时间、合法计划查找与原因集合使用不同选择器，不逐字段拼接旧响应；MR 事实保留资源唯一行，走查质量按有效记录逐条投影并参与共同字段统计。
+- 按版导出以“版本+项目+目录 C”为稳定谓词，只导出有效记录，作废排除、空版只表头、行数/字节预算与审计摘要落 `form_record_export_logs`；`form.record.export` 只登记权限键，不向角色授予，正式授予由目标环境名单另行迁移。
+- 共享读源边界：客户问题记录、客户非法页与客户问题统计板读取已发布 `issue_fact`；代码走查非法页与相关质量图表继续读取老平台代码走查来源，不混入表单读源；生产 MR 在正式启用前继续 COMMENT。
+
 ### 页面与前端底座
 
 - 页面导航和权限入口由 `frontend/src/feature-manifest/` 维护；领域 API 位于 `frontend/src/api-client/`。

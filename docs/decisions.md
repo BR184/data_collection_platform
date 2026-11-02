@@ -297,3 +297,19 @@
 - **影响**：项目 325 的 `issue_fact.bug_status`、`fixed_label_time` 及依赖的统计/记录/延期/BI 输出会变化；`research_template_time` 仅因显式 UTC 投影变化。标签改名后没有新 add 的议题完成时间会保持未知，历史重建需按该边界披露。上线需重建受影响客户 ISSUE 事实与投影，未完成前保留上一完整发布点且不混代际。无表结构与对外 API 变化，响应模板格式不变。
 - **验证证据**：`IssueFactNormalizationRulesTest`（九词/前缀/空白/去重/负例）、`CustomerIssueStatisticsCalculatorTest`（确认示例 1—3、七组与校准）、`IssueResponseTemplateParserTest`（tab 空白行与规范表头一致性、既有格式回归）、`CustomerIssueTimeAxisIntegrationTest`（真实 PG 多会话时区）、`GitlabFactIssueSourceRootScopeEquivalenceTest`（等价完成标签、撤标、改名版本栅栏、无事件、模板时间、全量/按根）、`CustomerIssueRequirementLabelAutoChainIntegrationTest`（真实自动链加标/撤标/完成事件/改名不反推）与既有客户统计/BI/延期回归。
 - **关联文档**：`docs/platform-page-business-rules.md` 5.3、5.6；`docs/architecture.md`“事实与统计”；`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md` CI-01、CI-10—CI-26、CI-47—CI-48。
+
+## D-35 表单 v6 原版本留存、跨版本消费与按版导出
+
+- **状态**：2026-10-26 用户确认业务方向；N0—N4 分阶段通过，N5 集成与发布准备准入；未合 main、未正式出包或启用生产。
+- **背景**：v5.1 通过复制/转换把所有历史记录落到当前表，记录定位、原 key 重放、历史缺值和消费 head 都依赖单一存储版本。用户取消历史搬迁后，仅删除复制路径会造成旧记录失联、旧 key 重复创建、统计漏旧或重复、旧编辑被当前版本错误拒绝；必须同时替换存储路由与读取源。
+- **选择**：
+  ① **原版本留存**：每条记录只有一个原位权威位置，由 `form_record_locations` 跨版本定位；新建写当前已发布版本，旧记录不迁移、不改绑。`form_template_versions` 冻结字段结构，原版编辑/作废按所属版本校验并留在原表。
+  ② **目录与消费栅栏**：`form_change_heads` 以 latest/consumed 版本表达待消费水位；消费前冻结完整 FORM 证据（目录事件、源集合、authorities、head 与 `form_input_hash`），使用统一“范围→head”锁序；他人持有或证据漂移时整份候选让位，零公开、零结算。事实/写回作业保存同一签名，三方不一致时重算。
+  ③ **FORM/COMMENT 分流**：Issue 首次登记时按启用点与范围覆盖冻结权威，启用点后新 Issue 用 FORM、历史 Issue 用 COMMENT；MR 在 T_mr 前保持 COMMENT。已有权威/head 只核验不重置，写入口缺权威拒绝且不自补登记。
+  ④ **发布式读取**：页面只读已提交的完整版本（`read_publications`/`read_publication_domains`，live revision 谓词），候选在独立事务完成事实与投影后公开；初始接管遇输入表锁按 NOWAIT 让位，禁止无完整基线公开定向写入。
+  ⑤ **跨版本统计**：共同字段按稳定身份、语义键、冻结类型/单位和冻结域选择，只对 common 聚合；MR 走查质量按有效记录逐条投影，Issue 最新/首次/合法计划/原因分别使用独立选择器，不从较早响应逐字段拼接。
+  ⑥ **按版导出**：以版本+项目+目录 C 为谓词导出有效记录，作废排除、空版只表头、行数/字节预算与审计摘要落库；`form.record.export` 只登记权限键，不授予任何角色，正式授予由目标环境名单另行迁移。
+- **否决选项**：①继续全历史复制/转换并在当前表聚合——破坏原记录位置且无法满足旧链接与原版维护；②只删复制路径不换存储与读源——旧记录失联/重复；③把不同版本的相同字段按显示名强并或从较早响应补字段——混同身份与语义；④对新旧权威同时保留双轨或写入口自行登记——权威可翻转；⑤把导出权限并入查看权限或种子角色授予——扩大跨项目读取；⑥直接改绑旧记录到新版本或删除旧结构——不可逆破坏历史。
+- **影响**：新增 18 条发布读取迁移与 13 条表单 v6 迁移（共 31 条，全部前向；既有 140 条 checksum 不变）；新增表单/读取端点、权限键与事实投影；客户问题记录/非法页/统计板改读已发布 `issue_fact`，代码走查非法页保持老平台来源，生产 MR 继续 COMMENT。上线需按目标环境重建受影响事实/统计并预热，黄金与正式授权另行门禁。
+- **验证证据**：N1—N4 分阶段真实 PG/浏览器回归与最终默认套件 2191 项（0 失败/0 错误/1 条件跳过，日志 SHA-256 `24a45a17…`）；`FormRecordServiceIntegrationTest` 38、`FormV6RegistrationIntegrationTest` 21、`FormCommonFieldServiceTest` 12、`FormIssueAdoptionFactPipelineIntegrationTest` 25、`ReadPublicationModelIntegrationTest` 49、`FormHeadCaptureIntegrationTest` 9、`FormRecordExportIntegrationTest` 5、`FormV6LegacyUpgradeIntegrationTest` 1 等；详见 `docs/plans/unified-form-v6-n5-integration-release-20261102.md` 证据矩阵。
+- **关联文档**：`docs/product.md`“表单采集”；`docs/architecture.md`“表单 v6 与发布式读取”；`docs/plans/unified-form-system-plan-20261009.md` §4.1；`docs/plans/unified-form-v6-n5-integration-release-20261102.md`。

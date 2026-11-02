@@ -2,7 +2,7 @@
 
 > 版本：v6.0，2026-10-26。用户已确认业务设计；各阶段实现与验收以以下生效边界及执行单为准。
 > 生效边界：N0—N3通过，N4实施Issue先启用及走查能力交付；生产MR继续评论，外部数据与筛选就绪后另设走查启用点。历史解析保留，非法页全旧。[消费接入方案](unified-form-adoption-review-20261030.md)确定改造点与断言，批准UI保持。
-> 实施与审核入口：[执行单](unified-form-system-implementation-plan-20261021.md)。产品承诺归[产品文档](../product.md)，技术边界归[架构](../architecture.md)，决策及理由归[D-32](../decisions.md#d-32-统一表单字段发布原版本留存跨版本读取与独立导出)。
+> 实施与审核入口：[执行单](unified-form-system-implementation-plan-20261021.md)。产品承诺归[产品文档](../product.md)，技术边界归[架构](../architecture.md)，决策及理由归[D-35](../decisions.md#d-35-表单-v6-原版本留存跨版本消费与按版导出)。
 
 ## 一、建设目标与已确认选择
 

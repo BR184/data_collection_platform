@@ -520,7 +520,7 @@
 **交付范围**：
 
 - 管理接口（`form.template.manage`）：模板/范围列表与详情、新建DRAFT、草稿修订CAS（409/A0409）、绑定保存与首次发布后冻结、预览证据（目标版本预留、差异/DDL/影响/阻断）、发布创建/查询/恢复、退役、仅未发布空范围删除、来源候选与ODS里程碑。
-- 受控发布执行器：INITIAL_EMPTY与MIGRATION，PREPARED→COPYING→VERIFIED→PUBLISHED/FAILED，持久任务/attempt、范围停写栅栏（publication+token）、租约与fencing（`clock_timestamp()`）、失败显式恢复重捕获S/truncate目标表/新attempt、过期租约回收、复制事务与切换事务分离；INITIAL_MIGRATION按[D-32](../decisions.md#d-32-统一表单字段发布通用执行器跨版本重放与历史缺值标记)委托既有一次性实现。
+- 受控发布执行器：INITIAL_EMPTY与MIGRATION，PREPARED→COPYING→VERIFIED→PUBLISHED/FAILED，持久任务/attempt、范围停写栅栏（publication+token）、租约与fencing（`clock_timestamp()`）、失败显式恢复重捕获S/truncate目标表/新attempt、过期租约回收、复制事务与切换事务分离；INITIAL_MIGRATION按[D-35](../decisions.md#d-35-表单-v6-原版本留存跨版本消费与按版导出)委托既有一次性实现。
 - 迁移与守恒：按稳定字段名映射，改名保值、新增列NULL、删除列不复制、可核验无损/扩展类型转换；新增/收紧必填导致历史缺值时写`legacy_incomplete/legacy_missing_fields`且可直接作废；复制与核验共用同一源投影逐行比较，失败回滚。
 - 切换与head：目标head只直锁基表按id序加锁，提交前三类计数不变量（FORM权威、目标实例、COMMENT证据为零）。
 - 跨版本旧key：先按requestKey查当前权威表，用请求携带旧版本冻结规格校验并重算指纹，命中返回REPLAYED且不新建；新key仍要求当前版本。
@@ -1033,7 +1033,7 @@ v5.1通过复制使全部历史落在当前表，因此记录定位、原key重�
 | N1—N5 / W5后续 | N1输入369194aa、N2输入965e740e通过；N3空结构发布准入但未验收，N4/N5及W5后续、main与正式包未准入 |
 | 黄金、内网、正式包、main | 本次不执行；保持原确认与发布门禁 |
 
-完成文档修订后，长期业务/技术事实分别归product、architecture和D-32；本执行单只维护该工作单元及交接状态，不复制权威全文。最终实施结束再按文档生命周期清理已完成活动计划，过程由Git历史保留。
+完成文档修订后，长期业务/技术事实分别归product、architecture和D-35；本执行单只维护该工作单元及交接状态，不复制权威全文。最终实施结束再按文档生命周期清理已完成活动计划，过程由Git历史保留。
 
 <a id="n2-approval"></a>
 
@@ -1149,7 +1149,7 @@ v5.1通过复制使全部历史落在当前表，因此记录定位、原key重�
 - R04-a已改为任何写入前先核对容器运行/ID、端口映射、docker-exec及host连接的`current_database()`与`pg_control_system().system_identifier`，并拒绝共享15432/15433。空库身份核对不依赖业务表或迁移头；拒绝后不迁移、不UPDATE、不启动Web。
 - 独立脚本10/10覆盖原7项及入口成功顺序、身份不符零副作用、迁移后预检失败不启动。23项代码/证据哈希与双远端tip一致；员工真实专属PG15609/后端18095证据包含错端口拒绝、空库表数0、同实例身份一致及安全启动/发布冒烟，日志扫描通过。审核证据`.tmp/n3-approval-20261030/verification.json`；员工证据`.tmp/w4-n3r-20261030/r04a/`。
 - 沿用此前已核实的三模板42项页面、前端944项及typecheck/lint/build、19d40549默认套件2030/0/0/1。它们绑定各自输入，不改称本轮全量；不重复运行后端、页面或黄金。
-- N3活动计划完成收口，从本输入的Git历史恢复；长期边界归architecture与D-32。批准UI保持，S1管理功能与重新启用仍需另行审批。
+- N3活动计划完成收口，从本输入的Git历史恢复；长期边界归architecture与D-35。批准UI保持，S1管理功能与重新启用仍需另行审批。
 
 <a id="n4-admission"></a>
 
