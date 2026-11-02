@@ -1,9 +1,15 @@
+## 2026-11-02 延期标签写回收敛修复复审通过并合入 main
+
+- [合入] 经理复审通过候选 `de5755d4`，两项去重边界阻断关闭且无新增返工项；吸收 main 两条部署规范更新（`aa2e999d`、`db7a2210`，仅 `deploy/intranet-offline-packaging-standard.md` 12 行新增）后，以显式合并提交 `5aeaf0e9` 合入 main；合入前后 `backend`/`frontend` 相对 `de5755d4` 均无差异，业务代码内容身份不变。`gitlab25` 与 `origin` 的 `main` 均回读为 `5aeaf0e9514b69ae85420754460ec325a3a75470`。
+- [验证] 沿用最终代码结论：受影响用例 41/0/0/0（两条边界反例经突变自证）、默认套件 1848/0/0/1、黄金严格 compare 203/0/0/0（未 update、未改快照）；451 次自然链路保留父候选 `a08109c9` 归属，未重跑。复审回执与上轮复审记录的 SHA-256 记于实施计划。
+- [未执行] 未打包、未部署内网/生产；表单 N4 门禁不变。证据保留在任务工作树 `.tmp/verify-20261102/` 与 `DELIVERY.md`；任务容器保持停止，18095/20991 已释放。
+
 ## 2026-11-02 延期标签写回去重依据两轮返修完成，待经理复审
 
 - [范围] 仅返修复审阻断项：入队去重不再借用 ODS 议题行 `mirror_synced_at`；作业已 `SUCCEEDED` 时，仅当目标（响应/解决延期标志与 add/remove 差异文本）逐项一致、且本轮标签来源前置刷新证据不晚于作业 `finished_at` 才抑制重开。第二轮复审修正聚合边界：`labels` 与 `label_links` 必须都有成功任务、完成时间均非空，并取**最晚** `finished_at`（`case when count(distinct source_table)=2 and count(finished_at)=count(*) then max(finished_at) end`）；取最小值会掩盖后完成表的更新，忽略 `NULL` 会把缺失证据当成有效证据。删除 `IssueFact.labelSnapshotAt` 投影，候选 SQL 恢复原结构；无新增表、迁移或持久字段。
 - [修复结论] 成功后出现的新目标不再被旧成功吞掉：响应不再延期需摘标签、解决期限到达需新增解决延期标签均会重新入队；两张表一前一后完成或任一完成时间缺失时也不会误抑制；同一已完成写入在陈旧且完整的标签来源刷新下仍不重复发送。
 - [验证] 受影响用例 41/0/0/0（`.tmp/verify-20261102/affected-tests-c.log`），两条新增边界反例经突变自证：改回 `min`/忽略 `NULL` 时均失败（`.tmp/verify-20261102/mutation-evidence.log`），还原后 13/13 通过（`.tmp/verify-20261102/affected-tests-d.log`）；默认后端套件 1848/0/0/1 `BUILD SUCCESS`（`.tmp/verify-20261102/full-suite-3.log`）；最终代码黄金严格 compare 203/0/0/0 `BUILD SUCCESS`（`.tmp/verify-20261102/golden-final-2.log`，334.3s，未 update、未改快照）。自然连续链路未重跑（按用户与复审指示），既有 451 次 PUT/0 重复结论保留在实施计划。
-- [未执行] 未合入 main、未打包、未部署内网/生产；未推送正式发布分支；等待经理复审。宿主提交内存不足时曾清理 clash-verge 的 WebView 渲染进程（保留代理内核），套件与黄金随后通过。
+- [未执行] 本条为返修完成时点状态；同日晚些经经理复审通过并合入 main（见上条）。当时未合入 main、未打包、未部署内网/生产；未推送正式发布分支。宿主提交内存不足时曾清理 clash-verge 的 WebView 渲染进程（保留代理内核），套件与黄金随后通过。
 - [资源] 本任务隔离容器（平台 PG、隔离 GitLab PG、隔离 GitLab）保持停止；代理与平台端口已释放；共享 GitLab 未操作。
 
 ## 2026-11-01 延期标签写回查询与持续收敛修复完成本地验收，待经理复审
