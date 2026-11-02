@@ -6,7 +6,7 @@
 - [演练] 本机独占 `dcp-delay-test-983ff50ff3` 四服务实例，从旧归档原镜像与已批准脱敏样本起步，执行 `backup → upgrade → rollback → backup → upgrade` 全部成功；平台 PG/GitLab 容器 ID 与五个原卷不变，`.env` SHA-256 全程不变，业务数据守恒，GitLab 样本可读。包内脚本在 `qaflex-pkgtool:py3` 内执行。
 - [业务验收] 受控议题经自动增量→事实→写回真实加/摘“响应已延期”；摘标后再触发正常刷新，闭环节拍前进但作业不重复、无该议题写回调用；写回 PG 边界回归 13/13、质量速率导出 17/17、CC 组合/SP 专项 65/65 通过。已批准样例：组合 `CC2027R1` 密度 5.00、精确 SP1 `CC2026R4SP1` 密度 6.00、同 MR 1000 行/60+30 分钟 666.67 LOC/H。
 - [边界与未执行] 未连接内网执行升级、未重导生产数据、未吸收表单 N4、未操作其他会话服务；质量 5.00/6.00 与 666.67 依据已批准样例与回归测试，未在部署实例重放生产质量数据；内网现场 Compose/镜像/卷与容量仍需升级前预检。演练期间一次 `TABLE_REFRESH FAILED`（手动刷新缺全量基线）发生在重启用数据源与重建交叠时，随后全部增量成功，保留记录。
-- [证据] `D:/projects/dcp-drill-20261102/evidence/DELIVERY-REPORT.md`（SHA-256 `d0f1059f7f111c94bc8dac48f494491336c6d00792129e6d3e326d6850e5bc97`）与 `EVIDENCE-SHA256.txt`（66 项）；包与包外 `.sha256` 位于 `D:/projects/data_collection_platform_deploy/`。演练实例为本任务独占资源，交付复审前保留。
+- [证据] `D:/projects/dcp-drill-20261102/evidence/DELIVERY-REPORT.md`（SHA-256 `6ec1e23fffca4ff12e9b724b0bdb532eafd84066ee65cca450f1df6d897c52b3`）与 `EVIDENCE-SHA256.txt`（66 项）；包与包外 `.sha256` 位于 `D:/projects/data_collection_platform_deploy/`。演练实例容器已停止、卷保留，交付复审前不清理。
 
 ## 2026-11-02 延期标签写回收敛修复复审通过并合入 main
 
