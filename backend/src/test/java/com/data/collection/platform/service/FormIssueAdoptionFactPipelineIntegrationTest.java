@@ -104,6 +104,9 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
   private SyncFactPublicationStateService qualification;
 
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private CustomerIssueDelayClosureOrchestrator orchestrator;
+
   private long responseScopeId;
   private long replyScopeId;
   private String responseSpec;
@@ -167,6 +170,134 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(refreshed.get("resolve_deadline_at"))
         .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
     assertThat(refreshed.get("is_resolve_delayed")).isEqualTo(false);
+  }
+
+  @Test
+  void onlyNewFormConsumptionTriggersOneSourceRoundAndUnchangedRunConverges() {
+    insertSourceIssue(93012L, 81012L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93012L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+
+    rebuildAllIssueFacts();
+    org.mockito.Mockito.verify(orchestrator, org.mockito.Mockito.times(1))
+        .requestSourceRound(
+            org.mockito.ArgumentMatchers.eq(SOURCE_INSTANCE),
+            org.mockito.ArgumentMatchers.contains("表单输入已消费"));
+
+    refreshDelayFacts();
+    refreshDelayFacts();
+
+    org.mockito.Mockito.verify(orchestrator, org.mockito.Mockito.times(1))
+        .requestSourceRound(
+            org.mockito.ArgumentMatchers.eq(SOURCE_INSTANCE),
+            org.mockito.ArgumentMatchers.contains("表单输入已消费"));
+  }
+
+  @Test
+  void consumedEvidenceSettlementLocksScopeBeforeHead() throws Exception {
+    insertSourceIssue(93013L, 81013L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93013L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    rebuildAllIssueFacts();
+    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+    FactRevisionFixture.prepareRequiredProjections(
+        jdbcTemplate,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
+    UUID candidateId =
+        jdbcTemplate.queryForObject(
+            """
+            select p.id from read_publications p join read_publication_domains d on d.id = p.domain_id
+             where d.fact_type = 'ISSUE' and p.state in ('PROJECTING', 'READY_TO_PUBLISH')
+             order by p.id desc limit 1
+            """,
+            UUID.class);
+    Map<String, Object> evidence =
+        jdbcTemplate.queryForMap(
+            "select head_id, scope_id from form_publication_captures"
+                + " where publication_id = ? and status = 'CONSUMED' limit 1",
+            candidateId);
+    long headId = ((Number) evidence.get("head_id")).longValue();
+    long scopeId = ((Number) evidence.get("scope_id")).longValue();
+    org.springframework.transaction.support.TransactionTemplate transaction =
+        new org.springframework.transaction.support.TransactionTemplate(
+            new org.springframework.jdbc.datasource.DataSourceTransactionManager(
+                jdbcTemplate.getDataSource()));
+    java.util.concurrent.CompletableFuture<Void> settled =
+        new java.util.concurrent.CompletableFuture<>();
+    java.util.concurrent.CompletableFuture<Integer> workerPid =
+        new java.util.concurrent.CompletableFuture<>();
+    Thread worker =
+        new Thread(
+            () -> {
+              try {
+                transaction.executeWithoutResult(
+                    status -> {
+                      workerPid.complete(
+                          jdbcTemplate.queryForObject("select pg_backend_pid()", Integer.class));
+                      formHeadCaptureService.settleForPublication(candidateId);
+                    });
+                settled.complete(null);
+              } catch (Throwable error) {
+                settled.completeExceptionally(error);
+              }
+            },
+            "consumed-evidence-settle");
+    worker.start();
+    int pid = workerPid.get(10, java.util.concurrent.TimeUnit.SECONDS);
+    transaction.executeWithoutResult(
+        status -> {
+          jdbcTemplate.execute("set local lock_timeout = '3s'");
+          jdbcTemplate.queryForObject(
+              "select id from form_template_scopes where id = ? for update",
+              Long.class,
+              scopeId);
+          awaitWorkerWaitingOnLock(pid, settled);
+          jdbcTemplate.queryForObject(
+              "select id from form_change_heads where id = ? for update",
+              Long.class,
+              headId);
+        });
+    settled.get(10, java.util.concurrent.TimeUnit.SECONDS);
+  }
+
+  private void awaitWorkerWaitingOnLock(
+      int pid, java.util.concurrent.CompletableFuture<Void> settled) {
+    for (int attempt = 0; attempt < 250; attempt++) {
+      if (settled.isDone()) {
+        try {
+          settled.get();
+          throw new IllegalStateException("结算线程未在锁上等待即已完成");
+        } catch (java.util.concurrent.ExecutionException error) {
+          throw new IllegalStateException("结算线程在锁探测前失败", error.getCause());
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+          throw new IllegalStateException("等待结算结果被中断", error);
+        }
+      }
+      Long waiting =
+          jdbcTemplate.queryForObject(
+              "select count(*) from pg_stat_activity"
+                  + " where pid = ? and wait_event_type = 'Lock'",
+              Long.class,
+              pid);
+      if (waiting != null && waiting > 0) {
+        return;
+      }
+      try {
+        Thread.sleep(20L);
+      } catch (InterruptedException error) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("等待锁探测被中断", error);
+      }
+    }
+    throw new IllegalStateException(
+        "未观察到结算线程在锁上等待：" + jdbcTemplate.queryForList(
+            "select pid, state, query, wait_event_type, wait_event"
+                + " from pg_stat_activity where pid = ?",
+            pid));
   }
 
   @Test

@@ -21,10 +21,11 @@ select count(*) from flyway_schema_history where version is not null and success
 
 ## 执行一次
 
-使用既有 `MigrationApplication` 的无 Web 单次迁移入口（与隔离测试同一入口），显式开启 out-of-order：
+使用既有 `MigrationApplication` 的无 Web 单次迁移入口（与隔离测试同一入口），显式开启 out-of-order。
+`PLATFORM_RUN_MODE=migrate` 是进入该入口的开关；缺少时进程按默认 `service` 常驻启动，不能用于一次性升级。
 
 ```bash
-java -jar qa-flex-platform-backend.jar \
+PLATFORM_RUN_MODE=migrate java -jar qa-flex-platform-backend.jar \
   --spring.datasource.url=jdbc:postgresql://<host>:<port>/<db> \
   --spring.datasource.username=<user> \
   --spring.datasource.password=<password> \
@@ -42,7 +43,7 @@ java -jar qa-flex-platform-backend.jar \
 去掉 `--spring.flyway.out-of-order=true`，用原常驻制品/Compose 启动后端（默认 `false`）：
 
 ```bash
-java -jar qa-flex-platform-backend.jar \
+PLATFORM_RUN_MODE=service java -jar qa-flex-platform-backend.jar \
   --spring.datasource.url=jdbc:postgresql://<host>:<port>/<db> \
   --spring.datasource.username=<user> \
   --spring.datasource.password=<password>

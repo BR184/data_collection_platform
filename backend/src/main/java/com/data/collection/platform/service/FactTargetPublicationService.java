@@ -446,11 +446,11 @@ public class FactTargetPublicationService {
       readPublicationService.markReadyToPublish(publicationId, candidate.producerLeaseOwner());
     }
     ReadPublication published = readPublicationService.publish(publicationId, candidate.producerLeaseOwner());
-    // 表单捕获与公开指针同一事务结算：复核 head/集合/权威/租约，任一漂移回滚本次公开。
-    formHeadCaptureService.settleForPublication(publicationId);
     boolean formDriven =
         key.factType().equals(FactType.ISSUE.name())
-            && formHeadCaptureService.hasFormEvidence(publicationId);
+            && formHeadCaptureService.hasNewlyConsumedFormEvidence(publicationId);
+    // 表单捕获与公开指针同一事务结算：复核 head/集合/权威/租约，任一漂移回滚本次公开。
+    formHeadCaptureService.settleForPublication(publicationId);
     jdbcTemplate.update("update statistic_board_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",
         publicationId);
     jdbcTemplate.update("update page_record_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",

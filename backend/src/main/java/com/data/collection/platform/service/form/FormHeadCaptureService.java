@@ -267,11 +267,16 @@ public class FormHeadCaptureService {
         publicationId);
   }
 
-  /** 候选是否绑定过任一 FORM 输入证据。 */
-  public boolean hasFormEvidence(UUID publicationId) {
+  /**
+   * 本次候选是否实际领取并消费了新的 FORM 修订；仅已消费只读证据时返回 {@code false}。
+   *
+   * <p>最终公开前调用：未结算的 CAPTURED 证据表示本次公开推进了表单消费水位，才允许唤醒续轮。
+   */
+  public boolean hasNewlyConsumedFormEvidence(UUID publicationId) {
     Long count =
         jdbcTemplate.queryForObject(
-            "select count(*) from form_publication_captures where publication_id = ?",
+            "select count(*) from form_publication_captures"
+                + " where publication_id = ? and status = 'CAPTURED'",
             Long.class,
             publicationId);
     return count != null && count > 0;
@@ -561,15 +566,15 @@ public class FormHeadCaptureService {
     }
   }
 
-  /** 已消费证据只能复核：head 仍停在冻结修订，范围集合与权威修订均未变化。 */
+  /** 已消费证据只能复核：先范围后 head（与发布/捕获同一锁序），再核集合与权威修订未变化。 */
   private void verifyConsumedEvidence(Capture capture) {
+    Map<String, Object> scope = requireScope(capture.scopeId());
     HeadRow head = lockHead(capture.headId());
     if (!"CONSUMED".equals(head.status())
         || head.consumedChangeVersion() < head.latestChangeVersion()
         || head.latestChangeVersion() != capture.latestChangeVersion()) {
       throw new FormConflictException("已消费表单证据在公开前又发生变化，零公开");
     }
-    Map<String, Object> scope = requireScope(capture.scopeId());
     long revision = ((Number) scope.get("source_set_revision")).longValue();
     String hash = (String) scope.get("source_set_hash");
     if (revision != capture.sourceSetRevision() || !hash.equals(capture.sourceSetHash())) {
