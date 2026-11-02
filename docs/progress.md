@@ -5,7 +5,7 @@
 | 统一表单系统 | N4四审整改完成并验证通过，双远端已同步，待第三次复审；P4/P5暂缓 | 表单多版本与填写功能开发-20261026 | 送第三次复审；不启动P4/P5 |
 
 - 输入四审回执`2cd57488`；R02-a/R02-b/R03-a/R04/M01整改完成，另补“已有FORM权威缺head时按真实修订与当前集合证据补建、已有head不重置”的反例。
-- 验证：10-31受影响16类167项全绿；2026-11-01`FormIssueAdoptionFactPipelineIntegrationTest`17/17、FactBuild相关单元29/29通过（`.tmp-logs/n4-r02b-headinit-2.log`、`.tmp-logs/n4-factbuild-unit.log`）；迁移166条及空白/产物/运行时路径护栏通过。未跑默认全量、页面矩阵或黄金。
+- 验证：10-31受影响16类167项全绿；2026-11-01`FormIssueAdoptionFactPipelineIntegrationTest`18/18（含真实PG发送前守卫）、FactBuild相关单元29/29通过（`.tmp-logs/n4-p3-guard-db-3.log`、`.tmp-logs/n4-factbuild-unit.log`）；迁移166条及空白/产物/运行时路径护栏通过。未跑默认全量、页面矩阵或黄金。
 - 提交：`d19f6e03`（代码/迁移/测试）、`39c72648`（N4计划回填）；工作树干净。`gitlab25`与`origin`均已快进到同一提交并回读一致。
 - 边界：目录事件游标服务与真实PG反例已具备，生产消费调度随P4/MR接入；Issue路径当前由发布事务直接唤醒head。
 

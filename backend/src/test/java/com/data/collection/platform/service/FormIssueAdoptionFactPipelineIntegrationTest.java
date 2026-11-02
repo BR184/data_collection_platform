@@ -97,6 +97,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private ReadPublicationService readPublicationService;
   @Autowired private FormIssueInputResolver formIssueInputResolver;
   @Autowired private FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
+  @Autowired private com.data.collection.platform.service.form.FormHeadCaptureService
+      formHeadCaptureService;
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
 
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -508,6 +510,48 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(((Number) untouched.get("fencing_version")).longValue()).isEqualTo(11);
     assertThat(((Number) untouched.get("latest_change_version")).longValue()).isEqualTo(3);
     assertThat(((Number) untouched.get("consumed_change_version")).longValue()).isEqualTo(2);
+  }
+
+  @Test
+  void unconsumedFormEvidenceIsDetectedOnlyForFormAuthority() {
+    long iid = 81113L;
+    insertSourceIssue(93113L, iid, LocalDateTime.of(2026, 11, 2, 10, 0));
+    insertResponseRecord(
+        93113L,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        responseScopeId,
+        LocalDateTime.of(2026, 11, 3, 10, 0),
+        LocalDate.of(2026, 11, 15),
+        "CC2026R4");
+    rebuildAllIssueFacts();
+
+    assertThat(
+            formHeadCaptureService.hasUnconsumedFormEvidence(
+                SOURCE_INSTANCE, PROJECT_ID, iid))
+        .as("发布并结算后不应残留未消费表单证据")
+        .isFalse();
+
+    jdbcTemplate.update(
+        "update form_change_heads set latest_change_version = latest_change_version + 1"
+            + " where resource_id = ? and template_key = ?",
+        iid,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    assertThat(
+            formHeadCaptureService.hasUnconsumedFormEvidence(
+                SOURCE_INSTANCE, PROJECT_ID, iid))
+        .as("表单head已推进但事实尚未刷新时必须拒发")
+        .isTrue();
+
+    jdbcTemplate.update(
+        "update form_resource_authorities set authority = 'COMMENT'"
+            + " where resource_id = ? and template_key = ?",
+        iid,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    assertThat(
+            formHeadCaptureService.hasUnconsumedFormEvidence(
+                SOURCE_INSTANCE, PROJECT_ID, iid))
+        .as("COMMENT权威不得被表单head误判为待消费")
+        .isFalse();
   }
 
   @Test
