@@ -1,3 +1,16 @@
+## 2026-11-02 表单N4 P4实施：MR逐记录投影、正式统计与目录事件自动消费（已提交 9ae6c289，待复审）
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N4 P4实施完成并已提交，待双远端回读与复审；P5未启动 | 表单多版本与填写功能开发-20261026 | 推送双远端并回读；随后按准入实施P5共同字段与按版导出 |
+
+- MR逐记录投影：新增`V20261102_02`与`form_review_fact`，`FormReviewProjectionService`按持久FORM权威和目录读取有效记录，`MergeRequestFactPersistenceService`在候选修订内替换投影行；全量、定向、单条及增量事实入口均先投影再公开。源SQL的`form_records` CTE只保留COMMENT/旧路径，FORM由投影覆盖且空投影显式清空，不回退旧值。
+- 正式统计：`CodeReviewMultiBoardService`正式记录模式的均时按有效记录sum/count，人员/模块分桶按记录，MR级缺陷与密度保持每MR一行；未登记FORM的MR保持原路径，非法页整页旧源。
+- 目录事件自动消费：`FormDirectoryEventWorker`有界调度，`FormDirectoryEventBridge`把唤醒资源登记到既有`fact_change_heads`；事件、表单head、事实head同事务提交，失败整体回滚，事实任务提交在事务外且失败不回滚已落库head；持久游标重启续跑、重复事件不重复唤醒。
+- 真实PG验收：两版两记录规范`2+3=5`、分钟`10+20=30`、记录2/MR1、均时15、100新增行密度50.00；作废第二条后规范2、分钟10、均时10、密度20；未登记FORM的MR原值不变。正式质量看板断言均时15、缺陷5、密度50。
+- 测试：`FormReviewProjectionIntegrationTest`、`CodeReviewMultiBoardFormRecordsIntegrationTest`、`FormHeadCaptureIntegrationTest`6/6（含唤醒失败回滚）、`FormIssueAdoptionFactPipelineIntegrationTest`23/23（含异步轮次收敛与teardown隔离）、FactBuild/持久化/编排/客户问题标记22/22。迁移锁168条，文本空白、产物、运行时路径与`git diff --check`通过；未改批准UI、既有迁移、共享库或外部数据，未跑默认全量/页面/黄金，不合main、不出包。
+- 提交：实现`9ae6c289`；下一步文档提交并推送双远端回读，待复审。
+
 ## 2026-11-02 表单N4输入8ae42676复验通过：P1—P3关闭，P4/P5准入
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
