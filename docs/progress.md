@@ -1,3 +1,15 @@
+## 2026-11-02 表单N4 b30383c7复核整改：锁序、续轮触发与迁移命令
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N4复核整改完成，待第三次复审复核；P4/P5暂缓 | 表单多版本与填写功能开发-20261026 | 推送双远端后送复核；不启动P4/P5、不跑黄金、不合main、不出包 |
+
+- 输入[复审回执](plans/unified-form-system-implementation-plan-20261021.md#n4-b30383c7-review)。复查接受完整输入冻结、持久签名、自动FACT_REFRESH落库与M01升级代码路径；本轮只修三项：已消费证据结算改为先范围后head，与捕获/结算同序；续轮事件只在本次公开实际消费新FORM修订（CAPTURED证据）时触发；runbook迁移命令补`PLATFORM_RUN_MODE=migrate`、升级后显式`service`。
+- 两个运行反例已转正式回归并完成修前红/修后绿：旧head→范围锁序在真实PG复现`40P01`死锁（`.tmp-logs/review3-lock-order-red.log`），修复后通过（`review3-lock-order-green.log`）；旧“任何证据即触发”在无变化周期公开下被调3次（`.tmp-logs/review3-round-trigger-red.log`），仅新消费触发后通过（`review3-round-trigger-green.log`）。
+- 验证只跑直接受影响类：`FormIssueAdoptionFactPipelineIntegrationTest`22/22、`FormHeadCaptureIntegrationTest`4/4、`FactTargetPublicationServiceIntegrationTest`19/19、`FactPublicationFailurePreservationTest`5/5、写回worker19/19、编排7/7，合计76项全绿；M01沿用已通过的140→167升级证据，仅修文档命令。迁移护栏167条与空白/产物/运行时路径护栏通过。
+- 提交：`4ed3b29e`（代码/测试/runbook），文档回填单独提交；`gitlab25`与`origin`回读一致后送复核。
+- 边界：未改批准UI、既有迁移、共享库或外部数据；未跑默认全量、页面矩阵或黄金；P4/P5仍暂缓。
+
 ## 2026-11-02 表单N4输入b30383c7复审：两个运行缺陷与升级命令待修
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
