@@ -100,6 +100,19 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
+  void shouldDefineFormRecordExportPermissionAndAuditWithoutGrantingRoles() throws IOException {
+    String migration = readMigration("V20261102_03__form_record_export.sql");
+
+    assertThat(migration)
+        .contains("'form.record.export'")
+        .contains("create table if not exists form_record_export_logs")
+        .contains("file_sha256 char(64) not null")
+        .contains("operator_id varchar(128) not null")
+        .doesNotContain("insert into platform_role_permissions")
+        .doesNotContain("insert into platform_default_role_permissions");
+  }
+
+  @Test
   void shouldDefineUnifiedReviewVisibleReadModels() throws IOException {
     String migration = readMigration(
         "V20260720_03__unified_review_visible_read_models.sql");

@@ -51,6 +51,14 @@ public class GlobalExceptionHandler {
 
   /** 表单记录版本/请求标识冲突与存储版本冲突使用 409，避免被通用业务异常压成 400。 */
   @ResponseBody
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  @ExceptionHandler(FormResourceNotFoundException.class)
+  public ApiResponse<Void> handleFormResourceNotFound(FormResourceNotFoundException e) {
+    log.warn("Form resource not found: {}", e.getMessage());
+    return ApiResponse.fail(e.getResultCode(), e.getMessage());
+  }
+
+  @ResponseBody
   @ResponseStatus(HttpStatus.CONFLICT)
   @ExceptionHandler(FormConflictException.class)
   public ApiResponse<Void> handleFormConflict(FormConflictException e) {

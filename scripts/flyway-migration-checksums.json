@@ -166,5 +166,6 @@
 "V20261030_01__form_consumption_capture_foundation.sql": "fd000167229d0d56220c5a731faec32609841dd474ebd7bcea60d596932c10fa",
 "V20261030_02__form_publication_capture_binding.sql": "a8255bc37e1545619f76c7067e916318fa45c1776e69c7f6e3a2663d1fe2ce7f",
 "V20261102_01__form_input_evidence.sql": "66a29b2d688c4d395ab68db84ce1043921f2076753f6bd0ee1c70e28a7134ef5",
-"V20261102_02__form_review_fact_projection.sql": "6954772d39871ad93932d9a9d86c1ea9ef2cb13d07cbd40e0d28d0de0b71a10e"
+"V20261102_02__form_review_fact_projection.sql": "6954772d39871ad93932d9a9d86c1ea9ef2cb13d07cbd40e0d28d0de0b71a10e",
+"V20261102_03__form_record_export.sql": "35b0ba67a53dd89dbdede75ebc6527ae856f510c38c48f17d7090f6517d8978c"
 }

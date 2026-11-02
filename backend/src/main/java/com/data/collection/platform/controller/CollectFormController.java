@@ -1,6 +1,9 @@
 package com.data.collection.platform.controller;
 
+import com.data.collection.platform.common.DownloadResponseHeaders;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.entity.form.FormActorContext;
@@ -15,6 +18,7 @@ import com.data.collection.platform.security.AuthSessionSupport;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.PlatformPermissionService;
+import com.data.collection.platform.service.form.FormRecordExportService;
 import com.data.collection.platform.service.form.FormRecordService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -22,7 +26,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,11 +51,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class CollectFormController {
 
   private final FormRecordService formRecordService;
+  private final FormRecordExportService formRecordExportService;
   private final PlatformPermissionService permissionService;
 
   public CollectFormController(
-      FormRecordService formRecordService, PlatformPermissionService permissionService) {
+      FormRecordService formRecordService,
+      FormRecordExportService formRecordExportService,
+      PlatformPermissionService permissionService) {
     this.formRecordService = formRecordService;
+    this.formRecordExportService = formRecordExportService;
     this.permissionService = permissionService;
   }
 
@@ -135,6 +148,44 @@ public class CollectFormController {
     return ApiResponse.success(
         formRecordService.notificationPayload(
             gitlabBaseUrl, projectId, requestIid, resourceType, actor(servletRequest)));
+  }
+
+  @GetMapping("/exports/records")
+  @RequirePermission(PlatformPermissionCodes.FORM_RECORD_EXPORT)
+  public ResponseEntity<byte[]> exportRecords(
+      @RequestParam @NotNull @Positive Long versionId,
+      @RequestParam(required = false) String projectIds,
+      HttpServletRequest servletRequest) {
+    FormRecordExportService.ExportResult result =
+        formRecordExportService.export(
+            versionId,
+            parseProjectIds(projectIds),
+            AuthSessionSupport.currentUser(servletRequest).username());
+    return ResponseEntity.ok()
+        .contentType(
+            MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(result.filename()))
+        .body(result.content());
+  }
+
+  private List<Long> parseProjectIds(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return List.of();
+    }
+    List<Long> result = new ArrayList<>();
+    for (String part : raw.split(",")) {
+      String value = part.trim();
+      if (value.isEmpty()) {
+        continue;
+      }
+      try {
+        result.add(Long.valueOf(value));
+      } catch (NumberFormatException error) {
+        throw new BizException(ResultCode.BAD_REQUEST, "导出项目 ID 必须为整数：" + value);
+      }
+    }
+    return List.copyOf(result);
   }
 
   private FormActorContext actor(HttpServletRequest request) {

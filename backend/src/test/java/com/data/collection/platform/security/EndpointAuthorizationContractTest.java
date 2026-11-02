@@ -66,6 +66,10 @@ class EndpointAuthorizationContractTest {
         "notificationPayload",
         PlatformPermissionCodes.FORM_RECORD_CREATE);
     assertPermissionRequired(
+        CollectFormController.class,
+        "exportRecords",
+        PlatformPermissionCodes.FORM_RECORD_EXPORT);
+    assertPermissionRequired(
         CollectFormAdminController.class, PlatformPermissionCodes.FORM_TEMPLATE_MANAGE);
   }
 

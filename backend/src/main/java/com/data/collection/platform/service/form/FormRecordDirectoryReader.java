@@ -123,6 +123,53 @@ public class FormRecordDirectoryReader {
   }
 
   /**
+   * 按承载版本读取该版本全部有效记录，供跨版共同字段统计使用。
+   *
+   * <p>与业务列表同一证据核验：只接受 {@code AUTHORITATIVE} 且已发布/退役版本，作废记录不回读。
+   *
+   * @param scopeId 已登记范围
+   * @param versionId 承载版本
+   * @return 按创建时间与记录 ID 升序的有效记录
+   */
+  public List<LocatedRecord> listByVersion(long scopeId, long versionId) {
+    return listByVersion(scopeId, versionId, true);
+  }
+
+  /**
+   * 按承载版本读取记录并保留作废状态，供跨版统计区分缺字段、NULL、0 与作废。
+   *
+   * <p>只用于统计与审计；普通业务读源仍应使用 {@link #listByVersion(long, long)}。
+   */
+  public List<LocatedRecord> listByVersionIncludingVoided(long scopeId, long versionId) {
+    return listByVersion(scopeId, versionId, false);
+  }
+
+  private List<LocatedRecord> listByVersion(long scopeId, long versionId, boolean activeOnly) {
+    List<LocatedRecord> located =
+        jdbcTemplate.query(
+            """
+            select l.*, v.record_source_role, v.version_status
+              from form_record_locations l
+              join form_template_versions v on v.id = l.storage_version_id
+             where l.scope_id = ? and l.storage_version_id = ?
+               and v.record_source_role = 'AUTHORITATIVE'
+               and v.version_status in ('PUBLISHED', 'RETIRED')
+             order by l.created_at, l.record_id
+            """,
+            (rs, rowNum) -> baseRecord(rs),
+            scopeId,
+            versionId);
+    List<LocatedRecord> resolved = new ArrayList<>(located.size());
+    for (LocatedRecord record : located) {
+      LocatedRecord read = readBack(record, activeOnly);
+      if (read != null) {
+        resolved.add(read);
+      }
+    }
+    return List.copyOf(resolved);
+  }
+
+  /**
    * 按同一范围与项目批量回读多个资源 C 的有效记录。
    *
    * <p>与 {@link #listByResource} 使用同一索引与同一证据核验，只是把资源集合放进一次查询，

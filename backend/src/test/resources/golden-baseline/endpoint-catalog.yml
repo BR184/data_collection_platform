@@ -785,6 +785,10 @@ endpoints:
       - id: missing-scope
         query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&resourceType=merge_request&resourceId=1&templateKey=code_review
   - method: GET
+    path: /api/collect-forms/exports/records
+    category: EXCLUDED
+    exclude-reason: "pending-approval: N4 P5 新增按版导出，黄金快照需用户确认；版本/项目/目录C谓词、空版表头、作废排除与审计由隔离 PG 导出测试覆盖"
+  - method: GET
     path: /api/collect-forms/notification-payload
     category: READ
     # 外部四字段契约保留；来源未登记时确定性 400。
