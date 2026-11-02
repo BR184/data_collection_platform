@@ -8,14 +8,12 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.FactBuildResponse;
-import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.service.form.FormReviewProjectionService;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.util.List;
 import java.util.function.Supplier;
@@ -120,7 +118,8 @@ class FactBuildServiceOrchestrationTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties());
+        new com.data.collection.platform.config.FormAdoptionProperties(),
+            emptyReviewProjection());
   }
 
   @Test
@@ -185,7 +184,11 @@ class FactBuildServiceOrchestrationTest {
     ArgumentCaptor<List<Long>> rootsCaptor = ArgumentCaptor.forClass((Class) List.class);
     verify(mergeRequestFactPersistenceService)
         .replaceRootFacts(
-            any(com.data.collection.platform.entity.read.FactRevisionTarget.class), rootsCaptor.capture(), anyList(), anyList());
+            any(com.data.collection.platform.entity.read.FactRevisionTarget.class),
+            rootsCaptor.capture(),
+            anyList(),
+            anyList(),
+            anyList());
     org.assertj.core.api.Assertions.assertThat(rootsCaptor.getValue()).containsExactly(11L);
   }
 
@@ -201,5 +204,12 @@ class FactBuildServiceOrchestrationTest {
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  private static FormReviewProjectionService emptyReviewProjection() {
+    FormReviewProjectionService service = mock(FormReviewProjectionService.class);
+    when(service.load(anyString(), org.mockito.ArgumentMatchers.anyList()))
+        .thenReturn(FormReviewProjectionService.Projection.empty());
+    return service;
   }
 }

@@ -4,12 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.FormConflictException;
+import com.data.collection.platform.service.FormDirectoryEventWorker;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -38,6 +42,10 @@ class FormHeadCaptureIntegrationTest {
   @BeforeAll
   static void migrate() {
     jdbc = FormV6TestSupport.migrate(POSTGRES);
+    jdbc.execute(
+        "create table if not exists ods_gitlab_merge_requests("
+            + "id bigint primary key, target_project_id bigint, iid bigint,"
+            + " updated_at timestamp with time zone)");
     services = FormV6TestSupport.wire(jdbc);
   }
 
@@ -45,8 +53,10 @@ class FormHeadCaptureIntegrationTest {
   void setUp() {
     jdbc.update("delete from form_publication_captures");
     jdbc.update("delete from form_head_captures");
+    jdbc.update("delete from form_record_locations");
     jdbc.update("delete from form_directory_events");
     jdbc.update("delete from form_directory_event_cursors");
+    jdbc.update("delete from fact_change_heads");
     jdbc.update("delete from form_change_heads");
     jdbc.update("delete from form_resource_authorities");
     jdbc.update("update form_template_scopes set status = 'DRAFT', current_version_id = null");
@@ -190,7 +200,11 @@ class FormHeadCaptureIntegrationTest {
     FormDirectoryEventCursorService cursor =
         new FormDirectoryEventCursorService(jdbc, services.objectMapper());
 
-    assertThat(cursor.consumePending(10)).isEqualTo(1);
+    FormDirectoryEventCursorService.Consumption first = cursor.consumePending(10);
+    assertThat(first.consumed()).isEqualTo(1);
+    assertThat(first.woken())
+        .extracting(FormDirectoryEventCursorService.WokenResource::resourceType)
+        .containsExactly("merge_request");
 
     assertThat(((Number) head("latest_change_version")).longValue()).isEqualTo(2);
     assertThat(head("status")).isEqualTo("PENDING");
@@ -202,8 +216,126 @@ class FormHeadCaptureIntegrationTest {
         "select status from form_directory_events where id = ?", String.class, eventId))
         .isEqualTo("CONSUMED");
 
-    assertThat(cursor.consumePending(10)).as("重复执行不得重复唤醒").isZero();
+    assertThat(cursor.consumePending(10).consumed()).as("重复执行不得重复唤醒").isZero();
     assertThat(((Number) head("latest_change_version")).longValue()).isEqualTo(2);
+  }
+
+  @Test
+  void directoryEventWorkerWakesFactHeadAndResumesFromPersistedCursor() {
+    seedWokenMergeRequestHead();
+    com.data.collection.platform.entity.GitlabSyncConfig config =
+        new com.data.collection.platform.entity.GitlabSyncConfig();
+    config.setId(configId);
+    config.setSourceInstance("default");
+    com.data.collection.platform.service.GitlabConfigService configService =
+        org.mockito.Mockito.mock(com.data.collection.platform.service.GitlabConfigService.class);
+    org.mockito.Mockito.when(configService.listConfigs()).thenReturn(List.of(config));
+    org.mockito.Mockito.when(configService.isSourceEnabled(config)).thenReturn(true);
+    com.data.collection.platform.service.sync.SyncRunSubmissionService submissionService =
+        org.mockito.Mockito.mock(
+            com.data.collection.platform.service.sync.SyncRunSubmissionService.class);
+    com.data.collection.platform.service.FormDirectoryEventBridge bridge =
+        new com.data.collection.platform.service.FormDirectoryEventBridge(
+            jdbc, configService, submissionService);
+    FormDirectoryEventWorker worker = newWorker(bridge);
+
+    assertThat(worker.consumeOnce(10)).isEqualTo(1);
+    assertThat(factHeadVersion()).isEqualTo(1L);
+    org.mockito.Mockito.verify(submissionService)
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.eq(config),
+            org.mockito.ArgumentMatchers.eq(false),
+            org.mockito.ArgumentMatchers.anyString());
+
+    assertThat(worker.consumeOnce(10)).as("同一事件不重复推进").isZero();
+    assertThat(factHeadVersion()).isEqualTo(1L);
+
+    insertDirectoryEvent(2);
+    FormDirectoryEventWorker restarted = newWorker(bridge);
+    assertThat(restarted.consumeOnce(10)).as("新进程从持久游标继续").isEqualTo(1);
+    assertThat(factHeadVersion()).isEqualTo(2L);
+  }
+
+  @Test
+  void directoryEventWakeFailureRollsBackConsumptionAndCursor() {
+    seedWokenMergeRequestHead();
+    com.data.collection.platform.service.FormDirectoryEventBridge bridge =
+        org.mockito.Mockito.mock(
+            com.data.collection.platform.service.FormDirectoryEventBridge.class);
+    org.mockito.Mockito.doThrow(new IllegalStateException("唤醒失败"))
+        .when(bridge)
+        .register(org.mockito.ArgumentMatchers.anyList());
+
+    assertThatThrownBy(() -> newWorker(bridge).consumeOnce(10))
+        .isInstanceOf(IllegalStateException.class);
+
+    long eventId =
+        jdbc.queryForObject("select max(id) from form_directory_events", Long.class);
+    assertThat(jdbc.queryForObject(
+        "select status from form_directory_events where id = ?", String.class, eventId))
+        .as("唤醒失败不得消费事件")
+        .isEqualTo("PENDING");
+    assertThat(jdbc.queryForObject(
+        "select count(*) from form_directory_event_cursors where scope_id = ?",
+        Long.class, scopeId)).isZero();
+    assertThat(((Number) head("latest_change_version")).longValue()).isEqualTo(1);
+    assertThat(head("status")).isEqualTo("CONSUMED");
+    assertThat(factHeadVersion()).isNull();
+  }
+
+  private void seedWokenMergeRequestHead() {
+    jdbc.update(
+        "update form_change_heads set latest_change_version = 1, consumed_change_version = 1,"
+            + " status = 'CONSUMED' where id = ?",
+        headId);
+    jdbc.update(
+        "insert into merge_request_fact(source_system, source_instance, project_id,"
+            + " merge_request_id, merge_request_iid, title, deleted)"
+            + " values ('GITLAB', 'default', ?, 9001, 9001, 'dir-event', false)"
+            + " on conflict do nothing",
+        PROJECT_ID);
+    jdbc.update(
+        """
+        insert into form_record_locations(
+            record_id, scope_id, storage_version_id, origin_version_id, instance_mode,
+            instance_id, source_config_id, source_instance, gitlab_base_url, project_id,
+            resource_type, resource_id, origin_spec_hash, created_at)
+        values (910001, ?, ?, ?, 'MATERIALIZED', 1, ?, 'default', ?, ?, 'merge_request',
+                '9001', ?, now())
+        """,
+        scopeId, versionId, versionId, configId, URL, PROJECT_ID, "a".repeat(64));
+    insertDirectoryEvent(1);
+  }
+
+  private FormDirectoryEventWorker newWorker(
+      com.data.collection.platform.service.FormDirectoryEventBridge bridge) {
+    return new FormDirectoryEventWorker(
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper()),
+        bridge,
+        new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource())));
+  }
+
+  private void insertDirectoryEvent(int revision) {
+    Long versionIdForRevision =
+        jdbc.queryForObject(
+            "select id from form_template_versions where scope_id = ? order by id limit 1",
+            Long.class,
+            scopeId);
+    jdbc.update(
+        "insert into form_directory_events(scope_id, event_type, source_set_revision, payload)"
+            + " values (?, 'CURRENT_CHANGED', ?, ?::jsonb)",
+        scopeId,
+        revision,
+        "{\"toVersionId\":" + versionIdForRevision + "}");
+  }
+
+  private Long factHeadVersion() {
+    List<Long> values =
+        jdbc.queryForList(
+            "select latest_change_version from fact_change_heads"
+                + " where source_instance = 'default' and fact_type = 'MERGE_REQUEST' and root_id = 9001",
+            Long.class);
+    return values.isEmpty() ? null : values.getFirst();
   }
 
   private Object head(String column) {

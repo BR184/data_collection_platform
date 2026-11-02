@@ -46,7 +46,7 @@ class MergeRequestFactPersistenceServiceTest {
     MergeRequestFact fact = fact(201L);
     MergeRequestCommitFact commit = commit(201L, "abc123");
 
-    service.replaceRootFacts(target, List.of(201L), List.of(fact), List.of(commit));
+    service.replaceRootFacts(target, List.of(201L), List.of(fact), List.of(commit), List.of());
 
     InOrder ordered = Mockito.inOrder(factMapper, jdbcTemplate);
     ordered.verify(factMapper).batchUpsert(List.of(fact), EPOCH_ID, PUBLICATION_ID);
@@ -72,7 +72,7 @@ class MergeRequestFactPersistenceServiceTest {
   void test_vanished_merge_request_records_delete_proof_without_deleting_published_rows() {
     FactRevisionTarget target = target();
 
-    service.replaceRootFacts(target, List.of(201L, 202L), List.of(fact(201L)), List.of());
+    service.replaceRootFacts(target, List.of(201L, 202L), List.of(fact(201L)), List.of(), List.of());
 
     verify(publicationRepository)
         .recordDeletionsForRoots(
@@ -86,20 +86,28 @@ class MergeRequestFactPersistenceServiceTest {
 
   @Test
   void test_commit_relation_cleanup_is_scoped_to_this_candidate_revision() {
-    service.replaceRootFacts(target(), List.of(201L), List.of(fact(201L)), List.of());
+    service.replaceRootFacts(target(), List.of(201L), List.of(fact(201L)), List.of(), List.of());
 
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate)
+    verify(jdbcTemplate, Mockito.atLeastOnce())
         .update(
             sql.capture(),
             eq(PUBLICATION_ID),
             eq("GITLAB"),
             eq("default"),
             org.mockito.ArgumentMatchers.any());
-    assertThat(sql.getValue())
-        .contains("delete from merge_request_commit_fact")
-        .contains("fact.created_by_publication_id = ?")
-        .doesNotContain("delete from merge_request_fact");
+    assertThat(sql.getAllValues()).allSatisfy(statement ->
+        assertThat(statement).doesNotContain("delete from merge_request_fact"));
+    assertThat(sql.getAllValues())
+        .anySatisfy(statement ->
+            assertThat(statement)
+                .contains("delete from merge_request_commit_fact")
+                .contains("fact.created_by_publication_id = ?"));
+    assertThat(sql.getAllValues())
+        .anySatisfy(statement ->
+            assertThat(statement)
+                .contains("delete from form_review_fact")
+                .contains("fact.created_by_publication_id = ?"));
   }
 
   @Test
@@ -127,7 +135,7 @@ class MergeRequestFactPersistenceServiceTest {
 
   @Test
   void test_empty_target_range_is_rejected_because_replacement_needs_scope() {
-    assertThatThrownBy(() -> service.replaceRootFacts(target(), List.of(), List.of(), List.of()))
+    assertThatThrownBy(() -> service.replaceRootFacts(target(), List.of(), List.of(), List.of(), List.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("非空目标范围");
     verifyNoInteractions(factMapper);

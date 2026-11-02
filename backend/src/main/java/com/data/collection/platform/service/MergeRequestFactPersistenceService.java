@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.MergeRequestCommitFact;
 import com.data.collection.platform.entity.MergeRequestFact;
 import com.data.collection.platform.entity.read.FactRevisionTarget;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
+import com.data.collection.platform.service.form.FormReviewProjectionService;
 import com.data.collection.platform.service.read.ReadPublicationRepository;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -60,13 +61,15 @@ public class MergeRequestFactPersistenceService {
    * @param rootIds GitLab MR 数据库根 ID 的非空集合
    * @param facts 目标范围当前仍存在的 MR 事实；空集合表示来源已删除
    * @param commitFacts 目标范围最新 Diff 的提交关系事实
+   * @param reviewRecords 本批 FORM 权威的逐记录走查投影；空集合表示未启用 FORM 或本批无记录
    */
   @Transactional
   public void replaceRootFacts(
       FactRevisionTarget target,
       List<Long> rootIds,
       List<MergeRequestFact> facts,
-      List<MergeRequestCommitFact> commitFacts) {
+      List<MergeRequestCommitFact> commitFacts,
+      List<FormReviewProjectionService.RecordRow> reviewRecords) {
     List<Long> safeRootIds = sanitizeRootIds(rootIds);
     if (safeRootIds.isEmpty()) {
       throw new IllegalArgumentException("合并请求事实目标替换必须指定非空目标范围");
@@ -76,6 +79,8 @@ public class MergeRequestFactPersistenceService {
     upsertFacts(target, safeFacts);
     deleteCandidateCommitRelations(target, safeRootIds);
     upsertCommitFacts(target, commitFacts == null ? List.of() : commitFacts);
+    deleteCandidateFormReviewFacts(target, safeRootIds);
+    upsertFormReviewFacts(target, reviewRecords == null ? List.of() : reviewRecords);
     // 删除判定交给仓储按完整业务身份比较：本候选未写出对应身份的考虑过的根，才构成删除或跨项目移出。
     publicationRepository.recordDeletionsForRoots(
         target.table(),
@@ -160,6 +165,125 @@ public class MergeRequestFactPersistenceService {
         target.sourceSystem(),
         target.sourceInstance(),
         longArrayLiteral(safeRootIds));
+  }
+
+  /**
+   * 替换候选内指定 MR 根的逐记录走查投影；全量快照按分片调用，幂等覆盖本候选已有行。
+   *
+   * @param target 候选修订写入目标
+   * @param rootIds 本片 MR 根
+   * @param records 本片有效走查记录
+   */
+  @Transactional
+  public void replaceFormReviewFacts(
+      FactRevisionTarget target,
+      List<Long> rootIds,
+      List<FormReviewProjectionService.RecordRow> records) {
+    List<Long> safeRootIds = sanitizeRootIds(rootIds);
+    if (safeRootIds.isEmpty()) {
+      return;
+    }
+    publicationRepository.requireWritableTarget(target);
+    deleteCandidateFormReviewFacts(target, safeRootIds);
+    upsertFormReviewFacts(target, records == null ? List.of() : records);
+  }
+
+  private void deleteCandidateFormReviewFacts(FactRevisionTarget target, List<Long> safeRootIds) {
+    jdbcTemplate.update(
+        """
+        delete from form_review_fact review
+         using merge_request_fact fact
+         where fact.created_by_publication_id = ?
+           and fact.source_system = ?
+           and fact.source_instance = ?
+           and fact.merge_request_id = any (?::bigint[])
+           and review.merge_request_revision_id = fact.id
+        """,
+        target.publicationId(),
+        target.sourceSystem(),
+        target.sourceInstance(),
+        longArrayLiteral(safeRootIds));
+  }
+
+  private void upsertFormReviewFacts(
+      FactRevisionTarget target, List<FormReviewProjectionService.RecordRow> records) {
+    if (records.isEmpty()) {
+      return;
+    }
+    jdbcTemplate.batchUpdate(
+        """
+        insert into form_review_fact(
+          merge_request_revision_id, source_system, source_instance, project_id,
+          merge_request_id, merge_request_iid, record_id, scope_id, storage_version_id,
+          record_source_role, reviewer_user_id, reviewer_name, review_duration_minutes,
+          specification_count, logic_count, performance_count, design_count, other_count,
+          record_created_at, fact_refreshed_at, created_at, updated_at)
+        select fact.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               current_timestamp, current_timestamp, current_timestamp
+          from merge_request_fact fact
+         where fact.created_by_publication_id = ?
+           and fact.source_system = ?
+           and fact.source_instance = ?
+           and fact.project_id = ?
+           and fact.merge_request_id = ?
+        on conflict (merge_request_revision_id, record_id) do update set
+          reviewer_user_id = excluded.reviewer_user_id,
+          reviewer_name = excluded.reviewer_name,
+          review_duration_minutes = excluded.review_duration_minutes,
+          specification_count = excluded.specification_count,
+          logic_count = excluded.logic_count,
+          performance_count = excluded.performance_count,
+          design_count = excluded.design_count,
+          other_count = excluded.other_count,
+          record_created_at = excluded.record_created_at,
+          fact_refreshed_at = current_timestamp,
+          updated_at = current_timestamp
+        """,
+        records,
+        BATCH_SIZE,
+        (statement, record) -> {
+          statement.setString(1, target.sourceSystem());
+          statement.setString(2, target.sourceInstance());
+          statement.setLong(3, record.projectId());
+          statement.setLong(4, record.mergeRequestId());
+          if (record.mergeRequestIid() == null) {
+            statement.setNull(5, java.sql.Types.BIGINT);
+          } else {
+            statement.setLong(5, record.mergeRequestIid());
+          }
+          statement.setLong(6, record.recordId());
+          statement.setLong(7, record.scopeId());
+          statement.setLong(8, record.storageVersionId());
+          statement.setString(9, record.recordSourceRole());
+          statement.setString(10, record.reviewerUserId());
+          statement.setString(11, record.reviewerName());
+          setNullableInt(statement, 12, record.reviewDurationMinutes());
+          setNullableInt(statement, 13, record.specificationCount());
+          setNullableInt(statement, 14, record.logicCount());
+          setNullableInt(statement, 15, record.performanceCount());
+          setNullableInt(statement, 16, record.designCount());
+          setNullableInt(statement, 17, record.otherCount());
+          if (record.recordCreatedAt() == null) {
+            statement.setNull(18, java.sql.Types.TIMESTAMP);
+          } else {
+            statement.setTimestamp(18, java.sql.Timestamp.valueOf(record.recordCreatedAt()));
+          }
+          statement.setObject(19, target.publicationId());
+          statement.setString(20, target.sourceSystem());
+          statement.setString(21, target.sourceInstance());
+          statement.setLong(22, record.projectId());
+          statement.setLong(23, record.mergeRequestId());
+        });
+  }
+
+  private static void setNullableInt(
+      java.sql.PreparedStatement statement, int index, Integer value)
+      throws java.sql.SQLException {
+    if (value == null) {
+      statement.setNull(index, java.sql.Types.INTEGER);
+    } else {
+      statement.setInt(index, value);
+    }
   }
 
   private List<Long> sanitizeRootIds(List<Long> rootIds) {

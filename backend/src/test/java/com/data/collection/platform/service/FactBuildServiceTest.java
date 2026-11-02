@@ -1,25 +1,23 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.service.form.FormReviewProjectionService;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -101,7 +99,8 @@ class FactBuildServiceTest {
             mock(FormIssueInputResolver.class),
             mock(FormIssueAuthorityRegistrar.class),
             mock(FormIssueBuildInputService.class),
-            new com.data.collection.platform.config.FormAdoptionProperties());
+            new com.data.collection.platform.config.FormAdoptionProperties(),
+            emptyReviewProjection());
 
     service.rebuildMergeRequestFactsForQueuedTask(config,
         FactRevisionFixture.target(com.data.collection.platform.entity.read.PublicationFactTable.MERGE_REQUEST, "default"), true, FactBuildProgress.NO_OP);
@@ -186,7 +185,8 @@ class FactBuildServiceTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties());
+        new com.data.collection.platform.config.FormAdoptionProperties(),
+            emptyReviewProjection());
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
@@ -321,7 +321,8 @@ class FactBuildServiceTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties());
+        new com.data.collection.platform.config.FormAdoptionProperties(),
+            emptyReviewProjection());
   }
 
   private SyncFactPublicationStateService readyPublicationStateService() {
@@ -337,5 +338,12 @@ class FactBuildServiceTest {
         jdbcTemplate,
         new IssueFactSourceRowMapper(),
         new MergeRequestFactSourceRowMapper());
+  }
+
+  private static FormReviewProjectionService emptyReviewProjection() {
+    FormReviewProjectionService service = mock(FormReviewProjectionService.class);
+    when(service.load(anyString(), org.mockito.ArgumentMatchers.anyList()))
+        .thenReturn(FormReviewProjectionService.Projection.empty());
+    return service;
   }
 }

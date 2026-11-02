@@ -2,11 +2,11 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.service.form.FormReviewProjectionService;
 import com.data.collection.platform.service.sync.SyncFactPublicationStateService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -125,7 +125,8 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             formIssueInputResolver(),
             mock(FormIssueAuthorityRegistrar.class),
             formIssueBuildInputService(),
-            new com.data.collection.platform.config.FormAdoptionProperties());
+            new com.data.collection.platform.config.FormAdoptionProperties(),
+            mock(FormReviewProjectionService.class));
   }
 
   @Test

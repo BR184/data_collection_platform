@@ -4,7 +4,6 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.FormAdoptionProperties;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
-import com.data.collection.platform.entity.FactProjectionScope;
 import com.data.collection.platform.entity.FactType;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
@@ -25,7 +24,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -64,6 +62,8 @@ public class FactBuildService {
   private final FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
   private final FormIssueBuildInputService formIssueBuildInputService;
   private final FormAdoptionProperties formAdoptionProperties;
+  private final com.data.collection.platform.service.form.FormReviewProjectionService
+      formReviewProjectionService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -87,7 +87,9 @@ public class FactBuildService {
       FormIssueInputResolver formIssueInputResolver,
       FormIssueAuthorityRegistrar formIssueAuthorityRegistrar,
       FormIssueBuildInputService formIssueBuildInputService,
-      FormAdoptionProperties formAdoptionProperties) {
+      FormAdoptionProperties formAdoptionProperties,
+      com.data.collection.platform.service.form.FormReviewProjectionService
+          formReviewProjectionService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
@@ -110,6 +112,7 @@ public class FactBuildService {
     this.formIssueAuthorityRegistrar = formIssueAuthorityRegistrar;
     this.formIssueBuildInputService = formIssueBuildInputService;
     this.formAdoptionProperties = formAdoptionProperties;
+    this.formReviewProjectionService = formReviewProjectionService;
   }
 
   /**
@@ -641,8 +644,11 @@ public class FactBuildService {
     List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
         ? loadMergeRequestCommitFactsByRootIds(normalizedSource, safeRootIds)
         : List.of();
+    com.data.collection.platform.service.form.FormReviewProjectionService.Projection projection =
+        formReviewProjectionService.load(normalizedSource, facts);
+    formReviewProjectionService.apply(facts, projection);
     mergeRequestFactPersistenceService.replaceRootFacts(
-        target, safeRootIds, facts, commitFacts);
+        target, safeRootIds, facts, commitFacts, projection.records());
     searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(target, facts);
     return new FactBuildResponse(
         factScope("merge-request", normalizedSource),
@@ -707,15 +713,19 @@ public class FactBuildService {
             .sorted()
             .toList();
         if (!rootIds.isEmpty()) {
-          // 增量范围有界，保持单事务原子语义：事实替换、提交关系与搜索列刷新同提交。
+          // 增量范围有界，保持单事务原子语义：事实替换、提交关系、走查投影与搜索列刷新同提交。
           publicationTransaction.execute(() -> {
+            com.data.collection.platform.service.form.FormReviewProjectionService.Projection
+                projection = formReviewProjectionService.load(sourceInstance, facts);
+            formReviewProjectionService.apply(facts, projection);
             mergeRequestFactPersistenceService.replaceRootFacts(
                 target,
                 rootIds,
                 facts,
                 commitFactsEnabled
                     ? loadMergeRequestCommitFactsByRootIds(sourceInstance, rootIds)
-                    : List.of());
+                    : List.of(),
+                projection.records());
             searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(target, facts);
             return null;
           });
@@ -762,9 +772,21 @@ public class FactBuildService {
                   mergeRequestId ->
                       commitsByMergeRequest.getOrDefault(mergeRequestId, List.of()).stream())
               .toList();
+      List<Long> chunkRootIds =
+          chunk.stream()
+              .map(MergeRequestFact::getMergeRequestId)
+              .filter(java.util.Objects::nonNull)
+              .distinct()
+              .sorted()
+              .toList();
       publicationTransaction.execute(() -> {
+        com.data.collection.platform.service.form.FormReviewProjectionService.Projection
+            projection = formReviewProjectionService.load(sourceInstance, chunk);
+        formReviewProjectionService.apply(chunk, projection);
         mergeRequestFactPersistenceService.upsertFacts(target, chunk);
         mergeRequestFactPersistenceService.upsertCommitFacts(target, chunkCommits);
+        mergeRequestFactPersistenceService.replaceFormReviewFacts(
+            target, chunkRootIds, projection.records());
         searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(target, chunk);
         return null;
       });

@@ -65,21 +65,49 @@ public class CodeReviewMultiBoardService {
     LegacyScopeSql scopeSql = legacyScopeSql(readScope);
 
     Map<String, Object> summary =
-        queryForMap(
-            """
-            select
-              count(*) as merge_request_count,
-              coalesce(sum(case when review_status = 'COMPLETED' then 1 else 0 end), 0) as completed_count,
-              coalesce(sum(case when review_status <> 'COMPLETED' or review_status is null then 1 else 0 end), 0) as pending_count,
-              round(avg(comment_rate)::numeric, 2) as average_comment_rate,
-              coalesce(sum(defect_count), 0) as total_defect_count,
-              coalesce(sum(added_lines), 0) as total_added_lines,
-              round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
-              round(avg(added_lines)::numeric, 2) as average_added_lines
-            from %s
-            %s
-            """.formatted(readScope.tableName(), scopeSql.whereClause()),
-            scopeSql.args().toArray());
+        formRecordsEnabled(readScope)
+            ? queryForMap(
+                """
+                with base as (
+                  select * from %s
+                  %s
+                ), record_rows as (
+                  select b.review_duration_minutes as duration from base b
+                   where not exists (
+                     select 1 from form_review_fact r
+                      where r.merge_request_revision_id = b.id)
+                  union all
+                  select r.review_duration_minutes from base b
+                   join form_review_fact r on r.merge_request_revision_id = b.id
+                )
+                select
+                  (select count(*) from base) as merge_request_count,
+                  (select count(*) from base where review_status = 'COMPLETED') as completed_count,
+                  (select count(*) from base
+                    where review_status <> 'COMPLETED' or review_status is null) as pending_count,
+                  (select round(avg(comment_rate)::numeric, 2) from base) as average_comment_rate,
+                  (select coalesce(sum(defect_count), 0) from base) as total_defect_count,
+                  (select coalesce(sum(added_lines), 0) from base) as total_added_lines,
+                  (select round(avg(duration)::numeric, 2) from record_rows
+                    where duration is not null) as average_review_duration_minutes,
+                  (select round(avg(added_lines)::numeric, 2) from base) as average_added_lines
+                """.formatted(readScope.tableName(), scopeSql.whereClause()),
+                scopeSql.args().toArray())
+            : queryForMap(
+                """
+                select
+                  count(*) as merge_request_count,
+                  coalesce(sum(case when review_status = 'COMPLETED' then 1 else 0 end), 0) as completed_count,
+                  coalesce(sum(case when review_status <> 'COMPLETED' or review_status is null then 1 else 0 end), 0) as pending_count,
+                  round(avg(comment_rate)::numeric, 2) as average_comment_rate,
+                  coalesce(sum(defect_count), 0) as total_defect_count,
+                  coalesce(sum(added_lines), 0) as total_added_lines,
+                  round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
+                  round(avg(added_lines)::numeric, 2) as average_added_lines
+                from %s
+                %s
+                """.formatted(readScope.tableName(), scopeSql.whereClause()),
+                scopeSql.args().toArray());
 
     List<CodeReviewMultiBoardBreakdownRowResponse> moduleRows =
         queryBreakdown("module_name", "未标注模块", readScope, scopeSql);
@@ -107,6 +135,9 @@ public class CodeReviewMultiBoardService {
       String emptyLabel,
       QualityBoardCodeReviewReadScope readScope,
       LegacyScopeSql scopeSql) {
+    if (formRecordsEnabled(readScope)) {
+      return queryFormBreakdown(fieldName, emptyLabel, readScope, scopeSql);
+    }
     List<Object> queryArgs = new ArrayList<>();
     queryArgs.add(emptyLabel);
     queryArgs.addAll(scopeSql.args());
@@ -139,6 +170,100 @@ public class CodeReviewMultiBoardService {
             """
                 .formatted(fieldName, readScope.tableName(), scopeSql.whereClause()),
             queryArgs.toArray());
+    List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
+    for (Map<String, Object> row : rows) {
+      String label = String.valueOf(row.get("row_label"));
+      result.add(
+          new CodeReviewMultiBoardBreakdownRowResponse(
+              label,
+              label,
+              intValue(row.get("merge_request_count")),
+              intValue(row.get("completed_count")),
+              doubleValue(row.get("average_comment_rate")),
+              intValue(row.get("total_defect_count")),
+              intValue(row.get("total_added_lines")),
+              densityValue(row.get("total_defect_count"), row.get("total_added_lines")),
+              doubleValue(row.get("average_review_duration_minutes")),
+              doubleValue(row.get("average_added_lines"))));
+    }
+    return result;
+  }
+
+  /** FORM 权威 MR 以逐记录投影参与均时与人员分桶；未登记 FORM 的 MR 保持每 MR 一行。 */
+  private boolean formRecordsEnabled(QualityBoardCodeReviewReadScope readScope) {
+    return "code_review_formal_records".equals(readScope.tableName());
+  }
+
+  private List<CodeReviewMultiBoardBreakdownRowResponse> queryFormBreakdown(
+      String fieldName,
+      String emptyLabel,
+      QualityBoardCodeReviewReadScope readScope,
+      LegacyScopeSql scopeSql) {
+    boolean module = "module_name".equals(fieldName);
+    String recordLabel =
+        module
+            ? "coalesce(nullif(btrim(b.module_name), ''), ?)"
+            : "coalesce(nullif(btrim(r.reviewer_name), ''), nullif(btrim(b.reviewer_names), ''), ?)";
+    String nonFormLabel =
+        module
+            ? "coalesce(nullif(btrim(b.module_name), ''), ?)"
+            : "coalesce(nullif(btrim(b.reviewer_names), ''), ?)";
+    List<Object> args = new ArrayList<>(scopeSql.args());
+    args.add(emptyLabel);
+    args.add(emptyLabel);
+    List<Map<String, Object>> rows =
+        queryForList(
+            """
+            with base as (
+              select * from %s
+              %s
+            ), record_rows as (
+              select %s as row_label,
+                     b.review_status, b.comment_rate, b.defect_count, b.added_lines,
+                     b.project_id, b.merge_request_id,
+                     r.review_duration_minutes as duration
+                from base b join form_review_fact r on r.merge_request_revision_id = b.id
+              union all
+              select %s as row_label,
+                     b.review_status, b.comment_rate, b.defect_count, b.added_lines,
+                     b.project_id, b.merge_request_id,
+                     b.review_duration_minutes as duration
+                from base b
+               where not exists (
+                 select 1 from form_review_fact r where r.merge_request_revision_id = b.id)
+            ), mr_rows as (
+              select distinct row_label, project_id, merge_request_id, review_status,
+                     comment_rate, defect_count, added_lines
+                from record_rows
+            ), mr_metrics as (
+              select row_label,
+                     count(*) as merge_request_count,
+                     count(*) filter (where review_status = 'COMPLETED') as completed_count,
+                     round(avg(comment_rate)::numeric, 2) as average_comment_rate,
+                     coalesce(sum(defect_count), 0) as total_defect_count,
+                     coalesce(sum(added_lines), 0) as total_added_lines,
+                     round(avg(added_lines)::numeric, 2) as average_added_lines
+                from mr_rows
+               group by row_label
+            ), record_metrics as (
+              select row_label, round(avg(duration)::numeric, 2) as average_review_duration_minutes
+                from record_rows where duration is not null group by row_label
+            )
+            select m.row_label,
+                   m.merge_request_count,
+                   m.completed_count,
+                   m.average_comment_rate,
+                   m.total_defect_count,
+                   m.total_added_lines,
+                   r.average_review_duration_minutes,
+                   m.average_added_lines
+              from mr_metrics m
+              left join record_metrics r on r.row_label = m.row_label
+             order by m.merge_request_count desc, m.row_label
+            """
+                .formatted(
+                    readScope.tableName(), scopeSql.whereClause(), recordLabel, nonFormLabel),
+            args.toArray());
     List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       String label = String.valueOf(row.get("row_label"));

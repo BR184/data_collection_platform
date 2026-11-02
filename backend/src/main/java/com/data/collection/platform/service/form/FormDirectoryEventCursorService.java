@@ -2,6 +2,7 @@ package com.data.collection.platform.service.form;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,14 +26,21 @@ public class FormDirectoryEventCursorService {
     this.objectMapper = objectMapper;
   }
 
+  /** 被目录事件唤醒的 FORM 资源；调用方据此登记既有事实任务。 */
+  public record WokenResource(
+      String sourceInstance, long projectId, String resourceType, long resourceId) {}
+
+  /** 单批消费结果：事件数与去重后的唤醒资源。 */
+  public record Consumption(int consumed, List<WokenResource> woken) {}
+
   /**
    * 消费一批待处理目录事件。
    *
    * @param limit 单批上限
-   * @return 实际处理的事件数（含重复投递的游标推进）
+   * @return 实际处理的事件数（含重复投递的游标推进）与被唤醒的 FORM 资源
    */
   @Transactional
-  public int consumePending(int limit) {
+  public Consumption consumePending(int limit) {
     List<Map<String, Object>> events =
         jdbcTemplate.queryForList(
             """
@@ -45,6 +53,7 @@ public class FormDirectoryEventCursorService {
             """,
             limit);
     int consumed = 0;
+    LinkedHashSet<WokenResource> woken = new LinkedHashSet<>();
     for (Map<String, Object> event : events) {
       long eventId = ((Number) event.get("id")).longValue();
       long scopeId = ((Number) event.get("scope_id")).longValue();
@@ -74,6 +83,30 @@ public class FormDirectoryEventCursorService {
                   "select source_set_hash from form_template_scopes where id = ?",
                   String.class,
                   scopeId);
+          List<Map<String, Object>> targets =
+              jdbcTemplate.queryForList(
+                  """
+                  select distinct h.source_instance, h.project_id, h.resource_type, h.resource_id
+                    from form_change_heads h
+                    join form_resource_authorities a
+                      on a.source_config_id = h.source_config_id
+                     and a.project_id = h.project_id
+                     and a.resource_type = h.resource_type
+                     and a.resource_id = h.resource_id
+                     and a.template_key = h.template_key
+                     and a.scope_id = h.scope_id
+                   where a.authority = 'FORM'
+                     and h.scope_id = ?
+                     and exists (
+                       select 1 from form_record_locations l
+                        where l.scope_id = h.scope_id
+                          and l.storage_version_id = ?
+                          and l.resource_type = h.resource_type
+                          and l.project_id = h.project_id
+                          and l.resource_id = h.resource_id::text)
+                  """,
+                  scopeId,
+                  versionId);
           jdbcTemplate.update(
               """
               update form_change_heads h
@@ -106,6 +139,14 @@ public class FormDirectoryEventCursorService {
               hash,
               scopeId,
               versionId);
+          for (Map<String, Object> target : targets) {
+            woken.add(
+                new WokenResource(
+                    (String) target.get("source_instance"),
+                    ((Number) target.get("project_id")).longValue(),
+                    (String) target.get("resource_type"),
+                    ((Number) target.get("resource_id")).longValue()));
+          }
           jdbcTemplate.update(
               "update form_directory_event_cursors set last_consumed_event_id = ?,"
                   + " updated_at = clock_timestamp() where scope_id = ?",
@@ -120,7 +161,7 @@ public class FormDirectoryEventCursorService {
           eventId);
       consumed++;
     }
-    return consumed;
+    return new Consumption(consumed, List.copyOf(woken));
   }
 
   private Long publishedVersionId(String payload) {

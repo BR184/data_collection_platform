@@ -53,6 +53,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
     properties = {
       "platform.background-jobs.enabled=false",
+      "platform.form-directory-event.worker-enabled=false",
       "platform.form-publication.worker-enabled=false",
       "platform.gitlab-mirror.scheduler-enabled=false",
       "platform.gitlab-mirror.delete-reconciliation-enabled=false",

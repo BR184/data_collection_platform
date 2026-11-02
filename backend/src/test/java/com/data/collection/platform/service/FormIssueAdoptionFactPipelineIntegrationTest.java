@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.domain.form.FormScopeBinding;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
@@ -26,11 +27,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -47,6 +51,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
     properties = {
       "platform.background-jobs.enabled=false",
+      "platform.form-directory-event.worker-enabled=false",
       "platform.form-adoption.issue-enabled-at=2026-11-01T00:00:00",
       "platform.form-publication.worker-enabled=false",
       "platform.gitlab-mirror.scheduler-enabled=false",
@@ -101,6 +106,10 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       formHeadCaptureService;
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
 
+  @Autowired
+  @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
+  private ThreadPoolTaskExecutor platformAsyncExecutor;
+
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
   private SyncFactPublicationStateService qualification;
 
@@ -130,6 +139,23 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     replyScopeId = createScope(FormTemplateSpecCatalog.ISSUE_REPLY, "issue-reply-scope");
   }
 
+  @AfterEach
+  void awaitInFlightDelayRound() {
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+    while (System.nanoTime() < deadline) {
+      if (platformAsyncExecutor.getActiveCount() == 0
+          && platformAsyncExecutor.getThreadPoolExecutor().getQueue().isEmpty()) {
+        return;
+      }
+      try {
+        Thread.sleep(25L);
+      } catch (InterruptedException error) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("等待异步轮次结束被中断", error);
+      }
+    }
+  }
+
   @Test
   void formPlanWinsOverStaleCommentPlanOnFirstFactAndPeriodicRefresh() {
     insertSourceIssue(93001L, 81001L, LocalDateTime.of(2026, 11, 1, 10, 0));
@@ -140,6 +166,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     insertReplyRecord(93001L, LocalDateTime.of(2026, 11, 6, 10, 0), "u-jia");
 
     rebuildAllIssueFacts();
+    awaitDelayClosureSettled();
+    completeIssueProjections();
 
     Map<String, Object> fact = liveFact(93001L);
     assertThat(fact.get("planned_resolution_at")).isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
@@ -185,6 +213,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
             org.mockito.ArgumentMatchers.eq(SOURCE_INSTANCE),
             org.mockito.ArgumentMatchers.contains("表单输入已消费"));
 
+    awaitDelayClosureSettled();
+    completeIssueProjections();
     refreshDelayFacts();
     refreshDelayFacts();
 
@@ -218,11 +248,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .doesNotContain("稳定输入");
 
     // 发布 worker 在测试中关闭，先完成轮次留下的投影候选再发起同输入周期公开。
-    FactRevisionFixture.completeRequiredProjections(
-        jdbcTemplate,
-        factTargetPublicationService,
-        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
-        null);
+    completeIssueProjections();
     refreshDelayFacts();
 
     Map<String, Object> after = delayClosureProgress();
@@ -508,6 +534,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         LocalDateTime.of(2026, 11, 3, 10, 0), LocalDate.of(2026, 10, 20), "CC2026R3");
 
     rebuildAllIssueFacts();
+    awaitDelayClosureSettled();
+    completeIssueProjections();
     assertThat(liveFact(93106L).get("is_resolve_delayed")).isEqualTo(true);
 
     insertResponseRecord(
@@ -667,6 +695,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     long replyId = insertReplyRecord(93105L, LocalDateTime.of(2026, 11, 6, 10, 0), "u-jia");
 
     rebuildAllIssueFacts();
+    awaitDelayClosureSettled();
+    completeIssueProjections();
 
     Map<String, Object> adopted = liveFact(93105L);
     assertThat(adopted.get("planned_resolution_at"))
@@ -1417,13 +1447,17 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         key -> InitialVersionVerification.VerificationResult.accepted());
   }
 
-  private void refreshDelayFacts() {
-    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+  private void completeIssueProjections() {
     FactRevisionFixture.completeRequiredProjections(
         jdbcTemplate,
         factTargetPublicationService,
         ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
         null);
+  }
+
+  private void refreshDelayFacts() {
+    factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
+    completeIssueProjections();
   }
 
   private GitlabSyncConfig config() {
