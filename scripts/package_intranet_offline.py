@@ -1712,6 +1712,7 @@ SQL
 
 - 不要执行 `docker compose down -v`。
 {volume_warning}
+- 不要执行 `init-env.py`、`transfer.sh target --init-target/--package` 或任何样本导入；本包不含 `.env`，现场 `.env` 在升级和回滚中保持原样。
 - 不要重建、替换或删除 postgres 容器。
 - 不要清空镜像表、事实表、同步状态、用户、页面设置或平台配置。
 - 不要在内网服务器执行 `docker build`。
