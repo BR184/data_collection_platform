@@ -1,3 +1,15 @@
+## 2026-11-02 表单N4 P5实施：共同字段选择、按版导出与审计（已提交 aaf3def7，待复审）
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | N4 P4/P5已提交，待双远端回读与复审 | 表单多版本与填写功能开发-20261026 | 推送双远端并回读；N4收口后统一送审 |
+
+- 共同字段：`FormCommonFieldService` 按`stableId`+`semanticKey`+冻结`field.type`/单位+冻结域哈希选择common，只对common聚合；未声明、域无法解析、声明与冻结类型冲突进入显式无效报告，不参与统计。真实两版`specification_count` `2+3=5`；仅改label仍5；新stableId→onlyInSome不聚合；语义键/真实`affected_kinds`选项变化→unmerged；无共同字段→`NO_COMMON_FIELDS`且total=null；类型冲突→`TYPE_DECLARATION_CONFLICT`；非integer→`UNSUPPORTED_AGGREGATION`；缺字段/NULL/0/作废分别计数。
+- 按版导出：新增`GET /api/collect-forms/exports/records`与`FormRecordExportService`，只读可读`AUTHORITATIVE`版本，版本/项目/目录C三重谓词，冻结规格列序，空版仅表头，作废排除，行数50000/字节64MB显式413；`form_record_export_logs`记录范围、版本、项目、行数、字节数、SHA-256与操作人。
+- 鉴权：迁移`V20261102_03`只登记`form.record.export`权限键与审计表，不向任何角色授予，也不从view推导export；端点方法级校验该键；正式授予仍待目标库清单。golden目录登记为EXCLUDED，待用户确认快照。
+- 测试：`FormCommonFieldServiceTest`8/8、`FormRecordExportIntegrationTest`4/4、`FormComparableRegistrationIntegrationTest`9/9、`FlywayMigrationSmokeTest`21/21、`EndpointAuthorizationContractTest`1/1、`GoldenBaselineCoverageGuardTest`2/2；迁移锁169条，文本空白、产物、运行时路径与`git diff --check`通过。未改批准UI、既有迁移、共享库或外部数据，未跑默认全量/页面/黄金，不合main、不出包。
+- 提交：实现`aaf3def7`；下一步文档提交并推送双远端回读，待复审。
+
 ## 2026-11-02 表单N4 P4实施：MR逐记录投影、正式统计与目录事件自动消费（已提交 9ae6c289，待复审）
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
