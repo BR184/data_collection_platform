@@ -40,7 +40,8 @@ class FactPublicationFailurePreservationTest {
     service = new FactTargetPublicationService(jdbc, null, null, null, null, transactions,
         guard, null, null, new GitlabMirrorProperties(), lifecycle, repository, null, null,
         org.mockito.Mockito.mock(
-            com.data.collection.platform.service.form.FormHeadCaptureService.class));
+            com.data.collection.platform.service.form.FormHeadCaptureService.class),
+        org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
   }
 
   @Test

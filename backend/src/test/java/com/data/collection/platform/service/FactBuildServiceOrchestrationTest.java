@@ -119,7 +119,7 @@ class FactBuildServiceOrchestrationTest {
         new com.data.collection.platform.config.GitlabMirrorProperties(),
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
-        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+        mock(FormIssueBuildInputService.class),
         new com.data.collection.platform.config.FormAdoptionProperties());
   }
 

@@ -249,6 +249,7 @@ class IssueFactSourceRowMapper {
     fact.setFixedLabelTime(toLocalDateTime(resultSet.getTimestamp("fixed_label_time")));
     fact.setResolveDelayed(resultSet.getBoolean("is_resolve_delayed"));
     fact.setLegacy(resultSet.getBoolean("is_legacy"));
+    fact.setFormInputHash(defaultText(resultSet.getString("form_input_hash")));
     fact.setDeleted(false);
     return fact;
   }

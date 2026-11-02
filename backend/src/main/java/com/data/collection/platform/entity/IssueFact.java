@@ -196,6 +196,9 @@ public class IssueFact {
   @TableField("is_legacy")
   private Boolean legacy;
 
+  @TableField("form_input_hash")
+  private String formInputHash;
+
   private Boolean deleted;
 
   @TableField("fact_refreshed_at")

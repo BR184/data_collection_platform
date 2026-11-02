@@ -39,6 +39,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   private CustomerIssueDelayClosureProgressRepository progressRepository;
   private CustomerIssueDelaySourceReadinessService readinessService;
   private com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
+  private FormIssueBuildInputService formIssueBuildInputService;
   private CustomerIssueDelayLabelWritebackWorkerService workerService;
   private GitlabSyncConfig config;
 
@@ -54,6 +55,11 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     readinessService = mock(CustomerIssueDelaySourceReadinessService.class);
     formHeadCaptureService =
         mock(com.data.collection.platform.service.form.FormHeadCaptureService.class);
+    formIssueBuildInputService = mock(FormIssueBuildInputService.class);
+    when(formIssueBuildInputService.current(any(), anyLong(), anyLong()))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.NONE, null));
     workerService =
         new CustomerIssueDelayLabelWritebackWorkerService(
             properties,
@@ -64,7 +70,8 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
             preWritebackSyncService,
             progressRepository,
             readinessService,
-            formHeadCaptureService);
+            formHeadCaptureService,
+            formIssueBuildInputService);
     config = new GitlabSyncConfig();
     config.setId(CONFIG_ID);
     config.setSourceInstance("default");
@@ -104,6 +111,37 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
 
     verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
     verify(queueService).defer(eq(job), org.mockito.ArgumentMatchers.contains("表单证据已推进"), any());
+  }
+
+  @Test
+  void shouldSkipOldJobWhenFormInputHashChangedAfterPlanning() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("", true, false);
+    fact.setFormInputHash("b".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService).markSkipped(job, "表单输入已变化，旧写回作业作废");
+  }
+
+  @Test
+  void shouldNotSendWhenLiveFormInputAdvancedBeyondFact() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("", true, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK, "b".repeat(64)));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService)
+        .defer(eq(job), org.mockito.ArgumentMatchers.contains("表单输入已推进"), any());
   }
 
   @Test
@@ -340,6 +378,37 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         null);
   }
 
+  private CustomerIssueDelayLabelWritebackJob jobWithFormInputHash(String hash) {
+    CustomerIssueDelayLabelWritebackJob base = job(99L, 0, 10);
+    return new CustomerIssueDelayLabelWritebackJob(
+        base.id(),
+        base.sourceInstance(),
+        base.configId(),
+        base.projectId(),
+        base.issueIid(),
+        base.issueId(),
+        base.desiredResponseDelayed(),
+        base.desiredResolveDelayed(),
+        base.currentLabelNames(),
+        base.addLabels(),
+        base.removeLabels(),
+        base.status(),
+        base.attemptCount(),
+        base.maxAttempts(),
+        base.nextRunAt(),
+        base.leaseOwner(),
+        base.leaseUntil(),
+        base.lastError(),
+        base.lastHttpStatus(),
+        base.roundMirrorRunId(),
+        base.authorizationRevision(),
+        base.requiredFactVersion(),
+        hash,
+        base.claimToken(),
+        base.claimRevision(),
+        base.taskRevision());
+  }
+
   private CustomerIssueDelayLabelWritebackJob jobWithFactVersion(long factVersion) {
     CustomerIssueDelayLabelWritebackJob base = job(99L, 0, 10);
     return new CustomerIssueDelayLabelWritebackJob(
@@ -365,6 +434,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         base.roundMirrorRunId(),
         base.authorizationRevision(),
         factVersion,
+        base.formInputHash(),
         base.claimToken(),
         base.claimRevision(),
         base.taskRevision());
@@ -394,6 +464,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         MIRROR_RUN_ID,
         AUTHORIZATION_REVISION,
         FACT_VERSION,
+        null,
         "token",
         1L,
         1L);

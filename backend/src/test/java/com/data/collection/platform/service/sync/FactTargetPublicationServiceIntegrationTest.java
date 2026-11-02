@@ -136,7 +136,8 @@ class FactTargetPublicationServiceIntegrationTest {
                 new com.data.collection.platform.service.CustomerIssueMilestoneCatalogReconciliationService(jdbcTemplate),
                 com.data.collection.platform.service.FactRevisionFixture.projectionArtifacts(
                     jdbcTemplate, readPublicationService, readPublicationRepository),
-                mock(com.data.collection.platform.service.form.FormHeadCaptureService.class)));
+                mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+                mock(org.springframework.context.ApplicationEventPublisher.class)));
   }
 
   /** 更新既有根：新修订接管可见性，旧修订在上一发布序号上仍然可读。 */

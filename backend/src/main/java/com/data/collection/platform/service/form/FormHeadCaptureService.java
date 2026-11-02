@@ -134,6 +134,149 @@ public class FormHeadCaptureService {
       String leaseOwner,
       long fencingVersion) {}
 
+  /**
+   * 候选构建输入证据。
+   *
+   * <p>{@code CAPTURED} 表示本次候选领取并捕获、待最终公开结算；{@code CONSUMED} 表示该 head
+   * 在冻结时已消费，只能读取并在公开事务内复核仍为同一已消费修订。
+   */
+  public record InputEvidence(Capture capture, String status) {
+    public boolean captured() {
+      return "CAPTURED".equals(status);
+    }
+  }
+
+  /**
+   * 读取业务值前冻结一条 FORM 侧证据。
+   *
+   * <p>未消费 head 必须领取成功；已被他人有效持有时直接拒绝，候选不得无证继续。已消费 head
+   * 生成只读证据，最终公开事务复核其仍停在冻结修订。
+   *
+   * @param scopeId 范围
+   * @param headId 变更 head
+   * @param worker 候选消费身份
+   * @param now 冻结时刻
+   * @return 已捕获或已消费证据
+   */
+  @Transactional
+  public InputEvidence ensureEvidence(long scopeId, long headId, String worker, LocalDateTime now) {
+    HeadRow head = headById(headId);
+    if (head.consumedChangeVersion() >= head.latestChangeVersion()) {
+      if (!"CONSUMED".equals(head.status())) {
+        throw new FormConflictException("表单变更 head 状态与消费水位不一致，拒绝无证构建");
+      }
+      Map<String, Object> scope = requireScope(scopeId);
+      Authority authority = requireFormAuthority(head);
+      Capture evidence =
+          new Capture(
+              headId,
+              scopeId,
+              UUID.randomUUID().toString(),
+              ((Number) scope.get("source_set_revision")).longValue(),
+              (String) scope.get("source_set_hash"),
+              null,
+              head.latestChangeVersion(),
+              authority.revision(),
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              worker,
+              0L);
+      return new InputEvidence(evidence, "CONSUMED");
+    }
+    Optional<HeadRow> leased = claimHead(headId, worker, now);
+    if (leased.isEmpty()) {
+      throw new FormConflictException(
+          "表单变更 head 正由其他消费者持有，本次候选无证让位：head=" + headId);
+    }
+    HeadRow claimed = leased.get();
+    Capture capture = capture(scopeId, headId, worker, claimed.fencingVersion(), now);
+    return new InputEvidence(capture, "CAPTURED");
+  }
+
+  /** 把候选输入证据绑定到实际发布身份；同一 head 只保留一条。 */
+  @Transactional
+  public void bindEvidence(UUID publicationId, List<InputEvidence> evidence) {
+    if (evidence == null || evidence.isEmpty()) {
+      return;
+    }
+    Map<Long, InputEvidence> unique = new LinkedHashMap<>();
+    for (InputEvidence item : evidence) {
+      unique.putIfAbsent(item.capture().headId(), item);
+    }
+    for (InputEvidence item : unique.values()) {
+      bindOne(publicationId, item.capture(), item.status());
+    }
+  }
+
+  /**
+   * 按所有已绑定证据重算并持久化候选输入清单；清单是最终公开完整性校验的权威。
+   *
+   * @param publicationId 候选发布身份
+   */
+  @Transactional
+  public void completeManifest(UUID publicationId) {
+    List<Map<String, Object>> rows = evidenceRows(publicationId);
+    String hash = manifestHashOf(rows);
+    int updated =
+        jdbcTemplate.update(
+            "update read_publications set form_input_manifest_count = ?,"
+                + " form_input_manifest_hash = ? where id = ?",
+            rows.size(),
+            hash,
+            publicationId);
+    if (updated != 1) {
+      throw new FormConflictException("表单输入清单写入失败，禁止继续构建");
+    }
+  }
+
+  /**
+   * 候选中止时释放本次领取且仍属本候选的 head 租约，避免后续构建被已中止的租约阻塞。
+   *
+   * <p>只处理当前仍持有有效唯一所有权的 CAPTURED 证据；已消费或已被他人接管的 head 不动。
+   *
+   * @param publicationId 已中止或即将中止的候选
+   */
+  @Transactional
+  public void releaseForPublication(UUID publicationId) {
+    jdbcTemplate.update(
+        """
+        update form_change_heads h
+           set status = case when h.consumed_change_version >= h.latest_change_version
+                             then 'CONSUMED' else 'PENDING' end,
+               lease_owner = null, lease_until = null, updated_at = clock_timestamp()
+          from form_publication_captures c
+         where c.publication_id = ? and c.status = 'CAPTURED' and c.head_id = h.id
+           and h.status = 'LEASED' and h.lease_owner = c.lease_owner
+           and h.fencing_version = c.fencing_version
+        """,
+        publicationId);
+    jdbcTemplate.update(
+        "update form_head_captures c set status = 'DISCARDED', consumed_at = null"
+            + " from form_publication_captures p"
+            + " where p.publication_id = ? and p.status = 'CAPTURED' and p.head_id = c.head_id"
+            + " and c.status = 'CAPTURED' and c.lease_owner = p.lease_owner"
+            + " and c.fencing_version = p.fencing_version",
+        publicationId);
+    jdbcTemplate.update(
+        "update form_publication_captures set status = 'DISCARDED'"
+            + " where publication_id = ? and status = 'CAPTURED'",
+        publicationId);
+  }
+
+  /** 候选是否绑定过任一 FORM 输入证据。 */
+  public boolean hasFormEvidence(UUID publicationId) {
+    Long count =
+        jdbcTemplate.queryForObject(
+            "select count(*) from form_publication_captures where publication_id = ?",
+            Long.class,
+            publicationId);
+    return count != null && count > 0;
+  }
+
   /** 按完整来源身份批量读取 head；同一身份出现多行视为登记冲突。 */
   public Map<HeadKey, HeadRow> loadHeads(
       String sourceInstance, Collection<HeadKey> keys) {
@@ -202,7 +345,8 @@ public class FormHeadCaptureService {
                    updated_at = clock_timestamp()
              where h.id = ?
                and (h.status in ('PENDING', 'RETRY_WAIT')
-                    or (h.status = 'LEASED' and h.lease_until < clock_timestamp()))
+                    or (h.status = 'LEASED'
+                        and (h.lease_until < clock_timestamp() or h.lease_owner = ?)))
             returning id, scope_id, latest_change_version, consumed_change_version, status,
                       lease_owner, fencing_version, pending_authority_revision,
                       pending_record_id, pending_record_version, pending_storage_version_id,
@@ -226,7 +370,8 @@ public class FormHeadCaptureService {
                     rs.getString("pending_source_set_hash"),
                     nullableLong(rs, "pending_authority_revision")),
             worker,
-            headId);
+            headId,
+            worker);
     return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
   }
 
@@ -238,49 +383,54 @@ public class FormHeadCaptureService {
    */
   public void bindToPublication(UUID publicationId, List<Capture> captures) {
     for (Capture capture : captures) {
-      jdbcTemplate.update(
-          """
-          insert into form_publication_captures(
-              publication_id, head_id, scope_id, capture_token, source_set_revision,
-              source_set_hash, latest_change_version, authority_revision, pending_record_id,
-              pending_record_version, pending_storage_version_id, pending_source_set_revision,
-              pending_source_set_hash, pending_authority_revision, lease_owner, fencing_version,
-              status, captured_at)
-          values (?, ?, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CAPTURED', ?)
-          on conflict (publication_id, head_id) do update
-             set capture_token = excluded.capture_token, scope_id = excluded.scope_id,
-                 source_set_revision = excluded.source_set_revision,
-                 source_set_hash = excluded.source_set_hash,
-                 latest_change_version = excluded.latest_change_version,
-                 authority_revision = excluded.authority_revision,
-                 pending_record_id = excluded.pending_record_id,
-                 pending_record_version = excluded.pending_record_version,
-                 pending_storage_version_id = excluded.pending_storage_version_id,
-                 pending_source_set_revision = excluded.pending_source_set_revision,
-                 pending_source_set_hash = excluded.pending_source_set_hash,
-                 pending_authority_revision = excluded.pending_authority_revision,
-                 lease_owner = excluded.lease_owner, fencing_version = excluded.fencing_version,
-                 status = 'CAPTURED', consumed_at = null, captured_at = excluded.captured_at
-           where form_publication_captures.status = 'CAPTURED'
-          """,
-          publicationId,
-          capture.headId(),
-          capture.scopeId(),
-          capture.captureToken(),
-          capture.sourceSetRevision(),
-          capture.sourceSetHash(),
-          capture.latestChangeVersion(),
-          capture.authorityRevision(),
-          capture.pendingRecordId(),
-          capture.pendingRecordVersion(),
-          capture.pendingStorageVersionId(),
-          capture.pendingSourceSetRevision(),
-          capture.pendingSourceSetHash(),
-          capture.pendingAuthorityRevision(),
-          capture.leaseOwner(),
-          capture.fencingVersion(),
-          Timestamp.valueOf(LocalDateTime.now()));
+      bindOne(publicationId, capture, "CAPTURED");
     }
+  }
+
+  private void bindOne(UUID publicationId, Capture capture, String status) {
+    jdbcTemplate.update(
+        """
+        insert into form_publication_captures(
+            publication_id, head_id, scope_id, capture_token, source_set_revision,
+            source_set_hash, latest_change_version, authority_revision, pending_record_id,
+            pending_record_version, pending_storage_version_id, pending_source_set_revision,
+            pending_source_set_hash, pending_authority_revision, lease_owner, fencing_version,
+            status, captured_at)
+        values (?, ?, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict (publication_id, head_id) do update
+           set capture_token = excluded.capture_token, scope_id = excluded.scope_id,
+               source_set_revision = excluded.source_set_revision,
+               source_set_hash = excluded.source_set_hash,
+               latest_change_version = excluded.latest_change_version,
+               authority_revision = excluded.authority_revision,
+               pending_record_id = excluded.pending_record_id,
+               pending_record_version = excluded.pending_record_version,
+               pending_storage_version_id = excluded.pending_storage_version_id,
+               pending_source_set_revision = excluded.pending_source_set_revision,
+               pending_source_set_hash = excluded.pending_source_set_hash,
+               pending_authority_revision = excluded.pending_authority_revision,
+               lease_owner = excluded.lease_owner, fencing_version = excluded.fencing_version,
+               status = excluded.status, consumed_at = null, captured_at = excluded.captured_at
+         where form_publication_captures.status = 'CAPTURED'
+        """,
+        publicationId,
+        capture.headId(),
+        capture.scopeId(),
+        capture.captureToken(),
+        capture.sourceSetRevision(),
+        capture.sourceSetHash(),
+        capture.latestChangeVersion(),
+        capture.authorityRevision(),
+        capture.pendingRecordId(),
+        capture.pendingRecordVersion(),
+        capture.pendingStorageVersionId(),
+        capture.pendingSourceSetRevision(),
+        capture.pendingSourceSetHash(),
+        capture.pendingAuthorityRevision(),
+        capture.leaseOwner(),
+        capture.fencingVersion(),
+        status,
+        Timestamp.valueOf(LocalDateTime.now()));
   }
 
   /**
@@ -289,42 +439,190 @@ public class FormHeadCaptureService {
    * @param publicationId 正在公开的候选
    */
   public void settleForPublication(UUID publicationId) {
-    List<Map<String, Object>> rows =
-        jdbcTemplate.queryForList(
-            "select head_id, scope_id, capture_token::text as capture_token,"
-                + " source_set_revision, source_set_hash, latest_change_version, authority_revision,"
-                + " pending_record_id, pending_record_version, pending_storage_version_id,"
-                + " pending_source_set_revision, pending_source_set_hash,"
-                + " pending_authority_revision, lease_owner, fencing_version"
-                + " from form_publication_captures where publication_id = ? and status = 'CAPTURED'"
-                + " order by head_id",
+    Map<String, Object> manifest =
+        jdbcTemplate.queryForMap(
+            "select form_input_manifest_count as manifest_count,"
+                + " form_input_manifest_hash as manifest_hash"
+                + " from read_publications where id = ?",
             publicationId);
-    for (Map<String, Object> row : rows) {
-      Capture capture =
-          new Capture(
-              longOf(row.get("head_id")),
-              longOf(row.get("scope_id")),
-              (String) row.get("capture_token"),
-              longOf(row.get("source_set_revision")),
-              (String) row.get("source_set_hash"),
-              null,
-              longOf(row.get("latest_change_version")),
-              longOf(row.get("authority_revision")),
-              longOfNullable(row.get("pending_record_id")),
-              intOfNullable(row.get("pending_record_version")),
-              longOfNullable(row.get("pending_storage_version_id")),
-              longOfNullable(row.get("pending_source_set_revision")),
-              (String) row.get("pending_source_set_hash"),
-              longOfNullable(row.get("pending_authority_revision")),
-              (String) row.get("lease_owner"),
-              longOf(row.get("fencing_version")));
-      settleCapture(capture, () -> {});
-      jdbcTemplate.update(
-          "update form_publication_captures set status = 'CONSUMED', consumed_at = clock_timestamp()"
-              + " where publication_id = ? and head_id = ? and status = 'CAPTURED'",
-          publicationId,
-          capture.headId());
+    List<Map<String, Object>> rows = evidenceRows(publicationId);
+    Object expectedHash = manifest.get("manifest_hash");
+    int expectedCount = ((Number) manifest.get("manifest_count")).intValue();
+    if (expectedHash == null) {
+      if (!rows.isEmpty()) {
+        throw new FormConflictException("表单输入清单未完成，禁止公开");
+      }
+    } else if (expectedCount != rows.size()
+        || !String.valueOf(expectedHash).equals(manifestHashOf(rows))) {
+      throw new FormConflictException("表单输入清单与绑定证据不一致，禁止公开");
     }
+    requireCompleteFormEvidence(publicationId);
+    for (Map<String, Object> row : rows) {
+      Capture capture = captureOf(row);
+      if ("CAPTURED".equals(row.get("status"))) {
+        settleCapture(capture, () -> {});
+        jdbcTemplate.update(
+            "update form_publication_captures set status = 'CONSUMED', consumed_at = clock_timestamp()"
+                + " where publication_id = ? and head_id = ? and status = 'CAPTURED'",
+            publicationId,
+            capture.headId());
+      } else if ("CONSUMED".equals(row.get("status"))) {
+        verifyConsumedEvidence(capture);
+      }
+    }
+  }
+
+  private List<Map<String, Object>> evidenceRows(UUID publicationId) {
+    return jdbcTemplate.queryForList(
+        "select head_id, scope_id, capture_token::text as capture_token,"
+            + " source_set_revision, source_set_hash, latest_change_version, authority_revision,"
+            + " pending_record_id, pending_record_version, pending_storage_version_id,"
+            + " pending_source_set_revision, pending_source_set_hash,"
+            + " pending_authority_revision, lease_owner, fencing_version, status"
+            + " from form_publication_captures where publication_id = ?"
+            + " and status in ('CAPTURED', 'CONSUMED') order by head_id",
+        publicationId);
+  }
+
+  private String manifestHashOf(List<Map<String, Object>> rows) {
+    List<String> lines =
+        rows.stream()
+            .map(
+                row ->
+                    FormInputHash.evidenceLine(
+                        longOf(row.get("head_id")),
+                        longOf(row.get("scope_id")),
+                        longOfNullable(row.get("authority_revision")),
+                        longOfNullable(row.get("source_set_revision")),
+                        (String) row.get("source_set_hash"),
+                        longOf(row.get("latest_change_version")),
+                        (String) row.get("status")))
+            .toList();
+    return FormInputHash.manifestHash(lines);
+  }
+
+  private Capture captureOf(Map<String, Object> row) {
+    return new Capture(
+        longOf(row.get("head_id")),
+        longOf(row.get("scope_id")),
+        (String) row.get("capture_token"),
+        longOf(row.get("source_set_revision")),
+        (String) row.get("source_set_hash"),
+        null,
+        longOf(row.get("latest_change_version")),
+        longOf(row.get("authority_revision")),
+        longOfNullable(row.get("pending_record_id")),
+        intOfNullable(row.get("pending_record_version")),
+        longOfNullable(row.get("pending_storage_version_id")),
+        longOfNullable(row.get("pending_source_set_revision")),
+        (String) row.get("pending_source_set_hash"),
+        longOfNullable(row.get("pending_authority_revision")),
+        (String) row.get("lease_owner"),
+        longOf(row.get("fencing_version")));
+  }
+
+  /**
+   * 最终公开前核对本次构建的每个议题根：凡存在 FORM 权威的模板必须已在候选绑定证据中。
+   *
+   * <p>只校验 UPSERT 根；删除根没有可读表单事实。缺失即拒绝公开，避免“只捕获了一部分输入”的
+   * 候选覆盖完整版本。
+   */
+  private void requireCompleteFormEvidence(UUID publicationId) {
+    Long missing =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from read_publication_fact_roots r
+              join ods_gitlab_issues i
+                on i.id = r.root_id and i.project_id = r.project_id
+              join form_resource_authorities a
+                on a.source_instance = r.source_instance
+               and a.project_id = r.project_id
+               and a.resource_type = 'issue'
+               and a.resource_id = i.iid
+               and a.authority = 'FORM'
+               and a.template_key in ('issue_response', 'issue_reply')
+              join form_change_heads h
+                on h.source_config_id = a.source_config_id
+               and h.project_id = a.project_id
+               and h.resource_type = a.resource_type
+               and h.resource_id = a.resource_id
+               and h.template_key = a.template_key
+             where r.publication_id = ? and r.fact_type = 'ISSUE' and r.operation = 'UPSERT'
+               and not exists (
+                 select 1 from form_publication_captures c
+                  where c.publication_id = r.publication_id and c.head_id = h.id)
+            """,
+            Long.class,
+            publicationId);
+    if (missing != null && missing > 0) {
+      throw new FormConflictException(
+          "候选缺少 FORM 侧输入证据，禁止公开；缺失数=" + missing);
+    }
+  }
+
+  /** 已消费证据只能复核：head 仍停在冻结修订，范围集合与权威修订均未变化。 */
+  private void verifyConsumedEvidence(Capture capture) {
+    HeadRow head = lockHead(capture.headId());
+    if (!"CONSUMED".equals(head.status())
+        || head.consumedChangeVersion() < head.latestChangeVersion()
+        || head.latestChangeVersion() != capture.latestChangeVersion()) {
+      throw new FormConflictException("已消费表单证据在公开前又发生变化，零公开");
+    }
+    Map<String, Object> scope = requireScope(capture.scopeId());
+    long revision = ((Number) scope.get("source_set_revision")).longValue();
+    String hash = (String) scope.get("source_set_hash");
+    if (revision != capture.sourceSetRevision() || !hash.equals(capture.sourceSetHash())) {
+      throw new FormConflictException("已消费表单证据的源集合已漂移，零公开");
+    }
+    Authority authority = requireFormAuthority(head);
+    if (!same(authority.revision(), capture.authorityRevision())) {
+      throw new FormConflictException("已消费表单证据的权威修订已漂移，零公开");
+    }
+  }
+
+  private Map<String, Object> requireScope(long scopeId) {
+    return jdbcTemplate
+        .queryForList(
+            "select source_set_revision, source_set_hash from form_template_scopes"
+                + " where id = ? for share",
+            scopeId)
+        .stream()
+        .findFirst()
+        .orElseThrow(() -> new FormConflictException("表单范围不存在：" + scopeId));
+  }
+
+  private HeadRow headById(long headId) {
+    return jdbcTemplate
+        .query(
+            """
+            select id, scope_id, latest_change_version, consumed_change_version, status,
+                   lease_owner, fencing_version, pending_authority_revision,
+                   pending_record_id, pending_record_version, pending_storage_version_id,
+                   pending_source_set_revision, pending_source_set_hash,
+                   pending_authority_revision
+              from form_change_heads where id = ?
+            """,
+            (rs, rowNum) ->
+                new HeadRow(
+                    rs.getLong("id"),
+                    rs.getLong("scope_id"),
+                    rs.getLong("latest_change_version"),
+                    rs.getLong("consumed_change_version"),
+                    rs.getString("status"),
+                    rs.getString("lease_owner"),
+                    rs.getLong("fencing_version"),
+                    nullableLong(rs, "pending_authority_revision"),
+                    nullableLong(rs, "pending_record_id"),
+                    nullableInt(rs, "pending_record_version"),
+                    nullableLong(rs, "pending_storage_version_id"),
+                    nullableLong(rs, "pending_source_set_revision"),
+                    rs.getString("pending_source_set_hash"),
+                    nullableLong(rs, "pending_authority_revision")),
+            headId)
+        .stream()
+        .findFirst()
+        .orElseThrow(() -> new FormConflictException("表单变更 head 不存在：" + headId));
   }
 
   private static long longOf(Object value) {

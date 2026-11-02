@@ -40,6 +40,7 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
   private final CustomerIssueDelaySourceReadinessService readinessService;
   private final com.data.collection.platform.service.form.FormHeadCaptureService
       formHeadCaptureService;
+  private final FormIssueBuildInputService formIssueBuildInputService;
   private final String workerOwner = "customer-delay-label-worker-" + UUID.randomUUID();
   private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -52,7 +53,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
       CustomerIssueDelayClosureProgressRepository progressRepository,
       CustomerIssueDelaySourceReadinessService readinessService,
-      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService) {
+      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService,
+      FormIssueBuildInputService formIssueBuildInputService) {
     this.properties = properties;
     this.configService = configService;
     this.writebackService = writebackService;
@@ -62,6 +64,7 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     this.progressRepository = progressRepository;
     this.readinessService = readinessService;
     this.formHeadCaptureService = formHeadCaptureService;
+    this.formIssueBuildInputService = formIssueBuildInputService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.customer-issue-delay-writeback-worker-delay-ms:5000}")
@@ -220,6 +223,32 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     if (formHeadCaptureService.hasUnconsumedFormEvidence(
         job.sourceInstance(), job.projectId(), job.issueIid())) {
       return AuthorizationCheck.waitingFor("表单证据已推进但事实尚未刷新，等待消费完成后再发送");
+    }
+    Optional<IssueFact> fact;
+    try {
+      fact = queueService.loadCandidate(job.sourceInstance(), job.projectId(), job.issueIid());
+    } catch (DataAccessException error) {
+      return AuthorizationCheck.waitingFor("读取当前事实或表单输入失败，等待重试：" + error.getMessage());
+    }
+    if (fact.isEmpty()) {
+      return AuthorizationCheck.obsoleteReason("议题已不在延期标签写回范围内");
+    }
+    String factHash = fact.get().getFormInputHash();
+    if (!java.util.Objects.equals(job.formInputHash(), factHash)) {
+      return AuthorizationCheck.obsoleteReason("表单输入已变化，旧写回作业作废");
+    }
+    FormIssueBuildInputService.Snapshot snapshot =
+        formIssueBuildInputService.current(
+            job.sourceInstance(), job.projectId(), job.issueIid());
+    if (snapshot.status() == FormIssueBuildInputService.Snapshot.Status.PENDING) {
+      return AuthorizationCheck.waitingFor("表单输入证据待登记，等待事实刷新后再发送");
+    }
+    if (snapshot.status() == FormIssueBuildInputService.Snapshot.Status.OK) {
+      if (!java.util.Objects.equals(snapshot.hash(), factHash)) {
+        return AuthorizationCheck.waitingFor("表单输入已推进但事实尚未刷新，等待消费完成后再发送");
+      }
+    } else if (factHash != null) {
+      return AuthorizationCheck.waitingFor("表单权威已移除但事实尚未刷新，等待消费完成后再发送");
     }
     return AuthorizationCheck.granted();
   }

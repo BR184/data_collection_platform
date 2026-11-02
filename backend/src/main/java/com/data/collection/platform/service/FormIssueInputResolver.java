@@ -134,7 +134,7 @@ class FormIssueInputResolver {
     return byTemplate.values().stream().anyMatch(row -> "COMMENT".equals(row.authority()));
   }
 
-  private boolean hasCoveringScope(List<ScopeRow> scopes, IssueRef ref) {
+  boolean hasCoveringScope(List<ScopeRow> scopes, IssueRef ref) {
     return scopes.stream()
         .anyMatch(
             scope ->
@@ -242,11 +242,12 @@ class FormIssueInputResolver {
       Comparator.comparing(LocatedRecord::createdAt, Comparator.nullsFirst(Comparator.naturalOrder()))
           .thenComparingLong(LocatedRecord::recordId);
 
-  private List<ScopeRow> loadScopes(String sourceInstance) {
+  List<ScopeRow> loadScopes(String sourceInstance) {
     return jdbcTemplate.query(
         """
         select id, template_key, source_config_id, source_instance,
-               canonical_gitlab_base_url, project_ids::text as project_ids, status
+               canonical_gitlab_base_url, project_ids::text as project_ids, status,
+               source_set_revision, source_set_hash
           from form_template_scopes
          where template_key in (?, ?)
            and source_instance = ?
@@ -262,7 +263,9 @@ class FormIssueInputResolver {
                 rs.getString("source_instance"),
                 rs.getString("canonical_gitlab_base_url"),
                 parseProjectIds(rs.getString("project_ids")),
-                rs.getString("status")),
+                rs.getString("status"),
+                nullableLong(rs, "source_set_revision"),
+                rs.getString("source_set_hash")),
         FormTemplateSpecCatalog.ISSUE_RESPONSE,
         FormTemplateSpecCatalog.ISSUE_REPLY,
         sourceInstance,
@@ -272,7 +275,7 @@ class FormIssueInputResolver {
   /**
    * 按完整资源身份加载持久权威并逐项核验；同一议题同一模板出现多份权威或范围身份不一致时拒绝。
    */
-  private Map<IssueRef, Map<String, AuthorityRow>> loadAuthorities(
+  Map<IssueRef, Map<String, AuthorityRow>> loadAuthorities(
       String sourceInstance, List<IssueRef> refs, List<ScopeRow> scopes) {
     Map<Long, List<IssueRef>> byProject = new LinkedHashMap<>();
     for (IssueRef ref : refs) {
@@ -626,16 +629,18 @@ class FormIssueInputResolver {
     return java.util.Arrays.copyOf(args, index);
   }
 
-  private record ScopeRow(
+  record ScopeRow(
       long scopeId,
       String templateKey,
       long sourceConfigId,
       String sourceInstance,
       String canonicalUrl,
       Set<Long> projectIds,
-      String status) {}
+      String status,
+      Long sourceSetRevision,
+      String sourceSetHash) {}
 
-  private record AuthorityRow(
+  record AuthorityRow(
       long sourceConfigId,
       String sourceInstance,
       String canonicalUrl,
@@ -651,4 +656,10 @@ class FormIssueInputResolver {
       String scopeCanonicalUrl,
       String scopeProjectIds,
       String scopeStatus) {}
+
+  private static Long nullableLong(java.sql.ResultSet rs, String column)
+      throws java.sql.SQLException {
+    long value = rs.getLong(column);
+    return rs.wasNull() ? null : value;
+  }
 }

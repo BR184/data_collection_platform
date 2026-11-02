@@ -87,6 +87,36 @@ public class CustomerIssueDelayClosureOrchestrator {
   }
 
   /**
+   * 为指定来源登记新一轮并异步推进。
+   *
+   * <p>用于表单事实公开后的来源级唤醒：仍走既有镜像→事实收敛→授权→入队链路，不复用旁路写回。
+   *
+   * @param sourceInstance 来源实例
+   * @param reason 轮次原因
+   */
+  public void requestSourceRound(String sourceInstance, String reason) {
+    if (sourceInstance == null || sourceInstance.isBlank()) {
+      return;
+    }
+    for (GitlabSyncConfig config : enabledConfigs()) {
+      if (!sourceInstance.equals(GitlabSourceInstanceSupport.sourceInstanceOf(config))) {
+        continue;
+      }
+      try {
+        progressRepository.requestRound(config, reason);
+        submitAdvance(sourceInstance);
+      } catch (RuntimeException error) {
+        log.warn(
+            "Failed to request form-driven customer issue delay round, configId={}, sourceInstance={}",
+            config.getId(),
+            sourceInstance,
+            error);
+      }
+      return;
+    }
+  }
+
+  /**
    * 运行终态事件的唤醒方。
    *
    * <p>只按配置找到进度并唤醒；是否推进由 {@link CustomerIssueDelaySourceReadinessService} 重新核验

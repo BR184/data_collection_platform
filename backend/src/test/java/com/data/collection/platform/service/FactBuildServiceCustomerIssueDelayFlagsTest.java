@@ -124,7 +124,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             new GitlabMirrorProperties(),
             formIssueInputResolver(),
             mock(FormIssueAuthorityRegistrar.class),
-            mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+            formIssueBuildInputService(),
             new com.data.collection.platform.config.FormAdoptionProperties());
   }
 
@@ -254,6 +254,19 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
         .thenReturn(FormIssueInputResolver.Resolution.empty());
     return resolver;
+  }
+
+  private static FormIssueBuildInputService formIssueBuildInputService() {
+    FormIssueBuildInputService service = mock(FormIssueBuildInputService.class);
+    when(service.freeze(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new FormIssueBuildInputService.BuildInputs(
+                java.util.Map.of(), 0));
+    return service;
   }
 
   private FactTargetPublicationService publicationService() {

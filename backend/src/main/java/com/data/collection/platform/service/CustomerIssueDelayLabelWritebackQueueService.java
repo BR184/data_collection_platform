@@ -346,6 +346,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
             round_mirror_run_id,
             authorization_revision,
             required_fact_version,
+            form_input_hash,
             task_revision,
             lease_owner,
             lease_until,
@@ -355,7 +356,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
             finished_at,
             created_at,
             updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, ?, ?, ?, 1, null, null, null, null, null, null, current_timestamp, current_timestamp)
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, ?, ?, ?, ?, 1, null, null, null, null, null, null, current_timestamp, current_timestamp)
         on conflict (source_instance, project_id, issue_iid) do update
           set config_id = excluded.config_id,
               issue_id = excluded.issue_id,
@@ -367,6 +368,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
               round_mirror_run_id = excluded.round_mirror_run_id,
               authorization_revision = excluded.authorization_revision,
               required_fact_version = excluded.required_fact_version,
+              form_input_hash = excluded.form_input_hash,
               task_revision = customer_issue_delay_label_writeback_jobs.task_revision + 1,
               status = case
                   when customer_issue_delay_label_writeback_jobs.status = 'DEAD'
@@ -436,7 +438,8 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         maxAttempts,
         mirrorRunId,
         authorizationRevision,
-        requiredFactVersion);
+        requiredFactVersion,
+        fact.getFormInputHash());
   }
 
   private boolean finish(
@@ -486,6 +489,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
     fact.setIllegalReasons(text(rs, "illegal_reasons", null));
     fact.setResponseDelayed(rs.getBoolean("is_response_delayed"));
     fact.setResolveDelayed(rs.getBoolean("is_resolve_delayed"));
+    fact.setFormInputHash(text(rs, "form_input_hash", null));
     return fact;
   }
 
@@ -513,6 +517,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         nullableLong(rs, "round_mirror_run_id"),
         nullableLong(rs, "authorization_revision"),
         nullableLong(rs, "required_fact_version"),
+        rs.getString("form_input_hash"),
         rs.getString("claim_token"),
         rs.getLong("claim_revision"),
         rs.getLong("task_revision"));

@@ -1,14 +1,15 @@
 package com.data.collection.platform.service.form;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
+import com.data.collection.migration.MigrationApplication;
 import com.data.collection.platform.entity.form.FormActorContext;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.sql.ResultSetMetaData;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +37,9 @@ class FormV6LegacyUpgradeIntegrationTest {
 
   private static final String URL = "http://gitlab.n1-upgrade.local";
   private static final String MAINLINE_HEAD = "20261022.03";
-  private static final String V6_HEAD = "20261030.02";
+  private static final String V6_HEAD = "20261102.01";
   private static final int MAINLINE_MIGRATIONS = 140;
-  private static final int BRANCH_MIGRATIONS = 26;
+  private static final int BRANCH_MIGRATIONS = 27;
   private static final FormActorContext ALICE =
       new FormActorContext("alice", "Alice", java.util.Set.of());
 
@@ -69,7 +70,8 @@ class FormV6LegacyUpgradeIntegrationTest {
       "V20261029_01__form_v6_publication_protocol.sql",
       "V20261029_02__form_publication_origin_binding.sql",
       "V20261030_01__form_consumption_capture_foundation.sql",
-      "V20261030_02__form_publication_capture_binding.sql");
+      "V20261030_02__form_publication_capture_binding.sql",
+      "V20261102_01__form_input_evidence.sql");
 
   @Container
   private final PostgreSQLContainer<?> POSTGRES =
@@ -115,14 +117,9 @@ class FormV6LegacyUpgradeIntegrationTest {
     List<Map<String, String>> legacyBefore = snapshotRows(jdbc, "collect_form_records");
     List<String> historyBefore = history(jdbc);
 
-    // 3) 切到目标迁移集：低版本新增迁移按 outOfOrder 实际执行。
-    MigrateResult upgraded = Flyway.configure()
-        .dataSource(dataSource)
-        .locations("classpath:db/migration")
-        .outOfOrder(true)
-        .load()
-        .migrate();
-    assertThat(upgraded.migrationsExecuted).isEqualTo(BRANCH_MIGRATIONS);
+    // 3) 切到目标迁移集：通过实际无 Web 单次迁移入口显式开启 out-of-order。
+    runMigrationEntry(dataSource, true);
+    assertThat(history(jdbc).size()).isEqualTo(MAINLINE_MIGRATIONS + BRANCH_MIGRATIONS);
     assertThat(headVersion(jdbc)).isEqualTo(V6_HEAD);
     assertThat(history(jdbc).subList(0, MAINLINE_MIGRATIONS)).isEqualTo(historyBefore);
     assertThat(jdbc.queryForObject(
@@ -133,12 +130,9 @@ class FormV6LegacyUpgradeIntegrationTest {
         .containsExactly(
             "20261022.03:customer issue delay closure progress",
             "20261022.04:retire legacy form permissions");
-    assertThatCode(() -> Flyway.configure()
-        .dataSource(dataSource)
-        .locations("classpath:db/migration")
-        .outOfOrder(true)
-        .load()
-        .validate()).doesNotThrowAnyException();
+    // 常驻/默认模式不携带 out-of-order：同一入口再次启动、校验通过后才允许继续。
+    runMigrationEntry(dataSource, false);
+    assertThat(headVersion(jdbc)).isEqualTo(V6_HEAD);
     assertThat(snapshotRows(jdbc, "collect_form_records")).isEqualTo(legacyBefore);
 
     // 4) 升级后的库立即可用：登记旧 Demo 并读回原值。
@@ -155,6 +149,30 @@ class FormV6LegacyUpgradeIntegrationTest {
     assertThat(services.reader().listByResource(scopeId, "merge_request", "950001", 41))
         .singleElement()
         .satisfies(record -> assertThat(record.fields()).containsEntry("remark", "legacy"));
+  }
+
+  /** 走实际无 Web 单次迁移入口；out-of-order 只由该入口的显式参数开启。 */
+  private static void runMigrationEntry(
+      DriverManagerDataSource dataSource, boolean outOfOrder) {
+    List<String> args =
+        new ArrayList<>(
+            List.of(
+                "--spring.datasource.url=" + dataSource.getUrl(),
+                "--spring.datasource.username=" + dataSource.getUsername(),
+                "--spring.datasource.password=" + dataSource.getPassword(),
+                "--spring.flyway.enabled=true",
+                "--spring.flyway.schemas=public",
+                "--spring.flyway.default-schema=public",
+                "--spring.flyway.create-schemas=false",
+                "--spring.flyway.locations=classpath:db/migration",
+                "--spring.sql.init.mode=never",
+                "--spring.main.banner-mode=off",
+                "--spring.autoconfigure.exclude="
+                    + "com.data.collection.platform.config.IntegrationTestFlywayConfiguration"));
+    if (outOfOrder) {
+      args.add("--spring.flyway.out-of-order=true");
+    }
+    MigrationApplication.main(args.toArray(String[]::new));
   }
 
   /** 从测试类路径复制主线迁移集，排除分支新增脚本并校验条数。 */

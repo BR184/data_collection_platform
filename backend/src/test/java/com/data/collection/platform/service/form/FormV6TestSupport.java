@@ -76,7 +76,10 @@ final class FormV6TestSupport {
     FormRecordWriteService writeService =
         new FormRecordWriteService(
             jdbc, contextService, store, viewFactory, directoryService, reader,
-            new FormRecordAuthorityService(jdbc), ClockStub.SYSTEM);
+            new FormRecordAuthorityService(jdbc),
+            org.mockito.Mockito.mock(
+                com.data.collection.platform.service.FormIssueChangeBridge.class),
+            ClockStub.SYSTEM);
     FormRecordService recordService =
         new FormRecordService(
             contextService,

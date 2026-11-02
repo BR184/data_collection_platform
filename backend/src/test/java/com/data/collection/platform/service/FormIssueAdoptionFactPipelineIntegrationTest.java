@@ -170,6 +170,87 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   @Test
+  void otherWorkerLeasePreventsUnEvidencedPublication() {
+    insertSourceIssue(93010L, 81010L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93010L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    long headId =
+        jdbcTemplate.queryForObject(
+            "select id from form_change_heads where source_instance = ? and template_key = ?"
+                + " and resource_id = ?",
+            Long.class,
+            SOURCE_INSTANCE,
+            FormTemplateSpecCatalog.ISSUE_RESPONSE,
+            81010L);
+
+    assertThat(
+            formHeadCaptureService.claimHead(headId, "other-worker", LocalDateTime.now()))
+        .as("他人持有 head 租约")
+        .isPresent();
+
+    assertThatThrownBy(this::rebuildAllIssueFacts)
+        .isInstanceOf(com.data.collection.platform.common.exception.FormConflictException.class)
+        .hasMessageContaining("其他消费者");
+    assertThat(revisionCount(93010L))
+        .as("无证候选不得公开任何事实")
+        .isZero();
+  }
+
+  @Test
+  void formWriteAfterInputReadPreventsSettlementAndKeepsFrozenValues() {
+    insertSourceIssue(93011L, 81011L, LocalDateTime.of(2026, 11, 1, 10, 0));
+    insertResponseRecord(
+        93011L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+        LocalDateTime.of(2026, 11, 5, 10, 0), LocalDate.of(2026, 11, 15), "CC2026R4");
+    rebuildAllIssueFacts();
+    long revisionsBefore = liveRevisionCount(93011L);
+    List<Long> roots =
+        jdbcTemplate.queryForList("select id from ods_gitlab_issues order by id", Long.class);
+    ensureCertifiedIssueBaseline();
+
+    factTargetPublicationService.publishWithinCandidate(
+            new BypassPublicationRequest(
+                ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+                "GITLAB",
+                SEAL,
+                0L,
+                "a-read-b-write-test",
+                null,
+                Instant.now(),
+                true),
+            target -> {
+              FactBuildResponse response =
+                  factBuildService.rebuildIssueFactsByRootIds(target, roots);
+              insertResponseRecord(
+                  93011L, FormTemplateSpecCatalog.ISSUE_RESPONSE, responseScopeId,
+                  LocalDateTime.of(2026, 11, 6, 10, 0), LocalDate.of(2026, 12, 1), "CC2026R5");
+              return response;
+            });
+    FactRevisionFixture.prepareRequiredProjections(
+        jdbcTemplate,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
+    UUID candidateId =
+        jdbcTemplate.queryForObject(
+            """
+            select p.id from read_publications p join read_publication_domains d on d.id = p.domain_id
+             where d.fact_type = 'ISSUE' and p.state in ('PROJECTING', 'READY_TO_PUBLISH')
+             order by p.id desc limit 1
+            """,
+            UUID.class);
+
+    assertThatThrownBy(
+            () -> factTargetPublicationService.publishPreparedCandidate(candidateId, null))
+        .as("A 读取后 B 写入不得按 A 的证据结算")
+        .isInstanceOf(com.data.collection.platform.common.exception.FormConflictException.class);
+    assertThat(liveFact(93011L).get("planned_resolution_at"))
+        .as("失败候选保留上一完整版本的业务值")
+        .isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+    assertThat(liveRevisionCount(93011L)).isEqualTo(revisionsBefore);
+  }
+
+  @Test
   void periodicRecomputeUsesLatestFormInputInsteadOfStalePlanOrComment() {
     insertSourceIssue(93005L, 81005L, LocalDateTime.of(2026, 11, 2, 10, 0));
     insertResponseNote(93005L, "2026.10.25", LocalDateTime.of(2026, 11, 3, 9, 0));
@@ -1153,6 +1234,15 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   private long revisionCount(long issueId) {
     return jdbcTemplate.queryForObject(
         "select count(*) from issue_fact where source_instance = ? and issue_id = ?",
+        Long.class,
+        SOURCE_INSTANCE,
+        issueId);
+  }
+
+  private long liveRevisionCount(long issueId) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from issue_fact where source_instance = ? and issue_id = ?"
+            + LIVE_REVISION,
         Long.class,
         SOURCE_INSTANCE,
         issueId);

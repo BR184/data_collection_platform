@@ -100,7 +100,7 @@ class FactBuildServiceTest {
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             mock(FormIssueInputResolver.class),
             mock(FormIssueAuthorityRegistrar.class),
-            mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+            mock(FormIssueBuildInputService.class),
             new com.data.collection.platform.config.FormAdoptionProperties());
 
     service.rebuildMergeRequestFactsForQueuedTask(config,
@@ -185,7 +185,7 @@ class FactBuildServiceTest {
             new com.data.collection.platform.config.GitlabMirrorProperties(),
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
-        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+        mock(FormIssueBuildInputService.class),
         new com.data.collection.platform.config.FormAdoptionProperties());
 
     GitlabSyncConfig config = new GitlabSyncConfig();
@@ -320,7 +320,7 @@ class FactBuildServiceTest {
         new com.data.collection.platform.config.GitlabMirrorProperties(),
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
-        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+        mock(FormIssueBuildInputService.class),
         new com.data.collection.platform.config.FormAdoptionProperties());
   }
 

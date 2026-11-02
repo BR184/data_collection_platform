@@ -201,6 +201,23 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void issueFormWriteAdvancesIssueFactHeadEvenWhenOdsUnchanged() {
+    ObjectNode fields =
+        issueResponseFields("DEFECT", "负责人已确认", "2026-10-20", "CC2026R1");
+
+    createIssueResponse(ISSUE_IID, fields, UUID.randomUUID().toString());
+
+    Map<String, Object> head =
+        jdbcTemplate.queryForMap(
+            "select latest_change_version, published_version from fact_change_heads"
+                + " where source_instance = 'default' and fact_type = 'ISSUE' and root_id = ?",
+            ISSUE_ROOT);
+    assertThat(((Number) head.get("latest_change_version")).longValue())
+        .as("ODS 未变化时表单写入也必须登记议题事实待发布变化")
+        .isGreaterThan(((Number) head.get("published_version")).longValue());
+  }
+
+  @Test
   void shouldCreateIndependentRecordsForParallelFirstSaves() throws Exception {
     CountDownLatch ready = new CountDownLatch(2);
     CountDownLatch start = new CountDownLatch(1);

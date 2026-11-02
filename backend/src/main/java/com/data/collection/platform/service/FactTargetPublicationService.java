@@ -59,6 +59,7 @@ public class FactTargetPublicationService {
   private final CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService;
   private final com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts;
   private final com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
+  private final org.springframework.context.ApplicationEventPublisher events;
 
   public FactTargetPublicationService(
       JdbcTemplate jdbcTemplate,
@@ -76,7 +77,8 @@ public class FactTargetPublicationService {
       ReadPublicationRepository readPublicationRepository,
       CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService,
       com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts,
-      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService) {
+      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService,
+      org.springframework.context.ApplicationEventPublisher events) {
     this.jdbcTemplate = jdbcTemplate;
     this.scopeResolver = scopeResolver;
     this.generationService = generationService;
@@ -92,6 +94,7 @@ public class FactTargetPublicationService {
     this.catalogReconciliationService = catalogReconciliationService;
     this.projectionArtifacts = projectionArtifacts;
     this.formHeadCaptureService = formHeadCaptureService;
+    this.events = events;
   }
 
   /** 定向（增量）事实构建动作：在候选修订身份内替换给定根的投影。 */
@@ -407,6 +410,15 @@ public class FactTargetPublicationService {
   private void abortPreservingFailure(UUID publicationId, RuntimeException original, Runnable abort) {
     LOGGER.error("候选构建或发布失败，publicationId={}，开始逻辑中止", publicationId, original);
     try {
+      formHeadCaptureService.releaseForPublication(publicationId);
+    } catch (RuntimeException releaseFailure) {
+      if (releaseFailure != original) {
+        original.addSuppressed(releaseFailure);
+      }
+      LOGGER.warn("候选表单证据释放失败，保留原始异常并由租约到期恢复，publicationId={}",
+          publicationId, releaseFailure);
+    }
+    try {
       abort.run();
     } catch (RuntimeException cleanupFailure) {
       if (cleanupFailure != original) {
@@ -436,6 +448,9 @@ public class FactTargetPublicationService {
     ReadPublication published = readPublicationService.publish(publicationId, candidate.producerLeaseOwner());
     // 表单捕获与公开指针同一事务结算：复核 head/集合/权威/租约，任一漂移回滚本次公开。
     formHeadCaptureService.settleForPublication(publicationId);
+    boolean formDriven =
+        key.factType().equals(FactType.ISSUE.name())
+            && formHeadCaptureService.hasFormEvidence(publicationId);
     jdbcTemplate.update("update statistic_board_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",
         publicationId);
     jdbcTemplate.update("update page_record_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",
@@ -460,6 +475,10 @@ public class FactTargetPublicationService {
     readPublicationRepository.releaseCandidateTaskRoots(publicationId);
     readPublicationRepository.releaseCapturedInputs(publicationId);
     readPublicationRepository.releaseProjectionDependencies(publicationId);
+    if (formDriven) {
+      // 提交后唤醒原来源级授权轮次；仍在同一发布事务内登记，失败候选不会触发。
+      events.publishEvent(new FormFactPublicationEvent(key.sourceInstance(), publicationId));
+    }
     return published;
   }
 

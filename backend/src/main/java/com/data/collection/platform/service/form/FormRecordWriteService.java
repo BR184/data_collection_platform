@@ -34,6 +34,7 @@ public class FormRecordWriteService {
   private final FormRecordDirectoryService directoryService;
   private final FormRecordDirectoryReader directoryReader;
   private final FormRecordAuthorityService authorityService;
+  private final com.data.collection.platform.service.FormIssueChangeBridge issueChangeBridge;
   private final Clock clock;
 
   public FormRecordWriteService(
@@ -44,6 +45,7 @@ public class FormRecordWriteService {
       FormRecordDirectoryService directoryService,
       FormRecordDirectoryReader directoryReader,
       FormRecordAuthorityService authorityService,
+      com.data.collection.platform.service.FormIssueChangeBridge issueChangeBridge,
       Clock clock) {
     this.jdbcTemplate = jdbcTemplate;
     this.contextService = contextService;
@@ -52,6 +54,7 @@ public class FormRecordWriteService {
     this.directoryService = directoryService;
     this.directoryReader = directoryReader;
     this.authorityService = authorityService;
+    this.issueChangeBridge = issueChangeBridge;
     this.clock = clock;
   }
 
@@ -325,6 +328,7 @@ public class FormRecordWriteService {
         store.writeAudit(operation, context, row, actor.userId(), actorName, clientIp, userAgent, now);
     long authorityRevision = authorityService.ensureForWrite(context, operation);
     store.bumpHead(context, auditId, row, authorityRevision, now);
+    issueChangeBridge.record(context);
   }
 
   private FormRecordView view(
