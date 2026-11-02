@@ -149,6 +149,7 @@ qa-flex-platform-frontend:<release-id>
 - `backup.sh`、`upgrade.sh`、`rollback.sh` 从生效 Compose 的服务挂载解析平台库与后端日志卷身份，不得只认 `qaflex_pgdata`/`qaflex_backend_logs` 或要求 `.env` 声明 `POSTGRES_VOLUME_NAME`；
 - 升级和回滚只重建 `backend`/`frontend`；GitLab 与平台 PostgreSQL 容器、全部数据卷、账号、样本和现场 `.env` 保持不变，不重新执行 init-env 或导入样本；
 - 旧套件的 GitLab/工具镜像继续保留在实例中，不进入新包镜像 tar；新包只携带平台前后端镜像；
+- 包内 Compose 校验必须使用基线现场 `.env` 解析变量，但该 `.env` 不进入包内，也不得用临时默认值代替现场值；
 - 现场当前有效 Compose 与镜像由内网升级前预检确认，本地包名不能替代现场身份检查。
 
 ## 后续更新包标准工作流

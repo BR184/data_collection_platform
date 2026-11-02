@@ -471,6 +471,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual("20261021T011723Z-d52affe66b4f", context.baseline_frontend_tag)
             self.assertEqual(("gitlab",), context.extra_services)
             self.assertTrue(context.preserve_baseline_topology)
+            self.assertEqual(context.baseline_env_path, (Path(deploy_root) / "baseline" / ".env").resolve())
 
             compose = MODULE.preserved_compose_content(context)
             self.assertIn(f"image: {MODULE.BACKEND_IMAGE}:{context.backend_tag}", compose)
@@ -489,6 +490,23 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertIn("完整服务拓扑", readme)
             self.assertIn("gitlab", readme)
             self.assertIn("不要删除任何平台 PostgreSQL volume", readme)
+
+    def test_preserved_baseline_compose_validation_uses_site_env_file(self):
+        context = self.build_context()
+        preserved = MODULE.BuildContext(
+            **{
+                **context.__dict__,
+                "preserve_baseline_topology": True,
+                "baseline_env_path": Path("baseline/.env"),
+            }
+        )
+        args = MODULE.package_compose_validation_args(preserved)
+        self.assertEqual(args[:3], ("docker", "compose", "--env-file"))
+        self.assertEqual(args[3], Path("baseline/.env"))
+        self.assertIn("config", args)
+
+        standard_args = MODULE.package_compose_validation_args(context)
+        self.assertNotIn("--env-file", standard_args)
 
     def test_preserved_compose_rejects_baseline_topology_drift(self):
         context = self.build_context()
