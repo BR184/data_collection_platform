@@ -78,6 +78,7 @@ class BuildContext:
     container_names: dict[str, str] = field(default_factory=dict)
     require_ods_correction: bool = False
     baseline_compose_text: str = ""
+    baseline_env_path: Path | None = None
     extra_services: tuple[str, ...] = ()
     preserve_baseline_topology: bool = False
 
@@ -498,6 +499,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
     baseline_frontend_tag = ""
     container_names: dict[str, str] = {}
     baseline_compose_text = ""
+    baseline_env_path: Path | None = None
     extra_services: tuple[str, ...] = ()
     preserve_baseline_topology = False
     if args.mode == "fresh-empty":
@@ -517,6 +519,9 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         container_names = read_baseline_container_names(baseline_dir)
         baseline_compose_path = baseline_dir / "docker-compose.yml"
         baseline_compose_text = baseline_compose_path.read_text(encoding="utf-8")
+        site_env_path = baseline_dir / ".env"
+        if site_env_path.is_file():
+            baseline_env_path = site_env_path
         services = compose_service_names(baseline_compose_text)
         extra_services = tuple(
             name for name in services if name not in ("postgres", "backend", "frontend")
@@ -559,6 +564,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         ldap_base_url=args.ldap_base_url,
         include_offline_docker_debs=args.include_offline_docker_debs,
         baseline_compose_text=baseline_compose_text,
+        baseline_env_path=baseline_env_path,
         extra_services=extra_services,
         preserve_baseline_topology=preserve_baseline_topology,
     )
@@ -2765,6 +2771,16 @@ def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
         fail("package contains forbidden delivery items: " + ", ".join(offenders))
 
 
+def package_compose_validation_args(ctx: BuildContext) -> tuple[str | Path, ...]:
+    args: list[str | Path] = ["docker", "compose"]
+    if ctx.preserve_baseline_topology and ctx.baseline_env_path is not None:
+        # 继承现场拓扑时 Compose 仍引用现场变量，校验必须使用同一份 .env，
+        # 但该文件不进入包内，站点升级时继续使用现场原文件。
+        args.extend(("--env-file", ctx.baseline_env_path))
+    args.extend(("-f", ctx.package_dir / "docker-compose.yml", "config"))
+    return tuple(args)
+
+
 def validate_layout(ctx: BuildContext) -> None:
     for path in required_files(ctx):
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
@@ -2781,13 +2797,7 @@ def validate_layout(ctx: BuildContext) -> None:
             }
         )
         run(
-            (
-                "docker",
-                "compose",
-                "-f",
-                ctx.package_dir / "docker-compose.yml",
-                "config",
-            ),
+            package_compose_validation_args(ctx),
             cwd=ctx.package_dir,
             env=compose_env,
         )
