@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -25,6 +26,7 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
   private static final long FIRST_IID = 81001L;
   private static final long SECOND_IID = 81002L;
   private static final long THIRD_IID = 81003L;
+  private static final long FOURTH_IID = 81004L;
   private static final String SOURCE = "default";
   private static final long AUTH_REVISION = 7L;
   private static final long FACT_VERSION = 42L;
@@ -162,6 +164,196 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
   }
 
   @Test
+  void oppositeDiffArrivingDuringSendMustBeRetainedAndReleased() {
+    insertIssue(FIRST_IID, 981001L, "", true, false);
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(claimed.addLabels()).containsExactly("响应已延期");
+
+    jdbcTemplate.update(
+        """
+        update issue_fact
+           set is_response_delayed = false, response_overdue = false
+         where source_instance = ? and project_id = ? and issue_iid = ?
+        """,
+        SOURCE, PROJECT_ID, FIRST_IID);
+    insertLabel(1L, "响应已延期");
+    linkLabel(1L, 981001L);
+    queueService.enqueuePage(
+        config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+
+    Map<String, Object> duringSend = job(981001L);
+    assertThat(duringSend.get("status")).isEqualTo("RUNNING");
+    assertThat(duringSend.get("remove_labels")).isEqualTo("响应已延期");
+    assertThat(((Number) duringSend.get("task_revision")).longValue()).isEqualTo(2L);
+
+    assertThat(queueService.markSucceeded(claimed)).isFalse();
+    assertThat(
+            queueService.markSucceededIfSameChange(
+                claimed, List.of("响应已延期"), List.of()))
+        .as("新修订要求相反操作，不能按这次成功记账")
+        .isFalse();
+    assertThat(queueService.releaseForNewRevision(claimed)).isTrue();
+
+    Map<String, Object> released = job(981001L);
+    assertThat(released.get("status")).isEqualTo("PENDING");
+    assertThat(released.get("add_labels")).isEqualTo("");
+    assertThat(released.get("remove_labels")).isEqualTo("响应已延期");
+    assertThat(((Number) released.get("task_revision")).longValue()).isEqualTo(2L);
+
+    CustomerIssueDelayLabelWritebackJob next = queueService.claimNext("worker-b", 120);
+    assertThat(next).isNotNull();
+    assertThat(next.issueIid()).isEqualTo(FIRST_IID);
+    assertThat(next.taskRevision()).isEqualTo(2L);
+    assertThat(next.removeLabels()).containsExactly("响应已延期");
+  }
+
+  @Test
+  void sameDiffArrivingDuringSendIsAcknowledgedForTheNewRevision() {
+    insertIssue(FIRST_IID, 981001L, "", true, false);
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+
+    queueService.enqueuePage(
+        config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+    Map<String, Object> duringSend = job(981001L);
+    assertThat(duringSend.get("status")).isEqualTo("RUNNING");
+    assertThat(((Number) duringSend.get("task_revision")).longValue()).isEqualTo(2L);
+
+    assertThat(queueService.markSucceeded(claimed)).isFalse();
+    assertThat(
+            queueService.markSucceededIfSameChange(
+                claimed, List.of("响应已延期"), List.of()))
+        .as("新修订要求同一次写入，可记为已完成")
+        .isTrue();
+    assertThat(job(981001L).get("status")).isEqualTo("SUCCEEDED");
+  }
+
+  @Test
+  void sameWriteFromStaleLabelRefreshMustNotReopenSucceededJob() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    CustomerIssueDelayLabelWritebackQueueService.PageResult stale =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID, null, 10);
+
+    assertThat(stale.enqueued())
+        .as("标签来源刷新早于成功写入且目标未变时不能重复登记同一次标签变更")
+        .isZero();
+    assertThat(status(FIRST_IID)).as("已成功作业保持已完成").isEqualTo("SUCCEEDED");
+
+    insertLabelRefreshRun(MIRROR_RUN_ID + 1, LocalDateTime.now().plusSeconds(2));
+    CustomerIssueDelayLabelWritebackQueueService.PageResult fresh =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 2, FACT_VERSION + 2, MIRROR_RUN_ID + 1, null, 10);
+
+    assertThat(fresh.enqueued())
+        .as("标签来源在成功写入后重新读取且标签仍缺失时必须重新入队")
+        .isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("PENDING");
+  }
+
+  @Test
+  void laterLabelLinksRefreshMustReopenEvenIfLabelsFinishedBeforeSucceededWrite() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    insertLabelRefreshRun(
+        MIRROR_RUN_ID + 1, LocalDateTime.now().minusMinutes(5), LocalDateTime.now().plusMinutes(5));
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+
+    assertThat(page.enqueued())
+        .as("以两张表的最晚完成时刻判断：后完成的一张晚于成功写入时必须重新入队")
+        .isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("PENDING");
+  }
+
+  @Test
+  void missingFinishedAtMustNotCountAsRefreshEvidence() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    insertLabelRefreshRun(MIRROR_RUN_ID + 1, LocalDateTime.now().minusMinutes(5));
+    jdbcTemplate.update(
+        "update sync_run_table_tasks set finished_at = null where run_id = ? and source_table = 'label_links'",
+        MIRROR_RUN_ID + 1);
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID + 1, null, 10);
+
+    assertThat(page.enqueued())
+        .as("任一张表完成时间缺失时刷新证据不完整，必须重新入队")
+        .isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("PENDING");
+  }
+
+  @Test
+  void succeededJobMustReopenWhenResponseDelayTargetDisappears() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    jdbcTemplate.update(
+        """
+        update issue_fact
+           set is_response_delayed = false, response_overdue = false
+         where source_instance = ? and project_id = ? and issue_iid = ?
+        """,
+        SOURCE, PROJECT_ID, FIRST_IID);
+    insertLabel(1L, "响应已延期");
+    linkLabel(1L, 981001L);
+
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID, null, 10);
+
+    assertThat(page.enqueued()).as("成功后出现相反目标必须重新入队").isEqualTo(1);
+    Map<String, Object> reopened = job(981001L);
+    assertThat(reopened.get("status")).isEqualTo("PENDING");
+    assertThat(reopened.get("remove_labels")).isEqualTo("响应已延期");
+  }
+
+  @Test
+  void succeededJobMustReopenWhenResolveDelayTargetAppears() {
+    insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
+    insertLabelRefreshRun(MIRROR_RUN_ID, LocalDateTime.now().minusMinutes(5));
+    queueService.enqueuePage(config, AUTH_REVISION, FACT_VERSION, MIRROR_RUN_ID, null, 10);
+    CustomerIssueDelayLabelWritebackJob claimed = queueService.claimNext("worker-a", 120);
+    assertThat(queueService.markSucceeded(claimed)).isTrue();
+
+    jdbcTemplate.update(
+        """
+        update issue_fact
+           set is_resolve_delayed = true
+         where source_instance = ? and project_id = ? and issue_iid = ?
+        """,
+        SOURCE, PROJECT_ID, FIRST_IID);
+
+    CustomerIssueDelayLabelWritebackQueueService.PageResult page =
+        queueService.enqueuePage(
+            config, AUTH_REVISION + 1, FACT_VERSION + 1, MIRROR_RUN_ID, null, 10);
+
+    assertThat(page.enqueued()).as("成功后新增的解决延期目标必须重新入队").isEqualTo(1);
+    Map<String, Object> reopened = job(981001L);
+    assertThat(reopened.get("status")).isEqualTo("PENDING");
+    assertThat((String) reopened.get("add_labels")).contains("解决已延期");
+  }
+
+  @Test
   void missingOdsIssueIsUnknownRatherThanEmptyLabels() {
     insertIssue(FIRST_IID, 981001L, "stale-label", true, false);
     jdbcTemplate.update(
@@ -176,6 +368,100 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
             Long.class,
             981001L))
         .isZero();
+  }
+
+  @Test
+  void settlementEndsOnlyObsoletePendingWorkOfTheSameSource() {
+    insertJob(FIRST_IID, "PENDING", 7L);
+    insertJob(SECOND_IID, "RETRY_WAIT", 8L);
+    insertJob(THIRD_IID, "RUNNING", 7L);
+    insertJob(FOURTH_IID, "DEAD", 7L);
+
+    int settled = queueService.settleObsoletePendingJobs(SOURCE, 8L);
+
+    assertThat(settled).isEqualTo(1);
+    assertThat(status(FIRST_IID)).isEqualTo("SKIPPED");
+    assertThat(status(SECOND_IID)).as("本轮重新选中的任务必须保留").isEqualTo("RETRY_WAIT");
+    assertThat(status(THIRD_IID)).as("有效领取中的任务由持有者按围栏结算").isEqualTo("RUNNING");
+    assertThat(status(FOURTH_IID)).as("DEAD 保持既有契约，不自动复活或清理").isEqualTo("DEAD");
+  }
+
+  private void insertJob(long issueIid, String status, long authorizationRevision) {
+    jdbcTemplate.update(
+        """
+        insert into customer_issue_delay_label_writeback_jobs(
+            source_instance, project_id, issue_iid, status, authorization_revision,
+            required_fact_version, next_run_at, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp, current_timestamp)
+        """,
+        SOURCE,
+        PROJECT_ID,
+        issueIid,
+        status,
+        authorizationRevision,
+        FACT_VERSION);
+  }
+
+  private String status(long issueIid) {
+    return jdbcTemplate.queryForObject(
+        """
+        select status from customer_issue_delay_label_writeback_jobs
+         where source_instance = ? and project_id = ? and issue_iid = ?
+        """,
+        String.class,
+        SOURCE,
+        PROJECT_ID,
+        issueIid);
+  }
+
+  private void insertLabelRefreshRun(long runId, LocalDateTime finishedAt) {
+    insertLabelRefreshRun(runId, finishedAt, finishedAt);
+  }
+
+  private void insertLabelRefreshRun(
+      long runId, LocalDateTime labelsFinishedAt, LocalDateTime labelLinksFinishedAt) {
+    LocalDateTime runFinishedAt =
+        labelsFinishedAt == null
+            ? labelLinksFinishedAt
+            : labelLinksFinishedAt == null
+                ? labelsFinishedAt
+                : (labelsFinishedAt.isAfter(labelLinksFinishedAt)
+                    ? labelsFinishedAt
+                    : labelLinksFinishedAt);
+    jdbcTemplate.update(
+        """
+        insert into sync_runs(
+            id, run_id, config_id, source_instance, run_type, trigger_type, status,
+            exclusive_scope, started_at, finished_at, created_at, updated_at)
+        values (?, ?, ?, ?, 'TABLE_REFRESH', 'MANUAL', 'SUCCESS', ?, ?, ?,
+                current_timestamp, current_timestamp)
+        """,
+        runId,
+        "test-run-" + runId,
+        configId,
+        SOURCE,
+        "source:" + configId + ":" + SOURCE + ":mirror",
+        runFinishedAt,
+        runFinishedAt);
+    insertLabelRefreshTask(runId, "labels", labelsFinishedAt);
+    insertLabelRefreshTask(runId, "label_links", labelLinksFinishedAt);
+  }
+
+  private void insertLabelRefreshTask(
+      long runId, String table, LocalDateTime finishedAt) {
+    jdbcTemplate.update(
+        """
+        insert into sync_run_table_tasks(
+            run_id, config_id, source_instance, source_table, mirror_table,
+            task_type, status, row_strategy, finished_at)
+        values (?, ?, ?, ?, ?, 'TABLE', 'SUCCESS', 'UPDATED_AT', ?)
+        """,
+        runId,
+        configId,
+        SOURCE,
+        table,
+        "ods_gitlab_" + table,
+        finishedAt);
   }
 
   private void insertIssue(
@@ -241,17 +527,19 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
 
   private void cleanUp() {
     jdbcTemplate.update(
-        "delete from customer_issue_delay_label_writeback_jobs where project_id = ? and issue_iid in (?, ?, ?)",
+        "delete from customer_issue_delay_label_writeback_jobs where project_id = ? and issue_iid in (?, ?, ?, ?)",
         PROJECT_ID,
         FIRST_IID,
         SECOND_IID,
-        THIRD_IID);
+        THIRD_IID,
+        FOURTH_IID);
     jdbcTemplate.update(
-        "delete from issue_fact where project_id = ? and issue_iid in (?, ?, ?)",
+        "delete from issue_fact where project_id = ? and issue_iid in (?, ?, ?, ?)",
         PROJECT_ID,
         FIRST_IID,
         SECOND_IID,
-        THIRD_IID);
+        THIRD_IID,
+        FOURTH_IID);
     jdbcTemplate.update(
         "delete from ods_gitlab_label_links where target_id in (981001, 981002, 981003)");
     jdbcTemplate.update(
@@ -260,6 +548,7 @@ class CustomerIssueDelayLabelWritebackEnqueueIntegrationTest {
         "delete from ods_gitlab_issues where id in (981001, 981002, 981003)");
     jdbcTemplate.update(
         "delete from customer_issue_delay_closure_requests where source_instance = ?", SOURCE);
+    jdbcTemplate.update("delete from sync_runs where run_id like 'test-run-%'");
     jdbcTemplate.update(
         "delete from gitlab_sync_configs where source_instance = ?", SOURCE);
   }

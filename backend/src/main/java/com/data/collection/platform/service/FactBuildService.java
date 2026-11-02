@@ -793,14 +793,14 @@ public class FactBuildService {
               left join ods_gitlab_issues source_issue
                 on source_issue.project_id = f.project_id
                and source_issue.iid = f.issue_iid
-               and coalesce(source_issue.mirror_deleted, false) = false
+               and source_issue.mirror_deleted = false
               left join lateral (
                 select string_agg(label.title, ', ' order by label.title) as label_names
                   from ods_gitlab_label_links label_link
                   join ods_gitlab_labels label
                     on label.id = label_link.label_id
-                   and coalesce(label.mirror_deleted, false) = false
-                 where coalesce(label_link.mirror_deleted, false) = false
+                   and label.mirror_deleted = false
+                 where label_link.mirror_deleted = false
                    and label_link.target_type = 'Issue'
                    and label_link.target_id = coalesce(source_issue.id, f.issue_id)
               ) current_labels on true

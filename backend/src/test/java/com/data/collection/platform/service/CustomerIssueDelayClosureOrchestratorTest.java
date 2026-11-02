@@ -213,6 +213,43 @@ class CustomerIssueDelayClosureOrchestratorTest {
     verify(roundService, times(1)).enqueuePage(any(), eq(CONFIG_ID), eq(42L), anyInt());
   }
 
+  @Test
+  void periodicRecoveryCheckRequestsNewRoundForSettledExpiredSource() {
+    when(readinessService.currentFactVersion(SOURCE)).thenReturn(43L);
+    when(progressRepository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, CONFIG_ID, 43L))
+        .thenReturn(true);
+
+    orchestrator.checkProgressForAllSources();
+
+    verify(progressRepository)
+        .requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, CONFIG_ID, 43L);
+  }
+
+  @Test
+  void terminalEventRequestsRecoveryForSettledExpiredSource() {
+    CustomerIssueDelayClosureProgress idle =
+        progress(CustomerIssueDelayClosureStage.IDLE, 42L, 7L);
+    stubEventWaiting(idle);
+    when(readinessService.currentFactVersion(SOURCE)).thenReturn(43L);
+    when(progressRepository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, CONFIG_ID, 43L))
+        .thenReturn(true);
+
+    orchestrator.onRunTerminal(terminalEvent(88L));
+
+    verify(progressRepository)
+        .requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, CONFIG_ID, 43L);
+  }
+
+  @Test
+  void recoveryIsNotRequestedWhileWritebackIsDisabled() {
+    when(writebackService.isEnabled(config)).thenReturn(false);
+
+    orchestrator.checkProgressForAllSources();
+
+    verify(progressRepository, never())
+        .requestRecoveryIfIdleWithExpiredAuthorization(anyString(), anyLong(), anyLong());
+  }
+
   private void stubClaimOnce(CustomerIssueDelayClosureProgress progress) {
     when(progressRepository.claimNext(anyString(), anyString(), anyInt()))
         .thenReturn(Optional.of(claim(progress)))

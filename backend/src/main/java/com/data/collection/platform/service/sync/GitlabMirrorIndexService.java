@@ -108,14 +108,15 @@ public class GitlabMirrorIndexService {
                 column ->
                     SqlIdentifierSupport.quoteIdentifier(column.name()) + (column.descending() ? " desc" : ""))
             .collect(Collectors.joining(", "));
-    return "create index concurrently if not exists "
-        + SqlIdentifierSupport.quoteIdentifier(definition.name())
-        + " on "
-        + SqlIdentifierSupport.quoteIdentifier(mirrorTable)
-        + " ("
-        + columns
-        + ") where "
-        + definition.predicate();
+    String sql =
+        "create index concurrently if not exists "
+            + SqlIdentifierSupport.quoteIdentifier(definition.name())
+            + " on "
+            + SqlIdentifierSupport.quoteIdentifier(mirrorTable)
+            + " ("
+            + columns
+            + ")";
+    return definition.predicate() == null ? sql : sql + " where " + definition.predicate();
   }
 
 }
