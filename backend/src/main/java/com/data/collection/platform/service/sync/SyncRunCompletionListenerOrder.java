@@ -17,5 +17,8 @@ public final class SyncRunCompletionListenerOrder {
   /** 事实收敛的消费方（延期标签写回编排）：必须在登记之后。 */
   public static final int FACT_CONVERGENCE_CONSUMER = 100;
 
+  /** 表单项目候选投影刷新：只读镜像终态，与事实发布、收敛评估互不依赖。 */
+  public static final int FORM_PROJECT_PROJECTION = 200;
+
   private SyncRunCompletionListenerOrder() {}
 }

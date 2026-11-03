@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.form.admin.FormScopeCreateRequest;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.form.FormActorResolver;
+import com.data.collection.platform.service.form.FormProjectCandidateService;
 import com.data.collection.platform.service.form.FormPublicationService;
 import com.data.collection.platform.service.form.FormTemplateAdminService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,14 +41,17 @@ public class CollectFormAdminController {
   private final FormTemplateAdminService adminService;
   private final FormPublicationService publicationService;
   private final FormActorResolver actorResolver;
+  private final FormProjectCandidateService projectCandidateService;
 
   public CollectFormAdminController(
       FormTemplateAdminService adminService,
       FormPublicationService publicationService,
-      FormActorResolver actorResolver) {
+      FormActorResolver actorResolver,
+      FormProjectCandidateService projectCandidateService) {
     this.adminService = adminService;
     this.publicationService = publicationService;
     this.actorResolver = actorResolver;
+    this.projectCandidateService = projectCandidateService;
   }
 
   @GetMapping("/templates")
@@ -131,6 +135,18 @@ public class CollectFormAdminController {
   @GetMapping("/binding-options")
   public ApiResponse<List<FormAdminViews.BindingOption>> bindingOptions() {
     return ApiResponse.success(adminService.bindingOptions());
+  }
+
+  /** 本地项目目录候选；支持分页搜索与 projectIds 精确回显，不连接 GitLab。 */
+  @GetMapping("/admin/projects")
+  public ApiResponse<FormAdminViews.ProjectCandidatePage> projectCandidates(
+      @RequestParam @NotNull @Positive Long sourceConfigId,
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) Integer size,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) List<Long> projectIds) {
+    return ApiResponse.success(
+        projectCandidateService.search(sourceConfigId, keyword, size, cursor, projectIds));
   }
 
   @GetMapping("/version-milestones")

@@ -925,6 +925,12 @@ endpoints:
     cases:
       - id: unknown-source
         query: sourceConfigId=999999999&projectId=1
+  - method: GET
+    path: /api/collect-forms/admin/projects
+    category: READ
+    cases:
+      - id: unknown-source
+        query: sourceConfigId=999999999
 
   # =====IssueScopeDefinitionController（议题范围定义）=====
   - method: GET

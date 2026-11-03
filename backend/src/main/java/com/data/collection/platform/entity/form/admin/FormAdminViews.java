@@ -112,4 +112,26 @@ public final class FormAdminViews {
   public record MilestoneView(long id, String title) {}
 
   public record MilestoneAvailability(boolean available, List<MilestoneView> items) {}
+
+  /** 项目候选；projectId 以十进制字符串返回，避免前端 Number 精度损失。 */
+  public record ProjectOption(
+      String projectId,
+      String name,
+      String path,
+      String namespacePath,
+      String fullPath) {}
+
+  /**
+   * 项目候选分页。
+   *
+   * @param available 该来源是否已有本地目录投影；false 表示尚未完成目录同步
+   * @param items 当前页候选或 projectIds 精确回显结果
+   * @param nextCursor 下一页游标；无更多数据时为 null
+   * @param missingProjectIds 精确回显中已不在目录里的项目 ID，按请求顺序
+   */
+  public record ProjectCandidatePage(
+      boolean available,
+      List<ProjectOption> items,
+      String nextCursor,
+      List<String> missingProjectIds) {}
 }
