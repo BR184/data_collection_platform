@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
