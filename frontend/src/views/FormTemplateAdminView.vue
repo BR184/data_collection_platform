@@ -5,16 +5,23 @@ import { ArrowDown, Delete, Plus, MoreFilled, Rank, Close, Clock } from '@elemen
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { collectFormsApi } from '../api-client/collect-forms-api';
 import { HttpRequestError, isApiBizError } from '../api-client/request';
+import { authState } from '../composables/auth-state';
+import { hasPermission } from '../feature-manifest';
+import SmartSelect from '../components/base/SmartSelect.vue';
+import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
+import type { RecordTableFilterOption } from '../types/record-table';
 import type {
   FormAdminBindingOption,
   FormAdminDraftView,
   FormAdminMilestoneAvailability,
   FormAdminPreviewView,
+  FormAdminProjectOption,
   FormAdminPublicationView,
   FormAdminScopeDetail,
   FormAdminScopeSummary,
   FormAdminTemplateSummary,
+  FormAdminVersionView,
   FormTemplateSpecView,
 } from '../types/api';
 import {
@@ -65,8 +72,18 @@ const createVisible = ref(false);
 const createTemplateKey = ref('code_review');
 const createScopeKey = ref('');
 const bindingSourceId = ref<number | null>(null);
-const bindingProjects = ref('');
-const bindingVersionProject = ref<number | null>(null);
+const bindingProjectIds = ref<string[]>([]);
+const bindingVersionProject = ref<string | null>(null);
+const projectOptions = ref<FormAdminProjectOption[]>([]);
+const projectOptionCache = ref<Record<string, FormAdminProjectOption>>({});
+const projectCandidatesLoading = ref(false);
+const projectCandidatesError = ref('');
+const projectCandidatesAvailable = ref(true);
+const missingProjectIds = ref<string[]>([]);
+let projectSearchTimer: ReturnType<typeof setTimeout> | undefined;
+let projectRequestEpoch = 0;
+let projectEchoEpoch = 0;
+let milestoneRequestEpoch = 0;
 const versionLabel = ref('');
 const evidenceDraft = ref<Record<string, unknown>>({});
 const evidenceNote = ref('');
@@ -116,6 +133,22 @@ const dirty = computed(
   () => savedSnapshot.value !== null && localSnapshot() !== savedSnapshot.value,
 );
 
+const applicableProjectOptions = computed<RecordTableFilterOption[]>(() =>
+  dedupeProjectOptions([
+    ...bindingProjectIds.value.map(projectOptionFor),
+    ...projectOptions.value,
+  ]),
+);
+const versionProjectOptions = computed<RecordTableFilterOption[]>(() =>
+  bindingProjectIds.value.map(projectOptionFor),
+);
+const canExportRecords = computed(() =>
+  hasPermission(authState.currentUser, 'form.record.export'),
+);
+const exportProjectSelectOptions = computed<RecordTableFilterOption[]>(() =>
+  dedupeProjectOptions(exportProjectOptions.value),
+);
+
 const conditionFieldChoices = computed(() => conditionFieldOptions(fieldRows.value));
 const scopeStatusLabel = computed(() => {
   switch (scope.value?.status) {
@@ -131,8 +164,12 @@ const scopeStatusLabel = computed(() => {
 
 onMounted(async () => {
   await Promise.all([loadTemplates(), loadBindingOptions()]);
+  applyBindingDefaults();
 });
-onBeforeUnmount(() => { if (autosaveTimer) clearTimeout(autosaveTimer); });
+onBeforeUnmount(() => {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  if (projectSearchTimer) clearTimeout(projectSearchTimer);
+});
 onBeforeRouteLeave(async () => { await flushDraft(); return !dirty.value; });
 
 async function loadTemplates(preferredScopeId?: number) {
@@ -190,6 +227,7 @@ function applyScopeDetail(fresh: FormAdminScopeDetail) {
   removedFields.value = [];
   saveError.value = '';
   markSaved();
+  void hydrateProjectCandidates();
 }
 
 /** 异步结果归属：发起请求时的范围与加载代次，回写前必须复核。 */
@@ -281,8 +319,9 @@ function hydrateDraft(draft: FormAdminDraftView | null) {
   specBase.value = draft?.fieldSpec ?? null;
   fieldRows.value = specBase.value ? fieldRowsFromSpec(specBase.value) : [];
   bindingSourceId.value = draft?.binding?.sourceConfigId ?? null;
-  bindingProjects.value = (draft?.binding?.projectIds ?? []).join(', ');
-  bindingVersionProject.value = draft?.binding?.versionProjectId ?? null;
+  bindingProjectIds.value = (draft?.binding?.projectIds ?? []).map(String);
+  bindingVersionProject.value =
+    draft?.binding?.versionProjectId != null ? String(draft.binding.versionProjectId) : null;
   versionLabel.value = draft?.versionLabel ?? '';
   conditionRows.value = specBase.value
     ? conditionRowsFromSpec(specBase.value, fieldRows.value)
@@ -297,17 +336,256 @@ function hydrateEvidence(evidence: Record<string, unknown> | null | undefined) {
     typeof evidence?.milestoneId === 'number' ? evidence.milestoneId : null;
 }
 
+function projectOptionFor(projectId: string): FormAdminProjectOption {
+  return (
+    projectOptionCache.value[projectId] ?? {
+      projectId,
+      name: `项目 ${projectId}（目录中不存在）`,
+      path: '',
+      namespacePath: '',
+      fullPath: '',
+    }
+  );
+}
+
+function toProjectSelectOption(option: FormAdminProjectOption): RecordTableFilterOption {
+  const label =
+    option.fullPath && option.fullPath !== option.name
+      ? `${option.name} · ${option.fullPath}`
+      : option.name;
+  return { value: option.projectId, label };
+}
+
+function dedupeProjectOptions(items: FormAdminProjectOption[]): RecordTableFilterOption[] {
+  const seen = new Set<string>();
+  const result: RecordTableFilterOption[] = [];
+  for (const item of items) {
+    if (seen.has(item.projectId)) continue;
+    seen.add(item.projectId);
+    result.push(toProjectSelectOption(item));
+  }
+  return result;
+}
+
+function cacheProjectOptions(items: FormAdminProjectOption[]) {
+  if (!items.length) return;
+  const next = { ...projectOptionCache.value };
+  for (const item of items) next[item.projectId] = item;
+  projectOptionCache.value = next;
+}
+
+function isPositiveProjectId(value: string): boolean {
+  return /^\d+$/.test(value) && Number(value) > 0;
+}
+
+async function loadProjectCandidates(keyword = '') {
+  const sourceId = bindingSourceId.value;
+  if (!sourceId) {
+    projectOptions.value = [];
+    projectCandidatesLoading.value = false;
+    return;
+  }
+  const epoch = ++projectRequestEpoch;
+  projectCandidatesLoading.value = true;
+  try {
+    const page = await collectFormsApi.getFormProjectCandidates({
+      sourceConfigId: sourceId,
+      keyword: keyword.trim() || undefined,
+      size: 50,
+    });
+    if (epoch !== projectRequestEpoch || bindingSourceId.value !== sourceId) return;
+    projectOptions.value = page.items;
+    projectCandidatesAvailable.value = page.available;
+    projectCandidatesError.value = '';
+    cacheProjectOptions(page.items);
+  } catch (error) {
+    if (epoch !== projectRequestEpoch || bindingSourceId.value !== sourceId) return;
+    projectCandidatesError.value = readableError(
+      getErrorMessage(error, '项目目录加载失败'),
+      '项目目录加载失败',
+    );
+  } finally {
+    if (epoch === projectRequestEpoch) projectCandidatesLoading.value = false;
+  }
+}
+
+async function echoProjectSelection(sourceId: number, projectIds: string[]) {
+  const epoch = ++projectEchoEpoch;
+  const validIds = projectIds.filter(isPositiveProjectId);
+  if (!validIds.length) {
+    missingProjectIds.value = [];
+    return;
+  }
+  try {
+    const page = await collectFormsApi.getFormProjectCandidates({
+      sourceConfigId: sourceId,
+      projectIds: validIds,
+    });
+    if (epoch !== projectEchoEpoch || bindingSourceId.value !== sourceId) return;
+    cacheProjectOptions(page.items);
+    missingProjectIds.value = page.missingProjectIds;
+    projectCandidatesAvailable.value = page.available;
+  } catch (error) {
+    if (epoch !== projectEchoEpoch || bindingSourceId.value !== sourceId) return;
+    projectCandidatesError.value = readableError(
+      getErrorMessage(error, '已选项目回显失败'),
+      '已选项目回显失败',
+    );
+  }
+}
+
+async function hydrateProjectCandidates() {
+  if (projectSearchTimer) {
+    clearTimeout(projectSearchTimer);
+    projectSearchTimer = undefined;
+  }
+  projectRequestEpoch += 1;
+  projectEchoEpoch += 1;
+  projectOptions.value = [];
+  projectOptionCache.value = {};
+  missingProjectIds.value = [];
+  projectCandidatesError.value = '';
+  projectCandidatesAvailable.value = true;
+  if (!bindingBound.value && !bindingSourceId.value && bindingOptions.value.length === 1) {
+    bindingSourceId.value = bindingOptions.value[0].sourceConfigId;
+  }
+  const sourceId = bindingSourceId.value;
+  if (!sourceId) {
+    projectCandidatesLoading.value = false;
+    return;
+  }
+  await Promise.all([
+    loadProjectCandidates(''),
+    echoProjectSelection(sourceId, bindingProjectIds.value),
+  ]);
+  if (bindingSourceId.value !== sourceId || bindingBound.value) return;
+  applyBindingDefaults(false);
+}
+
+function reloadProjectCandidates() {
+  const sourceId = bindingSourceId.value;
+  if (!sourceId) return;
+  void Promise.all([
+    loadProjectCandidates(''),
+    echoProjectSelection(sourceId, bindingProjectIds.value),
+  ]);
+}
+
+function searchProjectCandidates(keyword: string) {
+  if (projectSearchTimer) clearTimeout(projectSearchTimer);
+  projectSearchTimer = setTimeout(() => {
+    void loadProjectCandidates(keyword);
+  }, 250);
+}
+
+function handleProjectDropdownVisible(visible: boolean) {
+  if (visible) void loadProjectCandidates('');
+}
+
+function clearMilestoneEvidence() {
+  const next = { ...evidenceDraft.value };
+  delete next.milestoneId;
+  delete next.milestoneTitle;
+  delete next.projectId;
+  delete next.verifiedAt;
+  evidenceDraft.value = next;
+}
+
+function setBindingVersionProject(next: string | null, clearEvidence: boolean) {
+  if (bindingVersionProject.value === next) {
+    if (next) void loadMilestones();
+    return;
+  }
+  bindingVersionProject.value = next;
+  if (clearEvidence) {
+    selectedMilestoneId.value = null;
+    versionLabel.value = '';
+    clearMilestoneEvidence();
+  }
+  void loadMilestones();
+}
+
+function applyBindingDefaults(clearEvidenceForAutoFill: boolean) {
+  if (bindingBound.value) return;
+  if (!bindingSourceId.value && bindingOptions.value.length === 1) {
+    bindingSourceId.value = bindingOptions.value[0].sourceConfigId;
+    void hydrateProjectCandidates();
+    return;
+  }
+  if (!bindingProjectIds.value.length) return;
+  if (
+    bindingProjectIds.value.length === 1
+    && bindingVersionProject.value !== bindingProjectIds.value[0]
+  ) {
+    setBindingVersionProject(bindingProjectIds.value[0], clearEvidenceForAutoFill);
+    return;
+  }
+  if (
+    bindingVersionProject.value
+    && !bindingProjectIds.value.includes(bindingVersionProject.value)
+  ) {
+    setBindingVersionProject(null, true);
+  }
+}
+
+function updateBindingProjects(value: string | string[]) {
+  const next = Array.isArray(value) ? value : value ? [value] : [];
+  const previousVersionProject = bindingVersionProject.value;
+  bindingProjectIds.value = next.map(String).filter(isPositiveProjectId);
+  if (
+    previousVersionProject
+    && !bindingProjectIds.value.includes(previousVersionProject)
+  ) {
+    // 移除已选版本所属项目时只清空并要求重选，不静默改绑到剩余项目。
+    setBindingVersionProject(null, true);
+    return;
+  }
+  applyBindingDefaults(true);
+}
+
+function updateBindingVersionProject(value: string | string[]) {
+  const next = typeof value === 'string' && isPositiveProjectId(value) ? value : null;
+  setBindingVersionProject(next, true);
+}
+
+async function changeBindingSource(value: number | null) {
+  bindingSourceId.value = value;
+  bindingProjectIds.value = [];
+  bindingVersionProject.value = null;
+  selectedMilestoneId.value = null;
+  versionLabel.value = '';
+  milestones.value = null;
+  projectOptions.value = [];
+  projectOptionCache.value = {};
+  missingProjectIds.value = [];
+  projectCandidatesError.value = '';
+  projectCandidatesAvailable.value = true;
+  projectEchoEpoch += 1;
+  clearMilestoneEvidence();
+  if (!value) return;
+  await loadProjectCandidates('');
+}
+
 async function loadMilestones() {
-  if (!bindingSourceId.value || !bindingVersionProject.value) {
+  const sourceId = bindingSourceId.value;
+  const projectId = bindingVersionProject.value ? Number(bindingVersionProject.value) : null;
+  const epoch = ++milestoneRequestEpoch;
+  if (!sourceId || !projectId) {
     milestones.value = null;
     return;
   }
   try {
-    milestones.value = await collectFormsApi.getFormMilestones(
-      bindingSourceId.value,
-      bindingVersionProject.value,
-    );
+    const fresh = await collectFormsApi.getFormMilestones(sourceId, projectId);
+    if (
+      epoch !== milestoneRequestEpoch
+      || sourceId !== bindingSourceId.value
+      || bindingVersionProject.value !== String(projectId)
+    ) {
+      return;
+    }
+    milestones.value = fresh;
   } catch (error) {
+    if (epoch !== milestoneRequestEpoch) return;
     milestones.value = { available: false, items: [] };
     ElMessage.warning(readableError(getErrorMessage(error, '版本里程碑加载失败'), '版本里程碑加载失败'));
   }
@@ -383,10 +661,9 @@ function updateOptionLabel(optionIndex: number, label: string) {
 }
 
 function parseProjectIds(): number[] {
-  return bindingProjects.value
-    .split(/[,\s]+/)
-    .map((value) => Number(value.trim()))
-    .filter((value) => Number.isInteger(value) && value > 0);
+  return bindingProjectIds.value
+    .filter(isPositiveProjectId)
+    .map((value) => Number(value));
 }
 
 
@@ -465,7 +742,7 @@ function buildEvidence(): Record<string, unknown> | null {
   if (evidenceNote.value.trim()) {
     evidence.note = evidenceNote.value.trim();
   }
-  const projectId = bindingVersionProject.value;
+  const projectId = bindingVersionProject.value ? Number(bindingVersionProject.value) : null;
   if (selectedMilestoneId.value !== null) {
     const milestone = milestones.value?.items.find(
       (item) => item.id === selectedMilestoneId.value,
@@ -487,7 +764,7 @@ function localSnapshot(): string {
   return JSON.stringify({
     spec,
     sourceConfigId: bindingSourceId.value,
-    projects: bindingProjects.value,
+    projects: [...bindingProjectIds.value].sort((left, right) => Number(left) - Number(right)).join(','),
     versionProjectId: bindingVersionProject.value,
     versionLabel: versionLabel.value,
     evidence: buildEvidence(),
@@ -513,10 +790,19 @@ async function performSaveDraft() {
   }
   const hasBinding =
     bindingSourceId.value !== null
-    || bindingProjects.value.trim() !== ''
+    || bindingProjectIds.value.length > 0
     || bindingVersionProject.value !== null;
   const projectIds = parseProjectIds();
-  if (hasBinding && (!bindingSourceId.value || !bindingVersionProject.value || !projectIds.length)) {
+  const versionProjectId = bindingVersionProject.value ? Number(bindingVersionProject.value) : null;
+  if (
+    hasBinding
+    && (
+      !bindingSourceId.value
+      || !versionProjectId
+      || !projectIds.length
+      || !projectIds.includes(versionProjectId)
+    )
+  ) {
     saveError.value = '请完成适用范围的项目和版本选择';
     return;
   }
@@ -532,7 +818,7 @@ async function performSaveDraft() {
         ? {
             sourceConfigId: bindingSourceId.value as number,
             projectIds,
-            versionProjectId: bindingVersionProject.value as number,
+            versionProjectId: versionProjectId as number,
           }
         : undefined,
       versionLabel: versionLabel.value.trim() || null,
@@ -605,6 +891,7 @@ function applyServerDraft() {
   preview.value = null;
   pendingRequest.value = null;
   markSaved();
+  void hydrateProjectCandidates();
   conflictVisible.value = false;
   conflictDraft.value = null;
   conflictScopeId.value = null;
@@ -883,7 +1170,7 @@ function applyMilestone(milestoneId: number) {
     ...evidenceDraft.value,
     milestoneId: milestone.id,
     milestoneTitle: milestone.title,
-    projectId: bindingVersionProject.value,
+    projectId: bindingVersionProject.value ? Number(bindingVersionProject.value) : null,
     verifiedAt: new Date().toISOString(),
   };
 }
@@ -910,6 +1197,11 @@ const removedFields = ref<Array<{ row: FieldRow; index: number; conditions: Cond
 const expanded = ref<string | null>(null);
 const rangeVisible = ref(false);
 const historyVisible = ref(false);
+const exportVisible = ref(false);
+const exportVersion = ref<FormAdminVersionView | null>(null);
+const exportProjectIds = ref<string[]>([]);
+const exportProjectOptions = ref<FormAdminProjectOption[]>([]);
+const exporting = ref(false);
 const saveError = ref('');
 const rangeNames = ref<Record<number, string>>({});
 const publishConfirmVisible = ref(false);
@@ -972,6 +1264,56 @@ function discardChanges() {
 function openCreate(key: string) { createTemplateKey.value = key; createVisible.value = true; }
 async function finishRange() { await flushDraft(); if (!dirty.value) { rangeVisible.value = false; if (scope.value && typeof evidenceDraft.value.scopeDisplayName === 'string') rangeNames.value[scope.value.id] = evidenceDraft.value.scopeDisplayName; } }
 function formattedTime(value: string | null): string { return value ? new Date(value).toLocaleDateString('zh-CN') : '尚未发布'; }
+
+function isExportableVersion(version: FormAdminVersionView): boolean {
+  return version.versionStatus === 'PUBLISHED' || version.versionStatus === 'RETIRED';
+}
+
+async function openVersionExport(version: FormAdminVersionView) {
+  if (!canExportRecords.value || !isExportableVersion(version)) return;
+  exportVersion.value = version;
+  exportProjectIds.value = (scope.value?.projectIds ?? []).map(String);
+  exportProjectOptions.value = exportProjectIds.value.map(projectOptionFor);
+  exportVisible.value = true;
+  const sourceId = scope.value?.sourceConfigId;
+  if (!sourceId || !exportProjectIds.value.length) return;
+  try {
+    const page = await collectFormsApi.getFormProjectCandidates({
+      sourceConfigId: sourceId,
+      projectIds: exportProjectIds.value,
+    });
+    if (exportVersion.value?.id !== version.id) return;
+    exportProjectOptions.value = exportProjectIds.value.map((projectId) => {
+      const found = page.items.find((item) => item.projectId === projectId);
+      return found ?? projectOptionFor(projectId);
+    });
+    cacheProjectOptions(page.items);
+  } catch {
+    // 导出资格与项目谓词仍由后端裁决；候选回显失败时保留项目 ID 占位。
+  }
+}
+
+function updateExportProjects(value: string | string[]) {
+  const next = Array.isArray(value) ? value : value ? [value] : [];
+  exportProjectIds.value = next.map(String).filter(isPositiveProjectId);
+}
+
+async function confirmVersionExport() {
+  const version = exportVersion.value;
+  if (!version || exporting.value) return;
+  exporting.value = true;
+  try {
+    const response = await collectFormsApi.exportFormRecords(version.id, exportProjectIds.value);
+    const suffix = version.versionLabel || String(version.id);
+    downloadBlob(response.blob, response.filename ?? `表单记录-${suffix}.xlsx`);
+    exportVisible.value = false;
+    ElMessage.success('已导出该版本表单记录');
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '表单记录导出失败'));
+  } finally {
+    exporting.value = false;
+  }
+}
 
 function scheduleAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
@@ -1066,14 +1408,55 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
       <main v-else class="workspace empty-workspace"><p>{{ loading ? '正在加载表单…' : '选择一个表单开始编辑' }}</p></main>
     </div>
 
-    <el-drawer v-model="historyVisible" title="历史版本" size="420px"><ol class="version-list"><li v-for="version in detail?.versions ?? []" :key="version.id"><span class="version-dot" /><div><strong>{{ version.versionLabel || '早期版本' }}</strong><p>{{ formattedTime(version.publishedAt) }}<span v-if="version.id === scope?.currentVersionId"> · 当前版本</span></p></div></li></ol><p v-if="!detail?.versions.length" class="muted">尚未发布过版本</p></el-drawer>
+    <el-drawer v-model="historyVisible" title="历史版本" size="420px"><ol class="version-list"><li v-for="version in detail?.versions ?? []" :key="version.id"><span class="version-dot" /><div class="version-main"><strong>{{ version.versionLabel || '早期版本' }}</strong><p>{{ formattedTime(version.publishedAt) }}<span v-if="version.id === scope?.currentVersionId"> · 当前版本</span></p></div><el-button v-if="canExportRecords && isExportableVersion(version)" link class="version-export" @click="openVersionExport(version)">导出Excel</el-button></li></ol><p v-if="!detail?.versions.length" class="muted">尚未发布过版本</p></el-drawer>
+
+    <el-dialog v-model="exportVisible" :title="`导出 ${exportVersion?.versionLabel || '早期版本'} 记录`" width="min(520px, 90vw)">
+      <el-form label-position="top">
+        <el-form-item label="项目范围">
+          <SmartSelect
+            :model-value="exportProjectIds"
+            :options="exportProjectSelectOptions"
+            multiple
+            placeholder="选择要导出的项目"
+            @update:model-value="updateExportProjects"
+          />
+        </el-form-item>
+      </el-form>
+      <p class="field-hint">默认包含该版本全部获准项目；未选择项目时同样导出全部。</p>
+      <template #footer><el-button @click="exportVisible = false">取消</el-button><el-button type="primary" :loading="exporting" @click="confirmVersionExport">导出</el-button></template>
+    </el-dialog>
 
     <el-drawer v-model="rangeVisible" title="适用范围" size="460px">
       <el-form label-position="top" class="range-form">
         <el-form-item label="范围名称"><el-input :model-value="String(evidenceDraft.scopeDisplayName ?? '')" placeholder="例如：CCProduct" @input="evidenceDraft = { ...evidenceDraft, scopeDisplayName: $event }" /></el-form-item>
-        <el-form-item label="代码平台"><el-select v-model="bindingSourceId" placeholder="选择代码平台" :disabled="bindingBound" @change="loadMilestones"><el-option v-for="option in bindingOptions" :key="option.sourceConfigId" :label="option.name" :value="option.sourceConfigId" /></el-select></el-form-item>
-        <el-form-item label="适用项目"><el-input v-model="bindingProjects" :disabled="bindingBound" placeholder="项目编号，多个项目用逗号分隔" @blur="loadMilestones" /></el-form-item>
-        <el-form-item label="版本所属项目"><el-input-number v-model="bindingVersionProject" :disabled="bindingBound" :min="1" @change="loadMilestones" /></el-form-item>
+        <el-form-item label="代码平台"><el-select v-model="bindingSourceId" placeholder="选择代码平台" :disabled="bindingBound" @change="changeBindingSource"><el-option v-for="option in bindingOptions" :key="option.sourceConfigId" :label="option.name" :value="option.sourceConfigId" /></el-select></el-form-item>
+        <el-form-item label="适用项目">
+          <SmartSelect
+            :model-value="bindingProjectIds"
+            :options="applicableProjectOptions"
+            multiple
+            remote-search
+            :loading="projectCandidatesLoading"
+            :disabled="bindingBound"
+            placeholder="搜索项目名称或路径"
+            @update:model-value="updateBindingProjects"
+            @search="searchProjectCandidates"
+            @visible-change="handleProjectDropdownVisible"
+          />
+          <p v-if="projectCandidatesError" class="field-hint">{{ projectCandidatesError }} <el-button link @click="reloadProjectCandidates">重试</el-button></p>
+          <p v-else-if="!projectCandidatesLoading && !projectCandidatesAvailable && bindingSourceId" class="field-hint">项目目录尚未同步，请先在代码平台完成同步 <el-button link @click="reloadProjectCandidates">重试</el-button></p>
+          <p v-if="missingProjectIds.length" class="field-hint">已选项目中有 {{ missingProjectIds.length }} 个已不在目录，仍保留原选择。</p>
+        </el-form-item>
+        <el-form-item label="版本所属项目">
+          <SmartSelect
+            :model-value="bindingVersionProject ?? ''"
+            :options="versionProjectOptions"
+            dropdown-layout="list"
+            :disabled="bindingBound || !bindingProjectIds.length"
+            placeholder="从适用项目中选择"
+            @update:model-value="updateBindingVersionProject"
+          />
+        </el-form-item>
         <el-form-item label="版本"><el-select v-if="milestones?.available" v-model="selectedMilestoneId" placeholder="选择项目版本" @change="applyMilestone"><el-option v-for="item in milestones.items" :key="item.id" :label="item.title" :value="item.id" /></el-select><el-input v-else v-model="versionLabel" placeholder="填写项目版本" /></el-form-item>
         <el-form-item label="发布说明"><el-input v-model="evidenceNote" type="textarea" :rows="3" maxlength="500" placeholder="本次调整的说明（选填）" /></el-form-item>
       </el-form>
@@ -1189,6 +1572,8 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
 .version-list { list-style: none; padding: 0; margin: 10px 0; }
 .version-list li { display: flex; gap: 14px; padding: 0 0 28px; position: relative; }
 .version-dot { flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #6390cc; }
+.version-main { flex: 1; min-width: 0; }
+.version-export { flex: 0 0 auto; align-self: flex-start; margin-top: -6px; }
 .version-list strong { color: #314760; font-size: 14px; }
 .version-list p { color: #7d8b9c; font-size: 12px; margin: 7px 0 0; }
 .range-form :deep(.el-select), .range-form :deep(.el-input-number) { width: 100%; }

@@ -3,6 +3,8 @@ import ElementPlus, { ElDropdown, ElSelect } from 'element-plus';
 import { createRouter, createWebHashHistory, type Router } from 'vue-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpRequestError } from '../api-client/request';
+import { authState } from '../composables/auth-state';
+import SmartSelect from '../components/base/SmartSelect.vue';
 import type {
   FormAdminDraftView,
   FormAdminPreviewView,
@@ -28,6 +30,8 @@ const mocks = vi.hoisted(() => ({
     deleteFormScope: vi.fn(),
     getFormBindingOptions: vi.fn(),
     getFormMilestones: vi.fn(),
+    getFormProjectCandidates: vi.fn(),
+    exportFormRecords: vi.fn(),
   },
   message: {
     success: vi.fn(),
@@ -45,6 +49,7 @@ vi.mock('../element-plus-services', () => ({
   ElMessage: mocks.message,
   ElMessageBox: mocks.messageBox,
 }));
+vi.mock('../utils/csv-download', () => ({ downloadBlob: vi.fn() }));
 
 const spec: FormTemplateSpecView = {
   spec_version: 1,
@@ -202,6 +207,16 @@ function detailFor(scopeId: number, scopeKey: string, label: string): FormAdminS
   };
 }
 
+function projectOption(projectId: string) {
+  return {
+    projectId,
+    name: `项目 ${projectId}`,
+    path: `project-${projectId}`,
+    namespacePath: 'team',
+    fullPath: `team/project-${projectId}`,
+  };
+}
+
 let wrapper: VueWrapper | null = null;
 let router: Router | null = null;
 
@@ -225,6 +240,39 @@ beforeEach(() => {
     available: true,
     items: [{ id: 1001, title: 'CC2026R1' }],
   });
+  mocks.api.getFormProjectCandidates.mockImplementation(
+    async (params: { projectIds?: Array<number | string> }) => {
+      if (params.projectIds?.length) {
+        const missing = params.projectIds
+          .map(String)
+          .filter((projectId) => projectId === '999');
+        return {
+          available: true,
+          items: params.projectIds
+            .map(String)
+            .filter((projectId) => projectId !== '999')
+            .map(projectOption),
+          nextCursor: null,
+          missingProjectIds: missing,
+        };
+      }
+      return {
+        available: true,
+        items: [projectOption('9'), projectOption('10')],
+        nextCursor: null,
+        missingProjectIds: [],
+      };
+    },
+  );
+  mocks.api.exportFormRecords.mockResolvedValue({
+    blob: new Blob(['xlsx']),
+    filename: '表单记录.xlsx',
+  });
+  authState.currentUser = {
+    ...authState.currentUser,
+    authenticated: true,
+    permissions: [],
+  };
   mocks.messageBox.confirm.mockResolvedValue('confirm');
   vi.stubGlobal('crypto', {
     ...globalThis.crypto,
@@ -440,6 +488,83 @@ describe('表单管理单页工作区', () => {
     await button(view,'历史版本').trigger('click'); await flushPromises();
     expect(view.find('.version-list').text()).toContain('CC2026R1');
     expect(document.body.textContent).not.toContain('form_s7_v2_records');
+    expect(view.findAll('button').some(item => item.text() === '导出Excel')).toBe(false);
+  });
+
+  it('exports a published version with all permitted projects for authorized users', async () => {
+    authState.currentUser = {
+      ...authState.currentUser,
+      authenticated: true,
+      permissions: ['form.record.export'],
+    };
+    const view=await mountView();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    await button(view,'导出Excel').trigger('click'); await flushPromises();
+    await button(view,'导出').trigger('click'); await flushPromises();
+    expect(mocks.api.exportFormRecords).toHaveBeenCalledWith(2, ['9']);
+    expect(mocks.message.success).toHaveBeenCalledWith('已导出该版本表单记录');
+  });
+
+  it('keeps stale selected projects visible and selectable after candidate echo reports them missing', async () => {
+    const d=detail();
+    d.draft!.binding={...d.draft!.binding, projectIds:[9,999], versionProjectId:9};
+    mocks.api.getFormScope.mockResolvedValue(d);
+    const view=await mountView();
+    await view.find('.range-summary').trigger('click'); await flushPromises();
+    expect(view.find('.range-form').text()).toContain('已不在目录');
+    expect(mocks.api.getFormProjectCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ projectIds: ['9', '999'] }),
+    );
+  });
+
+  it('auto-fills the version project when the applicable set has one project', async () => {
+    const d=detail();
+    d.scope={...d.scope,status:'DRAFT',currentVersionId:null,currentVersionLabel:null};
+    d.draft={
+      ...d.draft!,
+      binding:{
+        sourceConfigId:null,
+        sourceInstance:null,
+        canonicalGitlabBaseUrl:null,
+        projectIds:[],
+        versionProjectId:null,
+        bindingHash:null,
+        bound:false,
+      },
+      versionLabel:null,
+      versionEvidence:null,
+    };
+    mocks.api.getFormScope.mockResolvedValue(d);
+    const view=await mountView();
+    await view.find('.range-summary').trigger('click'); await flushPromises();
+    view.findAllComponents(SmartSelect)[0].vm.$emit('update:modelValue', ['9']);
+    await flushPromises();
+    expect(mocks.api.getFormMilestones).toHaveBeenCalledWith(1, 9);
+  });
+
+  it('clears the version project instead of silently rebinding when it leaves the applicable set', async () => {
+    const d=detail();
+    d.scope={...d.scope,status:'DRAFT',currentVersionId:null,currentVersionLabel:null};
+    d.draft={
+      ...d.draft!,
+      binding:{
+        sourceConfigId:1,
+        sourceInstance:'default',
+        canonicalGitlabBaseUrl:'http://gitlab.w4.local',
+        projectIds:[9],
+        versionProjectId:9,
+        bindingHash:null,
+        bound:false,
+      },
+      versionLabel:'CC2026R1',
+    };
+    mocks.api.getFormScope.mockResolvedValue(d);
+    const view=await mountView();
+    await view.find('.range-summary').trigger('click'); await flushPromises();
+    view.findAllComponents(SmartSelect)[0].vm.$emit('update:modelValue', ['10']);
+    await flushPromises();
+    expect(view.findAllComponents(SmartSelect)[1].props('modelValue')).toBe('');
+    expect(mocks.api.getFormMilestones).not.toHaveBeenCalledWith(1, 10);
   });
 });
 
@@ -552,5 +677,60 @@ describe('单页工作区的异步归属', () => {
     finish(publication('COPYING')); await flushPromises();
     expect(mocks.api.getFormPublication).not.toHaveBeenCalled();
     expect(view.find('.notice-warning').exists()).toBe(false);
+  });
+
+  it('drops a delayed project candidate response after switching source', async () => {
+    const d=detail();
+    d.scope={...d.scope,status:'DRAFT',currentVersionId:null,currentVersionLabel:null};
+    d.draft={
+      ...d.draft!,
+      binding:{
+        sourceConfigId:1,
+        sourceInstance:'default',
+        canonicalGitlabBaseUrl:'http://gitlab.w4.local',
+        projectIds:[],
+        versionProjectId:null,
+        bindingHash:null,
+        bound:false,
+      },
+      versionLabel:null,
+      versionEvidence:null,
+    };
+    mocks.api.getFormScope.mockResolvedValue(d);
+    mocks.api.getFormBindingOptions.mockResolvedValue([
+      {sourceConfigId:1,name:'source-a',sourceInstance:'default',canonicalGitlabBaseUrl:'http://gitlab.w4.local'},
+      {sourceConfigId:2,name:'source-b',sourceInstance:'default',canonicalGitlabBaseUrl:'http://gitlab.w4.local'},
+    ]);
+    let finishFirst!:(value:unknown)=>void;
+    mocks.api.getFormProjectCandidates.mockImplementation(
+      (params:{sourceConfigId:number}) => {
+        if (params.sourceConfigId === 1) {
+          return new Promise(resolve => { finishFirst = resolve; });
+        }
+        return Promise.resolve({
+          available:true,
+          items:[projectOption('20')],
+          nextCursor:null,
+          missingProjectIds:[],
+        });
+      },
+    );
+    const view=await mountView();
+    await view.find('.range-summary').trigger('click'); await flushPromises();
+    const sourceSelect = view
+      .findAllComponents(ElSelect)
+      .find(component => component.props('placeholder') === '选择代码平台');
+    sourceSelect!.vm.$emit('change', 2);
+    await flushPromises();
+    finishFirst({
+      available:true,
+      items:[projectOption('10')],
+      nextCursor:null,
+      missingProjectIds:[],
+    });
+    await flushPromises();
+    expect(view.findAllComponents(SmartSelect)[0].props('options')).toEqual([
+      expect.objectContaining({ value: '20' }),
+    ]);
   });
 });

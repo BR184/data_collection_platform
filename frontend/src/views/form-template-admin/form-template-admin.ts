@@ -20,7 +20,7 @@ export const CONTROL_OPTIONS = [
   { value: 'checkbox', label: '复选', type: 'enum-array' },
   { value: 'checkbox-group', label: '多选', type: 'enum-array' },
   { value: 'person-select', label: '人员选择', type: 'string' },
-  { value: 'version-members', label: '版本成员', type: 'string' },
+  { value: 'version-members', label: '版本分支', type: 'string' },
 ] as const;
 
 export type ControlValue = (typeof CONTROL_OPTIONS)[number]['value'];

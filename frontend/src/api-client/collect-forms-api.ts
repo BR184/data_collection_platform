@@ -3,6 +3,7 @@ import type {
   FormAdminBindingOption,
   FormAdminMilestoneAvailability,
   FormAdminPreviewView,
+  FormAdminProjectCandidatePage,
   FormAdminPublicationView,
   FormAdminScopeDetail,
   FormAdminTemplateSummary,
@@ -13,7 +14,11 @@ import type {
   FormRecordView,
   FormReviewerCandidatesResponse,
 } from '../types/api';
-import { request } from './request';
+import {
+  EXPORT_REQUEST_TIMEOUT_MS,
+  request,
+  requestBlobResponse,
+} from './request';
 
 export interface FormContextPayload {
   gitlabBaseUrl: string;
@@ -179,5 +184,39 @@ export const collectFormsApi = {
     return request<FormAdminMilestoneAvailability>(
       `/api/collect-forms/version-milestones?${query.toString()}`,
     );
+  },
+  getFormProjectCandidates(params: {
+    sourceConfigId: number;
+    keyword?: string;
+    size?: number;
+    cursor?: string;
+    projectIds?: Array<number | string>;
+  }) {
+    const query = new URLSearchParams({ sourceConfigId: String(params.sourceConfigId) });
+    if (params.keyword?.trim()) {
+      query.set('keyword', params.keyword.trim());
+    }
+    if (params.size) {
+      query.set('size', String(params.size));
+    }
+    if (params.cursor) {
+      query.set('cursor', params.cursor);
+    }
+    if (params.projectIds?.length) {
+      query.set('projectIds', params.projectIds.join(','));
+    }
+    return request<FormAdminProjectCandidatePage>(
+      `/api/collect-forms/admin/projects?${query.toString()}`,
+    );
+  },
+  exportFormRecords(versionId: number, projectIds: Array<number | string>) {
+    const query = new URLSearchParams({ versionId: String(versionId) });
+    if (projectIds.length) {
+      query.set('projectIds', projectIds.join(','));
+    }
+    return requestBlobResponse(`/api/collect-forms/exports/records?${query.toString()}`, {
+      errorPrefix: '表单记录导出失败',
+      timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+    });
   },
 };

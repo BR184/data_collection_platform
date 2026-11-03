@@ -19,6 +19,8 @@ const props = withDefaults(
     dropdownMode?: 'default' | 'adaptive-tags';
     popperClassExtra?: string;
     fitInputWidth?: boolean;
+    /** 选项已由服务端按关键词过滤；本地不再二次过滤。 */
+    remoteSearch?: boolean;
   }>(),
   {
     placeholder: '',
@@ -33,6 +35,7 @@ const props = withDefaults(
     dropdownMode: 'default',
     popperClassExtra: '',
     fitInputWidth: true,
+    remoteSearch: false,
   },
 );
 
@@ -46,6 +49,9 @@ const emit = defineEmits<{
 const query = ref('');
 
 const filteredOptions = computed(() => {
+  if (props.remoteSearch) {
+    return props.options;
+  }
   const normalizedQuery = query.value.trim().toLowerCase();
   if (!normalizedQuery) {
     return props.options;

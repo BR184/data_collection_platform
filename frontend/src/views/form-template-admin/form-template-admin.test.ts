@@ -96,7 +96,7 @@ describe('form template admin helpers', () => {
     expect(controlLabel('multi-select')).toBe('多选');
     expect(controlLabel('checkbox')).toBe('复选');
     expect(controlLabel('radio')).toBe('单选');
-    expect(controlLabel('version-members')).toBe('版本成员');
+    expect(controlLabel('version-members')).toBe('版本分支');
     expect(controlLabel('unknown-control')).toBe('未设置');
     expect(controlsForType('boolean')).toEqual(expect.arrayContaining(['switch', 'radio']));
     expect(controlsForType('enum-array')).toEqual(

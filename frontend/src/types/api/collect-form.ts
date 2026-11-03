@@ -288,6 +288,21 @@ export interface FormAdminMilestoneAvailability {
   items: FormAdminMilestone[];
 }
 
+export interface FormAdminProjectOption {
+  projectId: string;
+  name: string;
+  path: string;
+  namespacePath: string;
+  fullPath: string;
+}
+
+export interface FormAdminProjectCandidatePage {
+  available: boolean;
+  items: FormAdminProjectOption[];
+  nextCursor: string | null;
+  missingProjectIds: string[];
+}
+
 export interface FormDraftUpdatePayload {
   expectedDraftRevision: number;
   fieldSpec: FormTemplateSpecView;
