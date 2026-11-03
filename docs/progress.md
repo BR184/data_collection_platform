@@ -1,3 +1,15 @@
+## 2026-11-03 表单候选在真实ODS暴露int4转换缺陷并修复复验
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | R01/R02 在真实 ODS 目录的缺陷已修复并在专属库复验默认套件 2316/0/0/1；黄金未执行 | 表单多版本与填写功能开发-20261026 | 继续等待 T1—T3 审阅结论；黄金、main、出包与生产启用仍未批准 |
+
+- 触发点：按要求在空闲端口拉起最新表单实例（后端 18099、前端 18199，连 15432 服务器上新建库 `qaflex_form_n5`，导入真实 Local GitLab 来源配置、264 个 ODS 项目与 430 个命名空间）后，启动初始化报 `conversion to class java.lang.Long from int4 not supported`。
+- 根因：真实 `ods_gitlab_namespaces.parent_id` 与 `ods_gitlab_projects.namespace_id` 是 integer，候选投影按 `getObject(..., Long.class)` 读取；专属库回归夹具把两列声明为 bigint，掩盖了缺陷。修复只把读取收敛为 `FormProjectCandidateService.asLong()`，并把夹具建表列型改为真实 integer 锁定驱动转换，未改来源隔离、路径递归或状态模型。
+- 验证：`FormProjectCandidateIntegrationTest` 10/10；专属 15522 / schema `qaflex_n5_int4_final` 默认套件 2316/0/0/1、`BUILD SUCCESS`、392 份 XML，日志 `.tmp-logs/n5-int4-final-20261103/final-suite.log`（SHA-256 `fa91e174…`），输入 `HEAD=3ed6c49f` + backend diff `940121c6…`。无头 Chrome 实测项目下拉状态 `READY`、`cloud` 命中 42 项、完整路径含根命名空间（`cloudcad/help/CrownCAD-Help`），证据在 `.tmp-logs/n5-latest-15432-desktop/`。
+- 环境事实：18181/18080 主树仍是 `84e7c023` 混合现场，表单只到 v6 存储与发布基座（无项目候选、无历史版本导出、无 FORM/COMMENT 分区），其库 `qaflex` head 停在 `20261022.03` 且同号迁移内容与本分支不同；按“旧编号库只能重建”的规则不做升级，只另建库承载最新迁移。
+- 边界：本单元只改候选投影与其回归测试及计划文档，未运行黄金/update、未改快照/夹具/掩码、未合 main、未出包、未授予权限、未启用生产。
+
 ## 2026-11-03 表单N5技术验收通过：发布门禁资料准备完成
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |

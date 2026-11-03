@@ -1,6 +1,6 @@
 # 表单 v6 N5：集成与发布准备
 
-> 状态（2026-11-03，N5 输入 `415e2889` 技术验收通过，R01—R05 全部关闭）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43`、复审回执 `aa85f101`、复验回执 `deba851a`、事务回执 `8db94c97` 与技术通过回执 `76dfb8bb` 已吸收。发布门禁资料准备见 [发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
+> 状态（2026-11-03，N5 输入 `415e2889` 技术验收通过，R01—R05 全部关闭）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43`、复审回执 `aa85f101`、复验回执 `deba851a`、事务回执 `8db94c97` 与技术通过回执 `76dfb8bb` 已吸收。技术验收之后，真实 ODS 上暴露并修复了候选投影的 int4 类型转换缺陷，已在专属库复验默认套件 2316/0/0/1（见下）。发布门禁资料准备见 [发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
 
 ## 进度与中间物
 
@@ -26,6 +26,9 @@
 - R04 超时诊断保留：`awaitDelayClosureSettled` 与 `@AfterEach awaitInFlightDelayRound` 超时抛出 progress 全字段（含 `next_check_at`/租约/`updated_at`）、执行器 active/queue/poolSize 与 `platform-async-*` 线程状态及栈顶；未延长 30 秒、未加重试/跳过/掩码。
 - R04 最终默认套件（事务修复后，专属 15523 / schema `qaflex_n5_tx_final`）：**2316 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，25:13**，392 份 XML；日志 `.tmp-logs/n5-r04-tx-final-20261103/final-suite.log`（SHA-256 `8e08852064534ed29606d06c0f4ed96078d12e2cfd26ec99090885aa9ea9a888`）。输入 `HEAD=4ae4f5ac0d5bfdf736439d8c107ff59b3bc85633`、backend/frontend diff SHA-256 `7cac8ba140180c671dc41e874eb58eb10aeb0a5c769294c6bfecd05c080334cc`；无新增未跟踪代码文件。旧 2314 结果不再作为新版本门禁；前端未变，沿用已批准证据。
 - N5 技术验收（2026-11-03）：输入 `415e2889` 干净且双远端一致；独立真实 PG 3/3、零跳过，原确定性提交后领取反例在修复实现上通过、普通调用可见、发布回滚不登记；冻结 392 份 XML 汇总 2316/0/0/1，日志 SHA-256 `8e088520…` 与代码差异 `7cac8ba1…` 匹配；174 条迁移锁通过。R01—R05 全部关闭，技术通过不代替发布门禁。
+- R01/R02 真实 ODS 现场缺陷（2026-11-03）：在 15432 服务器新建库 `qaflex_form_n5`（导入真实 Local GitLab 来源配置、264 个 ODS 项目与 430 个命名空间）拉起最新分支实例（后端 18099、前端 18199）后，启动初始化即报 `conversion to class java.lang.Long from int4 not supported`：真实 `ods_gitlab_namespaces.parent_id` 与 `ods_gitlab_projects.namespace_id` 是 integer，而候选投影用 `getObject(..., Long.class)` 读取。此前专属库回归夹具把两列声明成 bigint，因此掩盖了该缺陷。修复为 `FormProjectCandidateService.asLong()` 显式收敛数值类型，并把 `FormProjectCandidateIntegrationTest` 的建表列型改为真实 integer 锁住驱动转换；共享 `qaflex` 库 head 停在 `20261022.03` 且同号迁移内容与本分支不同，按旧编号库只能重建的规则不做升级，只另建库承载最新分支迁移。
+- 现场复验（无头 Chrome，`.tmp-logs/n5-latest-15432-desktop/`）：表单管理页三模板可用；适用范围抽屉项目下拉返回真实目录，状态 `READY`、首屏 50 项、关键字 `cloud` 命中 42 项，完整路径含根命名空间（`cloudcad/help/CrownCAD-Help`），请求仅走 `/api/collect-forms/admin/projects?sourceConfigId=1`。
+- R04 复验（int4 修复后，专属 15522 / schema `qaflex_n5_int4_final`）：**2316 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，26:57**，392 份 XML；日志 `.tmp-logs/n5-int4-final-20261103/final-suite.log`（SHA-256 `fa91e1742d58e8f84c5c72cad4754c6af08eced1139dd264575117d5922c40bb`）。输入 `HEAD=3ed6c49f95fbae109e609eb22dd4c555ffb82e97`、backend diff SHA-256 `940121c66ffee9a3aafa43bbb35c7a179f168e00beeafa72c5f08e7d14f47b79`；`FormProjectCandidateIntegrationTest` 10/10 在全量内通过。运行期间并发提交 `30341633` 只改 docs，不构成代码输入变化；前端未变，沿用已批准证据。
 - 发布门禁盘点（只读）：端点 200→220（新增 23/删除 3/变更 2），19 个用例缺快照；严格口径为 1A/8D/135M（66 仅读取帧、38 等价、31 业务差异，业务差异零未归因）。T1 逐文件判定、T2 成功样本/导出提案、T3 升级开关与恢复步骤已完成资料稿，见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)文末入口；夹具业务行仍未改动。
 - 进行点：技术验收与发布资料完成；T1—T3 待审阅/批准；黄金执行/update、夹具变更、main 合入、出包与生产启用仍未准入。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。

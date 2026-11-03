@@ -70,10 +70,11 @@ class FormProjectCandidateIntegrationTest {
     jdbcTemplate.execute("delete from code_review_dgm_project_options");
     jdbcTemplate.execute(
         """
+        -- 真实 ODS 目录使用 integer 主键/父项，回归锁住驱动类型转换。
         create table if not exists ods_gitlab_namespaces(
             id bigint primary key,
             path varchar(255),
-            parent_id bigint,
+            parent_id integer,
             mirror_task_id bigint,
             mirror_deleted boolean default false)
         """);
@@ -83,7 +84,7 @@ class FormProjectCandidateIntegrationTest {
             id bigint primary key,
             name varchar(255),
             path varchar(255),
-            namespace_id bigint,
+            namespace_id integer,
             mirror_task_id bigint,
             mirror_deleted boolean default false)
         """);
@@ -257,7 +258,7 @@ class FormProjectCandidateIntegrationTest {
       assertThat(page.message()).contains("parent_id");
       assertThat(page.items()).extracting(FormAdminViews.ProjectOption::projectId).containsExactly("701");
     } finally {
-      jdbcTemplate.execute("alter table ods_gitlab_namespaces add column parent_id bigint");
+      jdbcTemplate.execute("alter table ods_gitlab_namespaces add column parent_id integer");
     }
   }
 

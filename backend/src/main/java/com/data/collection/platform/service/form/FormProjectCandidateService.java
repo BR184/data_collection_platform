@@ -259,7 +259,7 @@ public class FormProjectCandidateService {
         rs -> {
           namespaces.put(
               rs.getLong("id"),
-              new NamespaceRow(rs.getString("path"), rs.getObject("parent_id", Long.class)));
+              new NamespaceRow(rs.getString("path"), asLong(rs.getObject("parent_id"))));
         },
         sourceConfigId);
 
@@ -278,7 +278,7 @@ public class FormProjectCandidateService {
         """,
         rs -> {
           String path = rs.getString("project_path");
-          String namespace = namespacePath(rs.getObject("namespace_id", Long.class), namespaces);
+          String namespace = namespacePath(asLong(rs.getObject("namespace_id")), namespaces);
           if (namespace == null) {
             return;
           }
@@ -588,6 +588,10 @@ public class FormProjectCandidateService {
   private String likePattern(String keyword) {
     String escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     return "%" + escaped + "%";
+  }
+
+  private Long asLong(Object value) {
+    return value instanceof Number number ? number.longValue() : null;
   }
 
   private String nullToBlank(String value) {
