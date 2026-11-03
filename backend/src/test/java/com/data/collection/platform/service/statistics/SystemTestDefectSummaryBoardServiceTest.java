@@ -170,6 +170,17 @@ class SystemTestDefectSummaryBoardServiceTest {
   }
 
   private SystemTestDefectSummaryBoardService service() {
+    com.data.collection.platform.entity.read.FactReadSelection selection =
+        mock(com.data.collection.platform.entity.read.FactReadSelection.class);
+    lenient().when(phaseCatalogService.forRead(selection)).thenReturn(phaseCatalogService);
+    lenient().when(phaseScopeResolver.forRead(selection)).thenReturn(phaseScopeResolver);
+    lenient().when(labelGroupDefaultFilterService.forRead(selection))
+        .thenReturn(labelGroupDefaultFilterService);
+    lenient().when(labelGroupExpansionService.forRead(selection))
+        .thenReturn(labelGroupExpansionService);
+    lenient().when(snapshotRequestFactory.forRead(selection)).thenReturn(snapshotRequestFactory);
+    lenient().when(runtimeSupport.forRead(selection)).thenReturn(runtimeSupport);
+    lenient().when(issueFactRecordRepository.forRead(selection)).thenReturn(issueFactRecordRepository);
     return new SystemTestDefectSummaryBoardService(
         new JsonUtils(new ObjectMapper()),
         runtimeSupport,
@@ -180,7 +191,8 @@ class SystemTestDefectSummaryBoardServiceTest {
         labelGroupExpansionService,
         snapshotService,
         snapshotRequestFactory,
-        issueFactRecordRepository);
+        issueFactRecordRepository)
+        .forRead(selection);
   }
 
   private StatisticRowData row(StatisticBoardResponse response, String rowKey) {

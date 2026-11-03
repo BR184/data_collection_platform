@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
@@ -29,10 +28,8 @@ import com.data.collection.platform.service.FactProjectionScopeKeyCodec;
 import com.data.collection.platform.service.FactProjectionVersionService;
 import com.data.collection.platform.service.GitlabResourceLinkService;
 import com.data.collection.platform.service.IssueProjectionScopeResolver;
-import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemBusinessDateProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

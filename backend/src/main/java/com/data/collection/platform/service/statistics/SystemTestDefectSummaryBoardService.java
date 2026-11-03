@@ -917,8 +917,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     });
   }
 
-
-
   private boolean containsIgnoreCase(String candidate, String value) {
     return candidate != null && candidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));
   }
