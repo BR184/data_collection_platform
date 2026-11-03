@@ -60,6 +60,18 @@ class QualityBoardRdServiceCombinedScopeTest {
 
     assertThat(overview.demandReviewReportDensity()).isEqualTo(0.75D);
     assertThat(overview.designReviewReportDensity()).isZero();
+    var records = service.reviewRecords(COMBINED_KEY, DEMAND);
+    assertThat(records)
+        .extracting(ReviewDataRecordRowResponse::projectName)
+        .containsExactly("CC2027R1", "2027R1&R2");
+    assertThat(records.stream()
+            .mapToLong(record -> record.problemCount() == null ? 0L : record.problemCount())
+            .sum())
+        .isEqualTo(15L);
+    assertThat(records.stream()
+            .mapToLong(record -> record.reviewScalePages() == null ? 0L : record.reviewScalePages())
+            .sum())
+        .isEqualTo(20L);
   }
 
   @Test

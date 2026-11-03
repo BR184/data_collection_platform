@@ -3,9 +3,11 @@ package com.data.collection.platform.service.analytics;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
+import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.TextQuerySupport;
@@ -54,14 +56,17 @@ public class QualityRdAnalyticsDetailQueryService {
   private final JdbcTemplate jdbcTemplate;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
   private final DashboardVersionScopeService versionScopeService;
+  private final QualityBoardRdService rdService;
 
   public QualityRdAnalyticsDetailQueryService(
       JdbcTemplate jdbcTemplate,
       QualityBoardCodeReviewReadSupport codeReviewReadSupport,
-      DashboardVersionScopeService versionScopeService) {
+      DashboardVersionScopeService versionScopeService,
+      QualityBoardRdService rdService) {
     this.jdbcTemplate = jdbcTemplate;
     this.codeReviewReadSupport = codeReviewReadSupport;
     this.versionScopeService = versionScopeService;
+    this.rdService = rdService;
   }
 
   DetailPage load(String viewKey, AnalyticsDashboardQueryContext context) {
@@ -70,6 +75,8 @@ public class QualityRdAnalyticsDetailQueryService {
       case "release-leakage-defects" -> releaseLeakageDefects(context);
       case "development-leakage-defects" -> developmentLeakageDefects(context);
       case "fix-user-defects" -> fixUserDefects(context);
+      case "quality-review-records" -> reviewRecords(context);
+      case "new-issue-defects" -> newIssueDefects(context);
       case "assignee-remaining-defects" -> assigneeRemainingSummary(context);
       case "quality-code-review-records" -> codeReviewRecords(context);
       default -> throw new BizException("研发质量看板不支持该详情: " + viewKey);
@@ -317,6 +324,51 @@ public class QualityRdAnalyticsDetailQueryService {
     return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
   }
 
+  private DetailPage reviewRecords(AnalyticsDashboardQueryContext context) {
+    String reviewType = context.parameter("reviewType").orElse(null);
+    List<Map<String, Object>> rows = rdService.reviewRecords(projectName(context), reviewType)
+        .stream()
+        .map(this::reviewRecord)
+        .toList();
+    return page(rows, context, "reviewDate", true, "title");
+  }
+
+  private Map<String, Object> reviewRecord(ReviewDataRecordRowResponse source) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("projectName", source.projectName());
+    row.put("title", source.title());
+    row.put("moduleName", source.moduleName());
+    row.put("reviewType", source.reviewType());
+    row.put("reviewDate", source.reviewDate());
+    row.put("reviewOwner", source.reviewOwner());
+    row.put("reviewExperts", source.reviewExpertsSummary());
+    row.put("authorName", source.authorName());
+    row.put("reviewVersion", source.reviewVersion());
+    row.put("reviewScalePages", source.reviewScalePages());
+    row.put("problemCount", source.problemCount());
+    return row;
+  }
+
+  private DetailPage newIssueDefects(AnalyticsDashboardQueryContext context) {
+    List<Map<String, Object>> rows = issueRows(
+        phases(projectName(context)),
+        rdService.newIssueValidPredicate(),
+        Map.of(),
+        row -> row.put("fixState", isNewIssueFixed(row) ? "已修复/未复现" : "未修复"));
+    return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
+  }
+
+  private static boolean isNewIssueFixed(Map<String, Object> row) {
+    Object issueState = row.get("issueState");
+    Object bugStatus = row.get("bugStatus");
+    String state = issueState == null ? "" : issueState.toString().trim();
+    String status = bugStatus == null ? "" : bugStatus.toString();
+    return "CLOSED".equalsIgnoreCase(state)
+        && (status.contains("已修复/完成")
+            || status.contains("未复现")
+            || Boolean.TRUE.equals(row.get("isFixed")));
+  }
+
   private DetailPage assigneeRemainingSummary(AnalyticsDashboardQueryContext context) {
     validateCrownCadProject(context.parameter("projectId").orElse(null));
     List<Map<String, Object>> rows = assigneeSummaryRows(
@@ -415,7 +467,7 @@ public class QualityRdAnalyticsDetailQueryService {
                testing_phase, module_name, module_names, function_name,
                author_name, assignee_name, fix_user, severity_level,
                priority_level, urgency, bug_status, category, delay_cause,
-               created_at_source, updated_at_source
+               is_fixed, created_at_source, updated_at_source
           from issue_fact
          where deleted = false
            and project_id = ?
@@ -447,6 +499,7 @@ public class QualityRdAnalyticsDetailQueryService {
           row.put("bugStatus", rs.getString("bug_status"));
           row.put("category", rs.getString("category"));
           row.put("delayCause", rs.getString("delay_cause"));
+          row.put("isFixed", rs.getObject("is_fixed"));
           row.put("createdAt", rs.getObject("created_at_source"));
           row.put("updatedAt", rs.getObject("updated_at_source"));
           enricher.enrich(row);

@@ -8,11 +8,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
+import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +40,10 @@ class QualityRdAnalyticsDetailQueryServiceTest {
               DashboardVersionScopeTestSupport.member(401L, PROJECT_PHASE, 1)));
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport =
       mock(QualityBoardCodeReviewReadSupport.class);
+  private final QualityBoardRdService rdService = mock(QualityBoardRdService.class);
   private final QualityRdAnalyticsDetailQueryService service =
       new QualityRdAnalyticsDetailQueryService(
-          jdbcTemplate, codeReviewReadSupport, versionScopeService);
+          jdbcTemplate, codeReviewReadSupport, versionScopeService, rdService);
 
   @Test
   void releaseLeakageDrilldownShowsChineseLabelsWhileLeakageStateKeepsRawSemantics() {
@@ -197,6 +202,59 @@ class QualityRdAnalyticsDetailQueryServiceTest {
         .containsExactly("开放中", "已合并");
   }
 
+  @Test
+  void reviewDrilldownDelegatesDeduplicatedScopeRecordsAndKeepsReviewType() {
+    when(rdService.reviewRecords("CC2026R4", "需求说明书评审"))
+        .thenReturn(List.of(reviewRecord(1L, "CC2026R4", "需求说明书评审", 4, 20)));
+
+    List<Map<String, Object>> records = service.load(
+        "quality-review-records",
+        context(Map.of("projectName", "CC2026R4", "reviewType", "需求说明书评审")))
+        .records();
+
+    assertThat(records).singleElement().satisfies(row -> assertThat(row)
+        .containsEntry("projectName", "CC2026R4")
+        .containsEntry("reviewType", "需求说明书评审")
+        .containsEntry("problemCount", 4)
+        .containsEntry("reviewScalePages", 20));
+    org.mockito.Mockito.verify(rdService).reviewRecords("CC2026R4", "需求说明书评审");
+  }
+
+  @Test
+  void newIssueDrilldownUsesTheSharedValidPredicateAndMarksFixedRows() {
+    when(rdService.newIssueValidPredicate())
+        .thenReturn(" and coalesce(category, '') not like '%功能屏蔽%'");
+    jdbcTemplate.rows.addAll(List.of(
+        Map.of(
+            "issue_iid_column", "31",
+            "issue_state", "CLOSED",
+            "severity_level", "LEVEL1",
+            "bug_status", "已修复/完成",
+            "module_name", "模块A",
+            "assignee_name", "李四",
+            "fix_user", "张三",
+            "category", "功能缺陷"),
+        Map.of(
+            "issue_iid_column", "32",
+            "issue_state", "OPENED",
+            "severity_level", "LEVEL2",
+            "bug_status", "未修复",
+            "module_name", "模块A",
+            "assignee_name", "李四",
+            "fix_user", "张三",
+            "category", "功能缺陷")));
+
+    QualityRdAnalyticsDetailQueryService.DetailPage page = service.load(
+        "new-issue-defects", context(Map.of("projectName", "CC2026R4")));
+
+    assertThat(page.total()).isEqualTo(2);
+    assertThat(page.records()).extracting(row -> row.get("fixState"))
+        .containsExactly("已修复/未复现", "未修复");
+    assertThat(jdbcTemplate.sqlStatements.getFirst())
+        .contains("is_fixed")
+        .contains("coalesce(category, '') not like '%功能屏蔽%'");
+  }
+
   private static AnalyticsDashboardQueryContext context(Map<String, String> parameters) {
     return new AnalyticsDashboardQueryContext(parameters, 1, 20, null, null,
         AnalyticsDashboardQueryContext.ReadMode.FORMAL);
@@ -212,6 +270,27 @@ class QualityRdAnalyticsDetailQueryServiceTest {
         "fix_user", "张三",
         "bug_status", "未修复",
         "category", "功能缺陷");
+  }
+
+  private static ReviewDataRecordRowResponse reviewRecord(
+      long id, String projectName, String reviewType, int problems, int pages) {
+    return new ReviewDataRecordRowResponse(
+        id,
+        projectName,
+        "标题",
+        "模块",
+        reviewType,
+        LocalDate.of(2026, 10, 1),
+        "负责人",
+        "专家",
+        pages,
+        "产品",
+        "作者",
+        "版本",
+        problems,
+        0D,
+        LocalDateTime.of(2026, 10, 1, 0, 0),
+        false);
   }
 
   private static QualityBoardCodeReviewRecordExportRow codeReview(String iid, String state) {

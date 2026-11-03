@@ -288,13 +288,27 @@ public class QualityBoardRdService {
   }
 
   private double reviewDensity(String projectName, String reviewType) {
-    DashboardVersionScope scope = resolveScope(projectName);
+    ReviewDensityAccumulator accumulator = new ReviewDensityAccumulator(0, 0);
+    reviewRecords(projectName, reviewType)
+        .forEach(row -> accumulator.add(row.problemCount(), row.reviewScalePages()));
+    return divide(accumulator.problemCount(), accumulator.reviewScalePages(), 1D);
+  }
+
+  /**
+   * 返回看板当前范围去重后的评审记录，供密度统计与下钻明细共用。
+   *
+   * @param requestedProjectName 看板稳定业务 key；为空时使用默认候选
+   * @param reviewType 评审类型关键字；为空时返回全部类型
+   */
+  public List<ReviewDataRecordRowResponse> reviewRecords(
+      String requestedProjectName, String reviewType) {
+    DashboardVersionScope scope = resolveScope(requestedProjectName);
     List<ReviewDataRecordRowResponse> rows = new ArrayList<>();
     Set<Long> seenRecordIds = new HashSet<>();
     for (String reviewProjectName : scope.reviewProjectNames()) {
       reviewDataRecordReadRepository
           .loadRecords(null, reviewProjectName, null, null, null, null, null, null).stream()
-          .filter(row -> matchesReviewType(row.reviewType(), reviewType))
+          .filter(row -> reviewType == null || matchesReviewType(row.reviewType(), reviewType))
           .forEach(row -> addUniqueRecord(rows, seenRecordIds, row));
     }
     Set<String> projectNames = new HashSet<>();
@@ -302,11 +316,9 @@ public class QualityBoardRdService {
         projectNames.add(TextQuerySupport.normalizeDisplay(value)));
     reviewDataMatchModeRecordRepository.loadRecords().stream()
         .filter(row -> projectNames.contains(TextQuerySupport.normalizeDisplay(row.projectName())))
-        .filter(row -> matchesReviewType(row.reviewType(), reviewType))
+        .filter(row -> reviewType == null || matchesReviewType(row.reviewType(), reviewType))
         .forEach(row -> addUniqueRecord(rows, seenRecordIds, row));
-    ReviewDensityAccumulator accumulator = new ReviewDensityAccumulator(0, 0);
-    rows.forEach(row -> accumulator.add(row.problemCount(), row.reviewScalePages()));
-    return divide(accumulator.problemCount(), accumulator.reviewScalePages(), 1D);
+    return List.copyOf(rows);
   }
 
   private void addUniqueRecord(
@@ -462,18 +474,23 @@ public class QualityBoardRdService {
     if (phases.isEmpty()) {
       return 0D;
     }
-    String commonPredicate = oldPlatformQueryFilterPredicate()
-        + " and coalesce(bug_status, '') not like '%历史遗留%'";
-    long fixedCount =
-        issueCount(
-            phases,
-            commonPredicate
-                + " and upper(coalesce(issue_state, '')) = 'CLOSED'"
-                + " and (coalesce(bug_status, '') like '%已修复/完成%'"
-                + "      or coalesce(bug_status, '') like '%未复现%'"
-                + "      or is_fixed = true)");
-    long totalCount = issueCount(phases, commonPredicate);
+    long fixedCount = issueCount(phases, newIssueFixedPredicate());
+    long totalCount = issueCount(phases, newIssueValidPredicate());
     return divide(fixedCount * 100D, totalCount, 1D);
+  }
+
+  /** 新发缺陷修复率的有效缺陷集合；下钻明细复用同一条件，避免统计与明细口径漂移。 */
+  public String newIssueValidPredicate() {
+    return oldPlatformQueryFilterPredicate()
+        + " and coalesce(bug_status, '') not like '%历史遗留%'";
+  }
+
+  private String newIssueFixedPredicate() {
+    return newIssueValidPredicate()
+        + " and upper(coalesce(issue_state, '')) = 'CLOSED'"
+        + " and (coalesce(bug_status, '') like '%已修复/完成%'"
+        + "      or coalesce(bug_status, '') like '%未复现%'"
+        + "      or is_fixed = true)";
   }
 
   private long integrationNotPassCount(String projectName) {
@@ -522,7 +539,7 @@ public class QualityBoardRdService {
                and testing_phase in (%s)
             """
                 .formatted(placeholders)
-                + (extraPredicate == null ? "" : extraPredicate),
+                + (extraPredicate == null ? "" : " and " + extraPredicate),
             Long.class,
             args.toArray());
     return count == null ? 0L : count;
@@ -530,7 +547,7 @@ public class QualityBoardRdService {
 
   private String oldPlatformQueryFilterPredicate() {
     return """
-       and coalesce(category, '') not like '%功能屏蔽%'
+       coalesce(category, '') not like '%功能屏蔽%'
        and coalesce(bug_status, '') not like '%已拒绝%'
        and coalesce(category, '') not like '%建议%'
        and not (coalesce(bug_status, '') like '%申请否决%' and upper(coalesce(issue_state, '')) like '%CLOSED%')
@@ -539,7 +556,7 @@ public class QualityBoardRdService {
   }
 
   private String rejectedIssueExclusionPredicate() {
-    return " and coalesce(bug_status, '') not like '%已拒绝%'";
+    return "coalesce(bug_status, '') not like '%已拒绝%'";
   }
 
   private String openIssueStatePredicate() {

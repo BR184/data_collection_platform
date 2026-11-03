@@ -40,17 +40,16 @@ public class QualityBoardOtherQueryService {
     String selectedScopeKey = scope(topic, context);
     String selectedScopeLabel = scopeLabel(topic, context);
     List<Row> rows = switch (topic) {
-      case FUNCTION_DEFECT_COUNT -> functionDefectCountRows(scope(topic, context));
-      case FUNCTION_DEFECT_DENSITY -> functionDefectDensityRows(scope(topic, context));
-      case QUALITY_RANKING -> qualityRankingRows(scope(topic, context));
-      case MEMBER_UNRESOLVED_RATE -> memberUnresolvedRateRows(scope(topic, context));
+      case FUNCTION_DEFECT_COUNT -> functionDefectCountRows(selectedScopeKey);
+      case FUNCTION_DEFECT_DENSITY -> functionDefectDensityRows(selectedScopeKey);
+      case QUALITY_RANKING -> qualityRankingRows(selectedScopeKey);
+      case MEMBER_UNRESOLVED_RATE -> memberUnresolvedRateRows(selectedScopeKey);
       case RELEASE_LEAKAGE_RATE -> releaseLeakageRateRows();
       case DEVELOPMENT_LEAKAGE_RATE -> developmentLeakageRateRows();
     };
+    //统计范围只做显示投影：行内不放查询 key，单范围主题统一显示选中版本的业务名称。
     return rows.stream()
-        .map(row -> StringUtils.hasText(row.scope())
-            ? row
-            : row.withScope(selectedScopeLabel != null ? selectedScopeLabel : selectedScopeKey))
+        .map(row -> StringUtils.hasText(row.scope()) ? row : row.withScope(selectedScopeLabel))
         .toList();
   }
 
@@ -131,7 +130,7 @@ public class QualityBoardOtherQueryService {
         """.formatted(phasePredicate.sql());
     return jdbcTemplate.query(
         sql,
-        (rs, rowNum) -> Row.count(projectName, rs.getString("item_name"), rs.getLong("numerator")),
+        (rs, rowNum) -> Row.count("", rs.getString("item_name"), rs.getLong("numerator")),
         args.toArray());
   }
 
@@ -156,7 +155,7 @@ public class QualityBoardOtherQueryService {
               .mapToLong(Map.Entry::getValue)
               .sum();
           long lines = Math.max(0L, entry.getValue() == null ? 0L : entry.getValue());
-          return Row.ratio(projectName, functionName, defectCount, lines,
+          return Row.ratio("", functionName, defectCount, lines,
               percentage(defectCount, lines));
         })
         .sorted((left, right) -> {
@@ -190,7 +189,7 @@ public class QualityBoardOtherQueryService {
                       * 1000D / lines)
                   .average()
                   .orElse(0D));
-          return Row.ratio(projectName, member.name(), totalDefects, lines, value);
+          return Row.ratio("", member.name(), totalDefects, lines, value);
         })
         .sorted((left, right) -> {
           int byValue = Double.compare(right.value(), left.value());

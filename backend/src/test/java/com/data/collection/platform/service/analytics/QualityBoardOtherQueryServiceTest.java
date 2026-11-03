@@ -168,9 +168,65 @@ class QualityBoardOtherQueryServiceTest {
         .contains("topic_key = 'QUALITY_RANKING'"));
   }
 
+  @Test
+  void singleScopeTopicsProjectBusinessLabelIntoRowScopeButQueryByStableKey() {
+    var jdbc = new CapturingJdbcTemplate(true);
+    QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(codeReview.reviewedAddedLinesByFunction("cc-2027-r1-r2"))
+        .thenReturn(Map.of("装配", 1000L));
+    when(codeReview.addedLinesByAuthorAcrossAllProjects())
+        .thenReturn(Map.of("张金花", 1000L));
+    var service = new QualityBoardOtherQueryService(
+        jdbc, codeReview, combinedVersionScopeService());
+
+    var functionRows = service.load(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_COUNT,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("functionCountProjectName", "cc-2027-r1-r2")));
+    var densityRows = service.load(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("functionDensityProjectName", "cc-2027-r1-r2")));
+    var rankingRows = service.load(
+        QualityBoardOtherTopic.QUALITY_RANKING,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("qualityRankingProjectName", "cc-2027-r1-r2")));
+
+    assertThat(functionRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
+    assertThat(densityRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
+    assertThat(rankingRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
+  }
+
   private QualityBoardOtherQueryService service(CapturingJdbcTemplate jdbc) {
     return new QualityBoardOtherQueryService(
         jdbc, mock(QualityBoardCodeReviewReadSupport.class), versionScopeService());
+  }
+
+  private DashboardVersionScopeService combinedVersionScopeService() {
+    return DashboardVersionScopeTestSupport.service(
+        List.of(
+            DashboardVersionScopeTestSupport.group(
+                10L,
+                "CC2027R1",
+                1,
+                DashboardVersionScopeTestSupport.member(
+                    101L, "CC2027R1第一轮系统测试", 1)),
+            DashboardVersionScopeTestSupport.group(
+                20L,
+                "CC2027R2",
+                2,
+                DashboardVersionScopeTestSupport.member(
+                    201L, "CC2027R2第一轮系统测试", 1))),
+        List.of(DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "CC2027R1&R2",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of(),
+            List.of())));
   }
 
   private DashboardVersionScopeService versionScopeService() {

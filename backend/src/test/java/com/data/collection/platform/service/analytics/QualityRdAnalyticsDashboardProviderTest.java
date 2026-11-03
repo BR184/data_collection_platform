@@ -81,7 +81,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         .filter(metric -> metric.key().equals("demand-review-density"))
         .findFirst()
         .orElseThrow();
-    assertThat(demandMetric.detail().viewKey()).isEqualTo("review-data-records");
+    assertThat(demandMetric.detail().viewKey()).isEqualTo("quality-review-records");
     assertThat(demandMetric.detail().params())
         .containsEntry("projectName", "CC2026R4")
         .containsEntry("reviewType", "需求说明书评审");
@@ -99,8 +99,10 @@ class QualityRdAnalyticsDashboardProviderTest {
         .filter(metric -> metric.key().equals("new-issue-fix-rate"))
         .findFirst()
         .orElseThrow();
-    assertThat(newIssueMetric.detail().viewKey()).isEqualTo("system-test-defect-summary");
-    assertThat(newIssueMetric.detail().params()).containsEntry("testingPhase", "CC2026R4");
+    assertThat(newIssueMetric.detail().viewKey()).isEqualTo("new-issue-defects");
+    assertThat(newIssueMetric.detail().params())
+        .containsEntry("projectName", "CC2026R4")
+        .doesNotContainKey("testingPhase");
 
     var authorChart = dashboard.charts().stream()
         .filter(chart -> chart.key().equals("author-defect-density"))
@@ -302,7 +304,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     var jdbc = new CapturingJdbcTemplate();
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     var service = new QualityRdAnalyticsDetailQueryService(
-        jdbc, codeReview, versionScopeService);
+        jdbc, codeReview, versionScopeService, mock(QualityBoardRdService.class));
 
     service.assigneeSummaryRows("CC2026R4", null);
 
@@ -341,7 +343,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         issue("模块B", "处理人4")));
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     var service = new QualityRdAnalyticsDetailQueryService(
-        jdbc, codeReview, versionScopeService);
+        jdbc, codeReview, versionScopeService, mock(QualityBoardRdService.class));
 
     var rows = service.ccAssigneeDetailRows("CC2026R4", null);
 

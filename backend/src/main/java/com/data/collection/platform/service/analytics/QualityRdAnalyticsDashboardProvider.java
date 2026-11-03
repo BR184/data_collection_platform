@@ -124,7 +124,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.demandReviewReportDensity(),
             "",
             "quality-rd.demand-review-density",
-            detail("review-data-records", projectKey, Map.of("reviewType", "需求说明书评审")),
+            detail("quality-review-records", projectKey, Map.of("reviewType", "需求说明书评审")),
             null),
         metric(
             "design-review-density",
@@ -132,7 +132,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.designReviewReportDensity(),
             "",
             "quality-rd.design-review-density",
-            detail("review-data-records", projectKey, Map.of("reviewType", "设计说明书评审")),
+            detail("quality-review-records", projectKey, Map.of("reviewType", "设计说明书评审")),
             null),
         metric(
             "code-review-density-cc",
@@ -186,8 +186,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             "%",
             "quality-rd.new-issue-fix-rate",
             new AnalyticsDashboardResponse.DetailAction(
-                "system-test-defect-summary",
-                Map.of("testingPhase", projectName)),
+                "new-issue-defects",
+                Map.of("projectName", projectKey)),
             null));
 
     Map<String, String> reviewerDetailParams =
@@ -391,6 +391,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
           Set.of("projectId", "projectName", "assigneeName");
       case "quality-code-review-records" ->
           Set.of("projectName", "source", "topic", "reviewerName", "authorName");
+      case "quality-review-records" -> Set.of("projectName", "reviewType");
       default -> Set.of("projectName");
     };
   }

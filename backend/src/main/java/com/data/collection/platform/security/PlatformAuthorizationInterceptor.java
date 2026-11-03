@@ -47,8 +47,11 @@ public class PlatformAuthorizationInterceptor implements HandlerInterceptor {
       return false;
     }
     java.util.Set<String> permissions = permissionService.permissionsForRoles(user.roleCodes());
+    java.util.List<String> pagePermissions = pageRequirement == null
+        ? java.util.List.of()
+        : resolvePagePermissions(pageRequirement, request);
     boolean allowed = requirement == null
-        ? permissions.contains(resolvePagePermission(pageRequirement, request))
+        ? permissions.containsAll(pagePermissions)
         : requirement.requireAll()
             ? java.util.Arrays.stream(requirement.value()).allMatch(permissions::contains)
             : java.util.Arrays.stream(requirement.value()).anyMatch(permissions::contains);
@@ -73,18 +76,24 @@ public class PlatformAuthorizationInterceptor implements HandlerInterceptor {
   }
 
   @SuppressWarnings("unchecked")
-  private String resolvePagePermission(
+  private java.util.List<String> resolvePagePermissions(
       RequirePagePermission requirement, HttpServletRequest request) {
     Map<String, String> variables = (Map<String, String>) request.getAttribute(
         HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
     if (variables == null) {
       throw new IllegalStateException("动态页面权限缺少路由变量");
     }
-    return switch (requirement.resource()) {
+    if (requirement.resource() == RequirePagePermission.Resource.ANALYTICS_DASHBOARD
+        && requirement.action() == RequirePagePermission.Action.VIEW
+        && variables.get("viewKey") != null) {
+      return pagePermissionKeyResolver.dashboardDetailViews(
+          variables.get("dashboardKey"), variables.get("viewKey"));
+    }
+    return java.util.List.of(switch (requirement.resource()) {
       case STATISTIC_BOARD -> resolveBoardPermission(requirement.action(), variables.get("boardKey"));
       case ANALYTICS_DASHBOARD -> resolveDashboardPermission(
           requirement.action(), variables.get("dashboardKey"));
-    };
+    });
   }
 
   private String resolveBoardPermission(RequirePagePermission.Action action, String boardKey) {

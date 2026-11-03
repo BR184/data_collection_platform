@@ -41,7 +41,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DashboardCombinedVersionPostgresIntegrationTest {
-  private static final String COMBINED = "CC2027R1&R2";
+  private static final String COMBINED_KEY = "cc-2027-r1-r2";
 
   @Container
   private static final PostgreSQLContainer<?> POSTGRES =
@@ -114,7 +114,7 @@ class DashboardCombinedVersionPostgresIntegrationTest {
 
     var rows = queryService.load(
         QualityBoardOtherTopic.FUNCTION_DEFECT_COUNT,
-        AnalyticsDashboardQueryContext.of(Map.of("functionCountProjectName", COMBINED)));
+        AnalyticsDashboardQueryContext.of(Map.of("functionCountProjectName", COMBINED_KEY)));
 
     long combinedTotal = rows.stream()
         .mapToLong(QualityBoardOtherQueryService.Row::numerator)
@@ -175,7 +175,7 @@ class DashboardCombinedVersionPostgresIntegrationTest {
         mock(QualityBoardCodeReviewReadSupport.class),
         versionScopeService);
 
-    var overview = rdService.getOverview(COMBINED, CodeReviewDataReadMode.FORMAL);
+    var overview = rdService.getOverview(COMBINED_KEY, CodeReviewDataReadMode.FORMAL);
 
     assertThat(overview.integrationPassRate()).isEqualTo(70D);
     assertThat(overview.metrics())
@@ -186,12 +186,19 @@ class DashboardCombinedVersionPostgresIntegrationTest {
 
   @Test
   void detailViewsUseTheSameCombinedRangeAsChartsAndExports() {
+    var rdService = new com.data.collection.platform.service.QualityBoardRdService(
+        jdbcTemplate,
+        mock(com.data.collection.platform.service.ReviewDataRecordReadRepository.class),
+        mock(com.data.collection.platform.service.ReviewDataMatchModeRecordRepository.class),
+        mock(QualityBoardCodeReviewReadSupport.class),
+        versionScopeService);
     var detailService = new QualityRdAnalyticsDetailQueryService(
         jdbcTemplate,
         mock(QualityBoardCodeReviewReadSupport.class),
-        versionScopeService);
+        versionScopeService,
+        rdService);
     AnalyticsDashboardQueryContext context = new AnalyticsDashboardQueryContext(
-        Map.of("projectName", COMBINED), 1, 200, null, null,
+        Map.of("projectName", COMBINED_KEY), 1, 200, null, null,
         AnalyticsDashboardQueryContext.ReadMode.FORMAL);
 
     var integrationPage = detailService.load("integration-test-results", context);

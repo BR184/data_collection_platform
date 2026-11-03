@@ -58,6 +58,18 @@ enum QualityRdAnalyticsDetailView {
       "展示按修复人及缺陷级别聚合图所使用的系统测试缺陷原始记录。",
       issueColumns(false),
       issueSortableKeys("fixUser")),
+  QUALITY_REVIEW_RECORDS(
+      "quality-review-records",
+      "评审缺陷明细",
+      "展示当前看板范围（含合并版本成员及组合评审来源）去重后的需求或设计评审记录，问题数与规模页数与指标口径一致。",
+      reviewColumns(),
+      reviewSortableKeys()),
+  NEW_ISSUE_DEFECTS(
+      "new-issue-defects",
+      "新发缺陷修复率明细",
+      "展示新发缺陷修复率的有效缺陷集合，并标出进入分子的已修复或未复现记录。",
+      newIssueColumns(),
+      issueSortableKeys("fixState")),
   ASSIGNEE_REMAINING_DEFECTS(
       "assignee-remaining-defects",
       "指派人剩余缺陷数量",
@@ -159,6 +171,34 @@ enum QualityRdAnalyticsDetailView {
     columns.add(column("category", "类别", "text", 150));
     columns.add(column("updatedAt", "更新时间", "datetime", 180));
     return List.copyOf(columns);
+  }
+
+  private static List<AnalyticsDashboardDetailResponse.Column> newIssueColumns() {
+    List<AnalyticsDashboardDetailResponse.Column> columns =
+        new java.util.ArrayList<>(issueColumns(false));
+    columns.add(column("fixState", "修复状态", "text", 140));
+    return List.copyOf(columns);
+  }
+
+  private static List<AnalyticsDashboardDetailResponse.Column> reviewColumns() {
+    return List.of(
+        column("projectName", "项目", "text", 150),
+        column("title", "评审标题", "text", 300),
+        column("moduleName", "模块", "text", 170),
+        column("reviewType", "评审类型", "text", 180),
+        column("reviewDate", "评审日期", "date", 130),
+        column("reviewOwner", "评审负责人", "text", 150),
+        column("reviewExperts", "评审专家", "text", 220),
+        column("authorName", "作者", "text", 140),
+        column("reviewVersion", "版本", "text", 150),
+        column("reviewScalePages", "评审规模页数", "number", 140),
+        column("problemCount", "问题数", "number", 120));
+  }
+
+  private static Set<String> reviewSortableKeys() {
+    return Set.of(
+        "projectName", "title", "moduleName", "reviewType", "reviewDate",
+        "reviewOwner", "authorName", "reviewVersion", "reviewScalePages", "problemCount");
   }
 
   private static Set<String> issueSortableKeys(String additionalKey) {

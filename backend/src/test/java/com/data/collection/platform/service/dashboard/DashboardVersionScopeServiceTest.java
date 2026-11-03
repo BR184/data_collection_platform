@@ -53,7 +53,7 @@ class DashboardVersionScopeServiceTest {
     DashboardVersionScopeService service = service(r1Group(), r2Group());
 
     DashboardVersionScope scope = service.resolve(
-        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2");
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
 
     assertThat(scope.combined()).isTrue();
     assertThat(scope.businessKey()).isEqualTo("cc-2027-r1-r2");
@@ -94,7 +94,7 @@ class DashboardVersionScopeServiceTest {
             DashboardVersionScopeTestSupport.member(111L, "CC2026R3第一轮系统测试", 1)));
 
     DashboardVersionScope scope = service.resolve(
-        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2");
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
     assertThat(scope.combined()).isTrue();
     assertThat(service.resolveByGroupId(
             PROJECT_ID, IssueScopeDimension.TESTING_PHASE, 10L).combined()).isTrue();
@@ -116,7 +116,7 @@ class DashboardVersionScopeServiceTest {
         .containsExactly("cc-2027-r1-r2");
 
     DashboardVersionScope scope = service.resolve(
-        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2");
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
     assertThat(scope.memberBusinessKeys()).containsExactly("CC2027R1");
     assertThat(scope.phases()).extracting(DashboardVersionScope.PhaseMember::sourceValue)
         .containsExactly("CC2027R1第一轮系统测试", "CC2027R1回归测试");
@@ -132,7 +132,7 @@ class DashboardVersionScopeServiceTest {
     assertThat(service.resolve(
             PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R2").combined()).isFalse();
     assertThatThrownBy(() -> service.resolve(
-            PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2"))
+            PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2"))
         .isInstanceOf(BizException.class);
   }
 
@@ -151,7 +151,7 @@ class DashboardVersionScopeServiceTest {
             DashboardVersionScopeTestSupport.member(201L, "共享系统测试", 1)));
 
     assertThatThrownBy(() -> service.resolve(
-            PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2"))
+            PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2"))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("配置冲突")
         .hasMessageContaining("共享系统测试");
@@ -170,7 +170,7 @@ class DashboardVersionScopeServiceTest {
     DashboardVersionScopeService service = service(explicit, r1Group(), r2Group());
 
     DashboardVersionScope scope = service.resolve(
-        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2");
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
 
     assertThat(scope.reviewProjectNames())
         .containsExactly("CC2027R1", "CC2027R2", "2027R1&R2", "2027R1&R2回归");
@@ -220,6 +220,38 @@ class DashboardVersionScopeServiceTest {
     assertThat(scope.businessKey()).isEqualTo("cc-2027-r1-r2");
     assertThat(scope.displayName()).isEqualTo("2027 R1与R2合并");
     assertThat(scope.memberBusinessKeys()).containsExactly("CC2027R1", "CC2027R2");
+  }
+
+  @Test
+  void combinedDisplayNameDoesNotShadowAnotherVersionKey() {
+    DashboardVersionScopeConfig.ScopeDefinition collision =
+        DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "CC2026R3",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of(),
+            List.of());
+    DashboardVersionScopeService service = service(
+        collision,
+        r1Group(),
+        r2Group(),
+        DashboardVersionScopeTestSupport.group(
+            11L,
+            "CC2026R3",
+            1,
+            DashboardVersionScopeTestSupport.member(111L, "CC2026R3第一轮系统测试", 1)));
+
+    DashboardVersionScope normal = service.resolve(
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2026R3");
+    DashboardVersionScope combined = service.resolve(
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
+
+    assertThat(normal.combined()).isFalse();
+    assertThat(normal.businessKey()).isEqualTo("CC2026R3");
+    assertThat(normal.memberBusinessKeys()).containsExactly("CC2026R3");
+    assertThat(combined.combined()).isTrue();
+    assertThat(combined.memberBusinessKeys()).containsExactly("CC2027R1", "CC2027R2");
   }
 
   @Test

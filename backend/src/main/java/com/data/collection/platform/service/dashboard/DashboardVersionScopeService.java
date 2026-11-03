@@ -48,7 +48,7 @@ public class DashboardVersionScopeService {
   /**
    * 按看板请求值解析版本范围。
    *
-   * @param requestedValue 分组显示名或未参与分组的原业务键；为空时使用默认候选
+   * @param requestedValue 分组稳定 key 或未参与分组的原业务键；为空时使用默认候选
    * @throws BizException 值不存在、已停用或已被分组替代
    */
   public DashboardVersionScope resolve(
@@ -81,9 +81,7 @@ public class DashboardVersionScopeService {
     List<IssueScopeCatalogService.ScopeGroup> groups = groups(projectId, dimension);
     List<ActiveScope> activeScopes = activeScopes(groups, projectId, dimension);
     Optional<ActiveScope> scope = activeScopes.stream()
-        .filter(candidate ->
-            candidate.definition().key().equalsIgnoreCase(normalized)
-                || candidate.definition().displayName().equalsIgnoreCase(normalized))
+        .filter(candidate -> candidate.definition().key().equalsIgnoreCase(normalized))
         .findFirst();
     if (scope.isPresent()) {
       return Optional.of(toScope(scope.get(), projectId, dimension));
