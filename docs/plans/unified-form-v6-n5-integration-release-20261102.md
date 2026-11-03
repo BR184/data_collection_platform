@@ -1,6 +1,6 @@
 # 表单 v6 N5：集成与发布准备
 
-> 状态（2026-11-03，N5 修改后重审，R01—R05 已完成，待提交送审）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43` 与复审回执 `aa85f101` 已吸收。审核输入 `af6d0330` 的 R01—R05 按[复审执行单](unified-form-system-implementation-plan-20261021.md#n5-review-af6d0330)整改，最终隔离套件与前端检查全绿；N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
+> 状态（2026-11-03，N5 输入 `445f0a53` 复验剩余两项已收口，待复验）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43`、复审回执 `aa85f101` 与复验回执 `deba851a` 已吸收。R01/R02/R05 保持关闭；R03 仅修复历史抽屉新增面板横向溢出；R04 完成首轮超时证据归因并补测试诊断。N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
 
 ## 进度与中间物
 
@@ -18,9 +18,13 @@
 - R01 已整改：`FormProjectCandidateService` 按 `source_instance` 分流；`default` 只取本 config 的 ODS 镜像归属（`ods_gitlab_projects.mirror_task_id → sync_run_table_tasks.config_id/mirror_table`），`dgm` 只取 `code_review_dgm_project_options`，其它来源显式不可用；命名空间沿 `parent_id` 递归到根，缺父/循环/深度超限/跨来源均不伪造路径。`FormProjectCandidateIntegrationTest` 10/10 覆盖两来源同时刷新、DGM 同 ID 不同平台、`team/sub/project` 根路径、空目录、失败保留。
 - R02 已整改：新增 `V20261102_08__form_project_candidate_state.sql` 与 `FormProjectCandidateStartupInitializer`，服务模式启动对已确认来源做一次幂等初始化，迁移模式不扫描业务包；状态区分 `UNSYNCED/READY/EMPTY/FAILED/UNAVAILABLE`，失败保留最后成功快照并在接口返回 message；DGM 同步事件成功/失败分别刷新与标记失败。专属库实测启动初始化 63 条候选 `READY`，`2001` 路径为 `demo/sub/payment-gateway`。
 - R03 已整改：管理 detail 的 `VersionView` 新增服务端 `exportable`、`recordSourceRole`、来源与版本项目元数据；导出服务优先读取 `form_template_publications.frozen_binding.projectIds`，范围重绑后仍按版本冻结项目导出。前端移除新增导出弹窗与实心主按钮，改为历史版本行内次要操作与内联项目/下载面板，复用范围/版本/来源/代次守卫且不写全局候选缓存。
+- R03 溢出已修（2026-11-03 复验）：`.version-export-panel` 由 `flex: 1 0 100%` 改为 `flex: 1 1 calc(100% - 22px)` 并设 `min-width: 0`，长项目名 `overflow-wrap: anywhere`；未改抽屉、按钮层级或整体布局。无头 Chrome 同场景测量：抽屉内容 420/420、版本行 380/380、面板 358/358，横向溢出 0；把旧声明临时回填后版本行 402/380、抽屉 422/420，确认 22px 外宽来源。截图与测量 JSON 在 `.tmp-logs/n5-rereview-445f0a53-20261103/`。
 - R05 已核明（见下表）：`f22cd63d` 的 7 份快照均可追溯到已批准 main `eb9b2f8b` 或分支既有发布读取基线；未发现本轮新改或无法证明授权的快照变化，因此不回滚快照，只在文档更正该提交说明。
-- R04 已完成：首次专属库全量 2314 项/1 失败（`FormIssueAdoptionFactPipelineIntegrationTest` 轮次 30 秒未收敛，宿主可用内存约 0.8–1.2GB 时出现 Testcontainers 连接抖动；该失败类单独复测 25/25 通过）。重建专属 schema 后二次全量 2314 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，392 份 XML；日志 `.tmp-logs/n5-r04-final-20261103/final/final-suite.log`（SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`）。输入仍为 `HEAD=af6d0330e00c44088938690272dc022d13ad26b5`、backend diff SHA-256 `713698c35965c5ca734912834a4cd1e7764224e84f4ea991a36f8a0f59a1e849`；首次失败与复测日志同时保留。前端 typecheck/lint 通过，Vitest 174 文件 953 项通过，`vite build` 成功；桌面无头 Chrome 截图存于 `.tmp-logs/n5-r04-final-20261103/desktop/`。
-- 进行点：回填进度、运行护栏、按后端/前端/文档三批提交并双远端回读送复验。仍不运行黄金、不合入 main、不出包、不启用生产。
+- R04 首轮失败证据：`FormIssueAdoptionFactPipelineIntegrationTest` 在 31.16 秒后 stage 仍 `REQUESTED`；类运行区间约 13:32:53–13:34:08，失败窗口约 13:33:37–13:34:08。窗口内唯一日志是 `HikariPool-6` 于 13:33:48 的后台拒绝；`60326/59425/57234` 分别对应 `HikariPool-10/7/6`，三池首次活动为 13:27:17/13:30:59/13:31:58，均早于本类上下文启动，属已结束上下文的残留连接池。本类自身连接池在失败窗口内无拒绝记录；全日志唯一一条 `Customer issue delay closure advance failed` 在 13:23:14，来自单元测试替身异常，与本类无关。
+- R04 归因边界：测试配置 `platform.gitlab-mirror.scheduler-enabled=false`，60 秒进度恢复不运行，表单公开后的唯一唤醒是单次 `submitAdvance`；超时断言只保留了 stage，未含租约/`next_check_at`，原始资料不足以区分“任务未执行/未领取”与“任务阻塞”，也不能支持“Testcontainers 连接抖动/宿主内存”归因。**不宣称根因已消除，不改生产代码。**
+- R04 纠正措施（仅测试夹具）：`awaitDelayClosureSettled` 与 `@AfterEach awaitInFlightDelayRound` 超时不再静默返回，抛出包含 progress 全字段（含 `next_check_at`/租约/`updated_at`）、执行器 active/queue/poolSize 与 `platform-async-*` 线程状态及栈顶的断言；未延长 30 秒、未加重试/跳过/掩码。直接场景：同一类在自有 Testcontainers PG 上 25/25 通过（107.2 秒），诊断代码在位，原停顿未复现。
+- R04 最终套件沿用：二次专属库全量 2314 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，392 份 XML；日志 `.tmp-logs/n5-r04-final-20261103/final/final-suite.log`（SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`）。输入 `HEAD=af6d0330e00c44088938690272dc022d13ad26b5`、backend diff SHA-256 `713698c35965c5ca734912834a4cd1e7764224e84f4ea991a36f8a0f59a1e849`；首次失败、复测与两轮 XML 均保留。前端 typecheck/lint 通过，Vitest 174 文件 953 项通过，`vite build` 成功；桌面无头 Chrome 截图存于 `.tmp-logs/n5-r04-final-20261103/desktop/`。
+- 进行点：剩余两项已按执行单收口，等待复验；黄金、main 合入、出包与生产启用仍未准入。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
@@ -43,8 +47,8 @@
 | --- | --- | --- | --- |
 | 迁移总数 | 140 | 174 | 分支 = main 140 + 34（S1 新增 06/07、复审状态表 08），无 main 独有版本 |
 | 共享 140 条 checksum | — | 与 main 完全一致 | 无既有迁移改动 |
-| 分支新增 33 条 | — | 18 条发布读取 + 13 条表单 v6 + S1 投影 `20261102_06` + 集成视图重建 `20261102_07` | 全部前向；含 `V20261022_01/02/04`、`20261027_01`、`20261029_01/02`、`20261030_01/02`、`20261102_01`—`07` |
-| 旧主线升级测试 | 140 条基线 | `FormV6LegacyUpgradeIntegrationTest` 按 140+33、head `20261102.07` | 已与当前 main 迁移集对齐，最终默认套件通过 |
+| 分支新增 34 条 | — | 18 条发布读取 + 13 条表单 v6 + S1 投影 `20261102_06` + 集成视图重建 `20261102_07` + 候选状态表 `20261102_08` | 全部前向；含 `V20261022_01/02/04`、`20261027_01`、`20261029_01/02`、`20261030_01/02`、`20261102_01`—`08` |
+| 旧主线升级测试 | 140 条基线 | `FormV6LegacyUpgradeIntegrationTest` 按 140+34、head `20261102.08` | 已与当前 main 迁移集对齐，最终默认套件通过 |
 
 集成时必须把 18 条发布读取迁移及对应读服务视为**待恢复的基线**，不能因 Git 自动合并结果为零而接受。
 
@@ -137,7 +141,7 @@ S1 实施要点：
   `mvn -o -Dfile.encoding=UTF-8 clean test`
 - 禁止：使用或修复共享 15432/15433，repair/重建/回退共享库；Testcontainers 类继续使用各自独占容器。
 - 输入与产物：`HEAD=af6d0330e00c44088938690272dc022d13ad26b5`，backend diff SHA-256 `713698c35965c5ca734912834a4cd1e7764224e84f4ea991a36f8a0f59a1e849`，全工作树 diff SHA-256 `aba9357de5f906834a9ace215b111be4c5c1ea7c1a528321843fdb80caeed709`，untracked manifest SHA-256 `18c39c16ba8e25f95cb93d10d20d9515ae95efa50183fea9026ed0db512843a5`。
-- 结果：首次全量 2314/1 失败（失败类单独复测 25/25，失败为宿主内存压力下的异步轮次超时/连接抖动）；重建 schema 后二次全量 2314/0/0/1，`BUILD SUCCESS`，392 份 XML；最终日志 SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`。首次日志、复测日志与两轮 XML 分目录保留，未用跳过/掩码/放宽断言让失败变绿。
+- 结果：首次全量 2314/1 失败（失败类单独复测 25/25，失败时轮次停在 `REQUESTED`；当时的宿主内存/连接抖动归因未被原始日志证实，见上文 R04 归因边界）；重建 schema 后二次全量 2314/0/0/1，`BUILD SUCCESS`，392 份 XML；最终日志 SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`。首次日志、复测日志与两轮 XML 分目录保留，未用跳过/掩码/放宽断言让失败变绿。
 
 ### R05 黄金快照变更来源
 
