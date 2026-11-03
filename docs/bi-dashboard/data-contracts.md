@@ -74,7 +74,9 @@
 
 2026-11-02按稳定main `f74fdef7` 核对：BI需求/设计评审通过 `BiPlatformReviewSourceAdapter` 使用 `BiProductVersionMatcher` 从评审项目名称解析版本。直接运行该匹配器，`2027R1&R2` 同时匹配CC2027R1和CC2027R2，`信创版（2027R1）` 只匹配CC2027R1；这不是为两个名称建立的独立配置，也不证明信创版在业务上应该并入普通R1。编码页的组合名称同样按成员匹配。
 
-2026-11-03用户转达领导决定：两个看板的测试阶段合并展示，目标范围按[平台共同业务规则](../platform-page-business-rules.md#combined-2027-test-scope)执行。上面的名称匹配结果是实施前代码事实，不能作为继续拆分两个看板测试阶段的依据。缺少阶段议题、组合评审与信创版归属仍见[待确认记录](../plans/product-version-attribution-pending-20261102.md)；现有指标公式保持。
+2026-11-03用户转达领导决定并补充模块边界：两个看板合并，独立系统测试保持原状，目标范围按[平台共同业务规则](../platform-page-business-rules.md#combined-2027-test-scope)执行。上面的名称匹配结果是实施前代码事实。看板专用分组及原始输入并集的实施见[执行方案](../plans/dashboard-combined-version-implementation-20261103.md)；现有指标公式保持，组合评审按真实来源接入，缺阶段计数与信创版新归属仍见[待确认记录](../plans/product-version-attribution-pending-20261102.md)。
+
+待实施契约：BI目录ID继续取原锚点目录ID，显示名和业务查询范围由看板分组提供；它在BI请求中代表分组，不修改独立系统测试的同一原目录对象。各页与下载绑定同一分组/成员目录指纹和原事实版本。CAT必须保存指向真实组合版本的映射，旧R1映射不能仅凭ID相同当作组合结果；没有来源时沿既有INCOMPLETE契约处理。
 
 ## CAT 接口契约
 
