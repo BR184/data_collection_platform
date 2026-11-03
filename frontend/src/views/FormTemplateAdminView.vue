@@ -1620,7 +1620,8 @@ watch(() => scope.value?.id, () => closeVersionExport());
 .empty-fields, .empty-workspace { padding: 40px 12px; font-size: 13px; color: #6b7d93; }
 .version-list { list-style: none; padding: 0; margin: 10px 0; }
 .version-list li { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 0 28px; position: relative; }
-.version-export-panel { flex: 1 0 100%; margin: -12px 0 0 22px; }
+.version-export-panel { flex: 1 1 calc(100% - 22px); min-width: 0; margin: -12px 0 0 22px; }
+.version-export-panel .field-hint { overflow-wrap: anywhere; }
 .version-export-actions { display: flex; gap: 12px; }
 .version-dot { flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #6390cc; }
 .version-main { flex: 1; min-width: 0; }
