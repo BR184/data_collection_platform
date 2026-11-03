@@ -210,6 +210,12 @@ export interface FormAdminVersionView {
   instanceTable: string;
   recordTable: string | null;
   publishedAt: string | null;
+  recordSourceRole: 'AUTHORITATIVE' | 'LEGACY_SNAPSHOT' | 'TARGET';
+  exportable: boolean;
+  sourceConfigId: number | null;
+  sourceInstance: string | null;
+  canonicalGitlabBaseUrl: string | null;
+  projectIds: number[];
 }
 
 export interface FormAdminPreviewView {
@@ -298,6 +304,8 @@ export interface FormAdminProjectOption {
 
 export interface FormAdminProjectCandidatePage {
   available: boolean;
+  status: 'UNSYNCED' | 'READY' | 'EMPTY' | 'FAILED' | 'UNAVAILABLE';
+  message: string | null;
   items: FormAdminProjectOption[];
   nextCursor: string | null;
   missingProjectIds: string[];

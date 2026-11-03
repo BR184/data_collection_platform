@@ -79,6 +79,7 @@ const projectOptionCache = ref<Record<string, FormAdminProjectOption>>({});
 const projectCandidatesLoading = ref(false);
 const projectCandidatesError = ref('');
 const projectCandidatesAvailable = ref(true);
+const projectCandidatesStatus = ref<'UNSYNCED' | 'READY' | 'EMPTY' | 'FAILED' | 'UNAVAILABLE'>('UNSYNCED');
 const missingProjectIds = ref<string[]>([]);
 let projectSearchTimer: ReturnType<typeof setTimeout> | undefined;
 let projectRequestEpoch = 0;
@@ -396,10 +397,17 @@ async function loadProjectCandidates(keyword = '') {
     if (epoch !== projectRequestEpoch || bindingSourceId.value !== sourceId) return;
     projectOptions.value = page.items;
     projectCandidatesAvailable.value = page.available;
-    projectCandidatesError.value = '';
+    projectCandidatesStatus.value = page.status;
+    projectCandidatesError.value =
+      page.status === 'FAILED'
+        ? readableError(page.message || '项目目录最近刷新失败，已保留上次成功目录', '项目目录最近刷新失败')
+        : page.status === 'UNAVAILABLE'
+          ? readableError(page.message || '该代码平台来源不可用', '该代码平台来源不可用')
+          : '';
     cacheProjectOptions(page.items);
   } catch (error) {
     if (epoch !== projectRequestEpoch || bindingSourceId.value !== sourceId) return;
+    projectCandidatesStatus.value = 'FAILED';
     projectCandidatesError.value = readableError(
       getErrorMessage(error, '项目目录加载失败'),
       '项目目录加载失败',
@@ -425,8 +433,19 @@ async function echoProjectSelection(sourceId: number, projectIds: string[]) {
     cacheProjectOptions(page.items);
     missingProjectIds.value = page.missingProjectIds;
     projectCandidatesAvailable.value = page.available;
+    projectCandidatesStatus.value = page.status;
+    if (page.status === 'FAILED' || page.status === 'UNAVAILABLE') {
+      projectCandidatesError.value = readableError(
+        page.message ||
+          (page.status === 'FAILED'
+            ? '项目目录最近刷新失败，已保留上次成功目录'
+            : '该代码平台来源不可用'),
+        page.status === 'FAILED' ? '项目目录最近刷新失败' : '该代码平台来源不可用',
+      );
+    }
   } catch (error) {
     if (epoch !== projectEchoEpoch || bindingSourceId.value !== sourceId) return;
+    projectCandidatesStatus.value = 'FAILED';
     projectCandidatesError.value = readableError(
       getErrorMessage(error, '已选项目回显失败'),
       '已选项目回显失败',
@@ -446,6 +465,7 @@ async function hydrateProjectCandidates() {
   missingProjectIds.value = [];
   projectCandidatesError.value = '';
   projectCandidatesAvailable.value = true;
+  projectCandidatesStatus.value = 'UNSYNCED';
   if (!bindingBound.value && !bindingSourceId.value && bindingOptions.value.length === 1) {
     bindingSourceId.value = bindingOptions.value[0].sourceConfigId;
   }
@@ -560,6 +580,7 @@ async function changeBindingSource(value: number | null) {
   missingProjectIds.value = [];
   projectCandidatesError.value = '';
   projectCandidatesAvailable.value = true;
+  projectCandidatesStatus.value = 'UNSYNCED';
   projectEchoEpoch += 1;
   clearMilestoneEvidence();
   if (!value) return;
@@ -1197,11 +1218,11 @@ const removedFields = ref<Array<{ row: FieldRow; index: number; conditions: Cond
 const expanded = ref<string | null>(null);
 const rangeVisible = ref(false);
 const historyVisible = ref(false);
-const exportVisible = ref(false);
-const exportVersion = ref<FormAdminVersionView | null>(null);
+const exportPanelVersionId = ref<number | null>(null);
 const exportProjectIds = ref<string[]>([]);
 const exportProjectOptions = ref<FormAdminProjectOption[]>([]);
-const exporting = ref(false);
+const exportingVersionId = ref<number | null>(null);
+let exportEchoEpoch = 0;
 const saveError = ref('');
 const rangeNames = ref<Record<number, string>>({});
 const publishConfirmVisible = ref(false);
@@ -1265,31 +1286,57 @@ function openCreate(key: string) { createTemplateKey.value = key; createVisible.
 async function finishRange() { await flushDraft(); if (!dirty.value) { rangeVisible.value = false; if (scope.value && typeof evidenceDraft.value.scopeDisplayName === 'string') rangeNames.value[scope.value.id] = evidenceDraft.value.scopeDisplayName; } }
 function formattedTime(value: string | null): string { return value ? new Date(value).toLocaleDateString('zh-CN') : '尚未发布'; }
 
-function isExportableVersion(version: FormAdminVersionView): boolean {
-  return version.versionStatus === 'PUBLISHED' || version.versionStatus === 'RETIRED';
+const exportProjectLabel = computed(() => {
+  const projectId = exportProjectIds.value[0];
+  if (!projectId) return '该版本项目';
+  const option = exportProjectOptions.value.find((item) => item.projectId === projectId);
+  if (!option) return `项目 ${projectId}`;
+  return option.fullPath && option.fullPath !== option.name
+    ? `${option.name} · ${option.fullPath}`
+    : option.name;
+});
+
+function closeVersionExport() {
+  exportEchoEpoch += 1;
+  exportPanelVersionId.value = null;
+  exportProjectIds.value = [];
+  exportProjectOptions.value = [];
 }
 
 async function openVersionExport(version: FormAdminVersionView) {
-  if (!canExportRecords.value || !isExportableVersion(version)) return;
-  exportVersion.value = version;
-  exportProjectIds.value = (scope.value?.projectIds ?? []).map(String);
+  if (!canExportRecords.value || !version.exportable) return;
+  if (exportPanelVersionId.value === version.id) {
+    closeVersionExport();
+    return;
+  }
+  const scopeId = scope.value?.id;
+  const sourceId = version.sourceConfigId;
+  if (!scopeId || !sourceId) return;
+  exportEchoEpoch += 1;
+  const epoch = exportEchoEpoch;
+  exportPanelVersionId.value = version.id;
+  exportProjectIds.value = (version.projectIds ?? []).map(String).filter(isPositiveProjectId);
   exportProjectOptions.value = exportProjectIds.value.map(projectOptionFor);
-  exportVisible.value = true;
-  const sourceId = scope.value?.sourceConfigId;
-  if (!sourceId || !exportProjectIds.value.length) return;
+  if (!exportProjectIds.value.length) return;
   try {
     const page = await collectFormsApi.getFormProjectCandidates({
       sourceConfigId: sourceId,
       projectIds: exportProjectIds.value,
     });
-    if (exportVersion.value?.id !== version.id) return;
+    if (
+      epoch !== exportEchoEpoch ||
+      exportPanelVersionId.value !== version.id ||
+      scope.value?.id !== scopeId ||
+      version.sourceConfigId !== sourceId
+    ) {
+      return;
+    }
     exportProjectOptions.value = exportProjectIds.value.map((projectId) => {
       const found = page.items.find((item) => item.projectId === projectId);
       return found ?? projectOptionFor(projectId);
     });
-    cacheProjectOptions(page.items);
   } catch {
-    // 导出资格与项目谓词仍由后端裁决；候选回显失败时保留项目 ID 占位。
+    // 导出资格与项目谓词仍由后端裁决；候选回显失败时保留版本项目占位。
   }
 }
 
@@ -1298,20 +1345,36 @@ function updateExportProjects(value: string | string[]) {
   exportProjectIds.value = next.map(String).filter(isPositiveProjectId);
 }
 
-async function confirmVersionExport() {
-  const version = exportVersion.value;
-  if (!version || exporting.value) return;
-  exporting.value = true;
+async function confirmVersionExport(version: FormAdminVersionView) {
+  if (
+    !canExportRecords.value ||
+    !version.exportable ||
+    exportPanelVersionId.value !== version.id ||
+    exportingVersionId.value !== null
+  ) {
+    return;
+  }
+  const scopeId = scope.value?.id;
+  const epoch = exportEchoEpoch;
+  const projectIds = [...exportProjectIds.value];
+  exportingVersionId.value = version.id;
   try {
-    const response = await collectFormsApi.exportFormRecords(version.id, exportProjectIds.value);
+    const response = await collectFormsApi.exportFormRecords(version.id, projectIds);
+    if (
+      epoch !== exportEchoEpoch ||
+      exportPanelVersionId.value !== version.id ||
+      scope.value?.id !== scopeId
+    ) {
+      return;
+    }
     const suffix = version.versionLabel || String(version.id);
     downloadBlob(response.blob, response.filename ?? `表单记录-${suffix}.xlsx`);
-    exportVisible.value = false;
     ElMessage.success('已导出该版本表单记录');
+    closeVersionExport();
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '表单记录导出失败'));
   } finally {
-    exporting.value = false;
+    exportingVersionId.value = null;
   }
 }
 
@@ -1322,6 +1385,7 @@ function scheduleAutosave() {
 }
 watch(localSnapshot, () => { saveError.value = ''; scheduleAutosave(); });
 watch(saving, active => { if (!active) scheduleAutosave(); });
+watch(() => scope.value?.id, () => closeVersionExport());
 
 </script>
 <template>
@@ -1408,23 +1472,7 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
       <main v-else class="workspace empty-workspace"><p>{{ loading ? '正在加载表单…' : '选择一个表单开始编辑' }}</p></main>
     </div>
 
-    <el-drawer v-model="historyVisible" title="历史版本" size="420px"><ol class="version-list"><li v-for="version in detail?.versions ?? []" :key="version.id"><span class="version-dot" /><div class="version-main"><strong>{{ version.versionLabel || '早期版本' }}</strong><p>{{ formattedTime(version.publishedAt) }}<span v-if="version.id === scope?.currentVersionId"> · 当前版本</span></p></div><el-button v-if="canExportRecords && isExportableVersion(version)" link class="version-export" @click="openVersionExport(version)">导出Excel</el-button></li></ol><p v-if="!detail?.versions.length" class="muted">尚未发布过版本</p></el-drawer>
-
-    <el-dialog v-model="exportVisible" :title="`导出 ${exportVersion?.versionLabel || '早期版本'} 记录`" width="min(520px, 90vw)">
-      <el-form label-position="top">
-        <el-form-item label="项目范围">
-          <SmartSelect
-            :model-value="exportProjectIds"
-            :options="exportProjectSelectOptions"
-            multiple
-            placeholder="选择要导出的项目"
-            @update:model-value="updateExportProjects"
-          />
-        </el-form-item>
-      </el-form>
-      <p class="field-hint">默认包含该版本全部获准项目；未选择项目时同样导出全部。</p>
-      <template #footer><el-button @click="exportVisible = false">取消</el-button><el-button type="primary" :loading="exporting" @click="confirmVersionExport">导出</el-button></template>
-    </el-dialog>
+    <el-drawer v-model="historyVisible" title="历史版本" size="420px" @closed="closeVersionExport"><ol class="version-list"><li v-for="version in detail?.versions ?? []" :key="version.id"><span class="version-dot" /><div class="version-main"><strong>{{ version.versionLabel || '早期版本' }}</strong><p>{{ formattedTime(version.publishedAt) }}<span v-if="version.id === scope?.currentVersionId"> · 当前版本</span></p></div><el-button v-if="canExportRecords && version.exportable" link class="version-export" @click="openVersionExport(version)">{{ exportPanelVersionId === version.id ? '收起导出' : '导出Excel' }}</el-button><div v-if="exportPanelVersionId === version.id" class="version-export-panel"><p class="field-hint">项目范围</p><SmartSelect v-if="exportProjectIds.length > 1" :model-value="exportProjectIds" :options="exportProjectSelectOptions" multiple placeholder="选择要导出的项目" @update:model-value="updateExportProjects" /><p v-else class="field-hint">项目：{{ exportProjectLabel }}</p><div class="version-export-actions"><el-button link :loading="exportingVersionId === version.id" @click="confirmVersionExport(version)">下载</el-button><el-button link @click="closeVersionExport">取消</el-button></div></div></li></ol><p v-if="!detail?.versions.length" class="muted">尚未发布过版本</p></el-drawer>
 
     <el-drawer v-model="rangeVisible" title="适用范围" size="460px">
       <el-form label-position="top" class="range-form">
@@ -1444,6 +1492,7 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
             @visible-change="handleProjectDropdownVisible"
           />
           <p v-if="projectCandidatesError" class="field-hint">{{ projectCandidatesError }} <el-button link @click="reloadProjectCandidates">重试</el-button></p>
+          <p v-else-if="!projectCandidatesLoading && projectCandidatesStatus === 'EMPTY'" class="field-hint">项目目录同步成功，但当前没有可选项。</p>
           <p v-else-if="!projectCandidatesLoading && !projectCandidatesAvailable && bindingSourceId" class="field-hint">项目目录尚未同步，请先在代码平台完成同步 <el-button link @click="reloadProjectCandidates">重试</el-button></p>
           <p v-if="missingProjectIds.length" class="field-hint">已选项目中有 {{ missingProjectIds.length }} 个已不在目录，仍保留原选择。</p>
         </el-form-item>
@@ -1570,7 +1619,9 @@ watch(saving, active => { if (!active) scheduleAutosave(); });
 .summary-save { font-size: 11px; color: #758299; border-top: 1px solid #e0e7ef; padding-top: 13px; margin-top: 22px; }
 .empty-fields, .empty-workspace { padding: 40px 12px; font-size: 13px; color: #6b7d93; }
 .version-list { list-style: none; padding: 0; margin: 10px 0; }
-.version-list li { display: flex; gap: 14px; padding: 0 0 28px; position: relative; }
+.version-list li { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 0 28px; position: relative; }
+.version-export-panel { flex: 1 0 100%; margin: -12px 0 0 22px; }
+.version-export-actions { display: flex; gap: 12px; }
 .version-dot { flex: 0 0 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: #6390cc; }
 .version-main { flex: 1; min-width: 0; }
 .version-export { flex: 0 0 auto; align-self: flex-start; margin-top: -6px; }

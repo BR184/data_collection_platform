@@ -140,6 +140,12 @@ function detail(scopeDraft: FormAdminDraftView = draft()): FormAdminScopeDetail 
         instanceTable: 'form_s7_v2_instances',
         recordTable: 'form_s7_v2_records',
         publishedAt: '2026-10-23T00:00:00',
+        recordSourceRole: 'AUTHORITATIVE',
+        exportable: true,
+        sourceConfigId: 1,
+        sourceInstance: 'default',
+        canonicalGitlabBaseUrl: 'http://gitlab.w4.local',
+        projectIds: [9],
       },
     ],
     preview: null,
@@ -248,6 +254,8 @@ beforeEach(() => {
           .filter((projectId) => projectId === '999');
         return {
           available: true,
+          status: 'READY',
+          message: null,
           items: params.projectIds
             .map(String)
             .filter((projectId) => projectId !== '999')
@@ -258,6 +266,8 @@ beforeEach(() => {
       }
       return {
         available: true,
+        status: 'READY',
+        message: null,
         items: [projectOption('9'), projectOption('10')],
         nextCursor: null,
         missingProjectIds: [],
@@ -500,9 +510,66 @@ describe('表单管理单页工作区', () => {
     const view=await mountView();
     await button(view,'历史版本').trigger('click'); await flushPromises();
     await button(view,'导出Excel').trigger('click'); await flushPromises();
-    await button(view,'导出').trigger('click'); await flushPromises();
+    await button(view,'下载').trigger('click'); await flushPromises();
     expect(mocks.api.exportFormRecords).toHaveBeenCalledWith(2, ['9']);
     expect(mocks.message.success).toHaveBeenCalledWith('已导出该版本表单记录');
+  });
+
+  it('discards a delayed export result after the export panel is closed', async () => {
+    authState.currentUser = {
+      ...authState.currentUser,
+      authenticated: true,
+      permissions: ['form.record.export'],
+    };
+    let resolveExport: ((value: { blob: Blob; filename: string }) => void) | undefined;
+    mocks.api.exportFormRecords.mockImplementation(
+      () => new Promise((resolve) => { resolveExport = resolve; }),
+    );
+    const view=await mountView();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    await button(view,'导出Excel').trigger('click'); await flushPromises();
+    await button(view,'下载').trigger('click'); await flushPromises();
+    expect(mocks.api.exportFormRecords).toHaveBeenCalledWith(2, ['9']);
+    expect(resolveExport).toBeTypeOf('function');
+    await button(view,'收起导出').trigger('click'); await flushPromises();
+    resolveExport?.({ blob: new Blob(['late']), filename: 'late.xlsx' });
+    await flushPromises();
+    expect(mocks.message.success).not.toHaveBeenCalled();
+    expect(view.find('.version-export-panel').exists()).toBe(false);
+  });
+
+  it('hides export for versions the server marks non-exportable', async () => {
+    authState.currentUser = {
+      ...authState.currentUser,
+      authenticated: true,
+      permissions: ['form.record.export'],
+    };
+    const d=detail();
+    d.versions=[{...d.versions[0], recordSourceRole:'LEGACY_SNAPSHOT', versionStatus:'RETIRED', exportable:false}];
+    mocks.api.getFormScope.mockResolvedValue(d);
+    const view=await mountView();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    expect(view.findAll('button').some(item => item.text() === '导出Excel')).toBe(false);
+  });
+
+  it('keeps export project scope from the selected version instead of the draft', async () => {
+    authState.currentUser = {
+      ...authState.currentUser,
+      authenticated: true,
+      permissions: ['form.record.export'],
+    };
+    const d=detail();
+    d.draft!.binding={...d.draft!.binding, projectIds:[9,10], versionProjectId:9};
+    d.versions=[{...d.versions[0], projectIds:[10]}];
+    mocks.api.getFormScope.mockResolvedValue(d);
+    const view=await mountView();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    await button(view,'导出Excel').trigger('click'); await flushPromises();
+    expect(mocks.api.getFormProjectCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceConfigId: 1, projectIds: ['10'] }),
+    );
+    await button(view,'下载').trigger('click'); await flushPromises();
+    expect(mocks.api.exportFormRecords).toHaveBeenCalledWith(2, ['10']);
   });
 
   it('keeps stale selected projects visible and selectable after candidate echo reports them missing', async () => {
@@ -712,6 +779,8 @@ describe('单页工作区的异步归属', () => {
         }
         return Promise.resolve({
           available:true,
+          status:'READY' as const,
+          message:null,
           items:[projectOption('20')],
           nextCursor:null,
           missingProjectIds:[],
@@ -727,6 +796,8 @@ describe('单页工作区的异步归属', () => {
     await flushPromises();
     finishFirst({
       available:true,
+      status:'READY',
+      message:null,
       items:[projectOption('10')],
       nextCursor:null,
       missingProjectIds:[],
@@ -735,5 +806,43 @@ describe('单页工作区的异步归属', () => {
     expect(view.findAllComponents(SmartSelect)[0].props('options')).toEqual([
       expect.objectContaining({ value: '20' }),
     ]);
+  });
+
+  it('drops a delayed export project echo after switching scope', async () => {
+    const {b}=setupTwoScopes();
+    b.versions=[{...b.versions[0], id:12, versionLabel:'CC2026R2', projectIds:[10]}];
+    let finishA!:(value:unknown)=>void;
+    mocks.api.getFormProjectCandidates.mockImplementation(
+      (params:{sourceConfigId:number; projectIds?:Array<number|string>}) => {
+        const ids=(params.projectIds ?? []).map(String);
+        if (ids.includes('9')) return new Promise(resolve => { finishA=resolve; });
+        return Promise.resolve({
+          available:true,
+          status:'READY' as const,
+          message:null,
+          items:[{...projectOption('10'), name:'B项目', fullPath:'team/B项目'}],
+          nextCursor:null,
+          missingProjectIds:[],
+        });
+      },
+    );
+    authState.currentUser={...authState.currentUser,authenticated:true,permissions:['form.record.export']};
+    const view=await mountView();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    await button(view,'导出Excel').trigger('click'); await flushPromises();
+    await view.findAll('.scope-item')[1].trigger('click'); await flushPromises();
+    await button(view,'历史版本').trigger('click'); await flushPromises();
+    await button(view,'导出Excel').trigger('click'); await flushPromises();
+    finishA({
+      available:true,
+      status:'READY',
+      message:null,
+      items:[{...projectOption('9'), name:'A项目', fullPath:'team/A项目'}],
+      nextCursor:null,
+      missingProjectIds:[],
+    });
+    await flushPromises();
+    expect(view.find('.version-export-panel').text()).toContain('B项目');
+    expect(view.find('.version-export-panel').text()).not.toContain('A项目');
   });
 });
