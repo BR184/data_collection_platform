@@ -1,6 +1,6 @@
 # 表单 v6 N5：集成与发布准备
 
-> 状态（2026-11-03，N5 输入 `4ae4f5ac` 复验：R03 关闭，R04 事务竞态已修复且最终默认套件通过，待复验）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43`、复审回执 `aa85f101`、复验回执 `deba851a` 与事务回执 `8db94c97` 已吸收。R01/R02/R05 保持关闭；R03 关闭；R04 仅给 `requestRound` 加 `REQUIRES_NEW` 独立短事务，正式回归修前红/修后绿。N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
+> 状态（2026-11-03，N5 输入 `415e2889` 技术验收通过，R01—R05 全部关闭）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43`、复审回执 `aa85f101`、复验回执 `deba851a`、事务回执 `8db94c97` 与技术通过回执 `76dfb8bb` 已吸收。发布门禁资料准备见 [发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
 
 ## 进度与中间物
 
@@ -25,7 +25,9 @@
 - R04 正式回归：`afterCommitRequestIsVisibleToWorkerBeforeWakeUp` 用真实 Spring 事务 + PG + 屏障验证提交回调登记后另一连接可领取；临时撤销 `REQUIRES_NEW` 时领取为空（红），恢复后通过（绿）。`formDriven...` 保持 IDLE、completed=request、failure=0；新增 `rolledBackPublicationDoesNotRegisterDelayRound` 覆盖发布回滚不登记不唤醒。
 - R04 超时诊断保留：`awaitDelayClosureSettled` 与 `@AfterEach awaitInFlightDelayRound` 超时抛出 progress 全字段（含 `next_check_at`/租约/`updated_at`）、执行器 active/queue/poolSize 与 `platform-async-*` 线程状态及栈顶；未延长 30 秒、未加重试/跳过/掩码。
 - R04 最终默认套件（事务修复后，专属 15523 / schema `qaflex_n5_tx_final`）：**2316 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，25:13**，392 份 XML；日志 `.tmp-logs/n5-r04-tx-final-20261103/final-suite.log`（SHA-256 `8e08852064534ed29606d06c0f4ed96078d12e2cfd26ec99090885aa9ea9a888`）。输入 `HEAD=4ae4f5ac0d5bfdf736439d8c107ff59b3bc85633`、backend/frontend diff SHA-256 `7cac8ba140180c671dc41e874eb58eb10aeb0a5c769294c6bfecd05c080334cc`；无新增未跟踪代码文件。旧 2314 结果不再作为新版本门禁；前端未变，沿用已批准证据。
-- 进行点：R03 关闭；R04 修复、正式回归与最终默认套件完成，等待复验；黄金、main 合入、出包与生产启用仍未准入。
+- N5 技术验收（2026-11-03）：输入 `415e2889` 干净且双远端一致；独立真实 PG 3/3、零跳过，原确定性提交后领取反例在修复实现上通过、普通调用可见、发布回滚不登记；冻结 392 份 XML 汇总 2316/0/0/1，日志 SHA-256 `8e088520…` 与代码差异 `7cac8ba1…` 匹配；174 条迁移锁通过。R01—R05 全部关闭，技术通过不代替发布门禁。
+- 发布门禁盘点（只读）：端点 200→220（新增 23/删除 3/变更 2），19 个用例缺快照；快照 1A/8D/135M（共 144），其中 81 份仅读取帧/易变字段、54 份仍有业务差异（含 `cbca4eeb` 11 份），30 份需逐项裁定；夹具仅新增兼容性清单，未改业务行与掩码。详见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。
+- 进行点：技术验收与发布资料完成；黄金执行/update、main 合入、出包与生产启用仍未准入。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
@@ -88,7 +90,7 @@
 | 消费并发 | `ReadPublicationModelIntegrationTest` 49、`FormHeadCaptureIntegrationTest` 9、`CustomerIssueRequirementLabelAutoChainIntegrationTest` 9、`FormIssueAdoptionFactPipelineIntegrationTest` 25 | 已有证据 |
 | Excel | `FormRecordExportIntegrationTest` 6、`FormRecordExportSpringContextIntegrationTest` 1、导出布局测试 | 端点待黄金审批 |
 | 初始化与恢复 | `FormV6LegacyUpgradeIntegrationTest` 1、`FormV6DirectoryMigrationTest` 3、`FormV6RenumberedHistoryUpgradeTest` 1 | 已有证据 |
-| 门禁 | 174 条迁移锁、端点/权限/工作区登记、最终隔离默认套件 2314、前端 953 项与构建、隔离桌面证据 | 黄金未运行，按发布门禁另行审批 |
+| 门禁 | 174 条迁移锁、端点/权限/工作区登记、最终隔离默认套件 2316、前端 953 项与构建、隔离桌面证据 | 黄金未运行，按发布门禁另行审批 |
 
 矩阵说明：以上历史计数来自冻结 XML（`.tmp-logs/p6-r02-final-20261102/xml/`）；S1 与集成变更后在最终代码重跑一次默认套件，原始日志/XML 冻结于 `.tmp-logs/n5-final-20261103/`。前端变更后已重跑 typecheck/lint/全量 Vitest/build，并完成隔离桌面链路，不重复模板或浏览器全矩阵。
 
@@ -164,7 +166,7 @@ S1 实施要点：
 
 ## 发布资料与差异清单（待审批，不执行）
 
-- 新增端点：22 个（表单管理/记录/导出、read-views 会话、代码走查非法页 context 等）；删除 3 个旧写入口（`/api/collect-forms/save`、`update-record`、`delete`）。以 `endpoint-catalog.yml` 为准。
+- 新增端点：23 个（表单 v6 17 个、read-views 会话 4 个、按版导出 1 个、代码走查读取上下文 1 个）；删除 3 个旧写入口（`/api/collect-forms/save`、`update-record`、`delete`）；变更 2 个 READ 用例身份（`detail`、`notification-payload`）。以 `endpoint-catalog.yml` 为准；逐项清单见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。
 - EXCLUDED：`/api/collect-forms/exports/records`（pending-approval，需用户确认快照）、`/api/read-views*`（session 随机身份，真库/HTTP 覆盖）、外部数据集 API（external-dependency）。
 - 权限：`form.record.create/edit_own/delete_own` 按迁移授予；`form.template.manage` 授予 SUPER_ADMIN/ADMIN；`form.record.export` 只登记不授予；旧 `code_review.form.*` 退役。`EndpointAuthorizationContractTest` 覆盖导出键。
 - 工作区/页面：本单元未新增统计板页面；沿用客户问题既有 view/export 映射与工作区依赖。表单管理/记录端点由 `form.template.manage` 与 `form.record.*` 保护。
@@ -198,3 +200,17 @@ S1 实施要点：
 - main 的延期写回/统计修复与分支表单语义同文件冲突，需逐行为合并；不以文件覆盖代替语义验证。
 - 证据复用依赖输入哈希：`24a45a17…` 日志与 `215c10f3…` 后端差异只对 `63ac96ae` 有效；任何集成代码变化都需重新验证受影响范围。
 - 敏感只读：`gitlab_sync_configs`、角色权限表、真实 ODM/ODS 数据；不写入、不授权、不访问未获准环境。
+
+## N5 技术验收通过与发布门禁资料准备（2026-11-03）
+
+**结论：N5 技术验收通过，R01—R05 全部关闭；发布门禁资料已整理，未执行黄金。** 输入 `415e2889` 干净、双远端一致；生产实现只给 `requestRound` 增加 `REQUIRES_NEW` 独立短事务，方法提交后再唤醒；重算/授权、`onConfigSaved`、UI 与 174 条迁移未改。独立真实 PG 3/3，原确定性反例在修复实现上通过；最终默认套件 2316/0/0/1（日志 SHA-256 `8e088520…`），174 条迁移锁通过。
+
+发布门禁资料已拆为独立文件：[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。要点：
+
+- 端点：200→220，新增 23、删除 3、变更 2；19 个用例缺快照（19 响应 + 16 表快照）。
+- 快照：对 main 1A/8D/135M（144 份）；81 份仅读取帧/易变字段，54 份有业务差异（含 `cbca4eeb` 11 份，必须保留主线已批准值），30 份待逐项裁定。
+- 夹具/掩码：只新增兼容性清单夹具并登记 manifest；未改业务行、未新增掩码；建议不新增。
+- 升级：main 140 → 174，按真实 Flyway 前缀分 140/156/158 三种待执行集合；一次性 out-of-order 后默认 validate，再做事实/投影重建与页面预热；回退必须“数据库备份 + 配套旧包”。
+- 外部前置：CI_ROBOT、来源项目/Issue 启用时点、域名代理 Cookie、导出权限名单、旧写回所有者/窗口均未取得；只阻断对应启用步骤。
+
+黄金执行/update、main 合入、正式出包、源码留档、真实授权与生产启用仍未批准；生产 MR 继续 COMMENT，代码走查非法页整页旧源。

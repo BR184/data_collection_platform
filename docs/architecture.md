@@ -83,6 +83,7 @@
 - 消费前必须冻结本次读取涉及的完整 FORM 证据（目录事件、源集合、head、权威与 `form_input_hash`），他人持有 head 时整份候选让位；读取、事实构建、候选公开与 consumed 结算使用统一“范围→head”锁序，目录/权威/证据漂移时零公开、零结算。事实与写回作业保存同一输入签名，当前/事实/作业三方不一致时重算，不以 head 守卫替代。
 - Issue 事实的响应与回复分别按各自权威模板读取，最新整份、首次模板时间、合法计划查找与原因集合使用不同选择器，不逐字段拼接旧响应；MR 事实保留资源唯一行，走查质量按有效记录逐条投影并参与共同字段统计。
 - 按版导出以“版本+项目+目录 C”为稳定谓词，只导出有效记录，作废排除、空版只表头、行数/字节预算与审计摘要落 `form_record_export_logs`；`form.record.export` 只登记权限键，不向角色授予，正式授予由目标环境名单另行迁移。管理页历史版本抽屉复用该契约，项目范围取范围冻结绑定，不在前端推测资格或物理表。
+- 表单事实发布后的延期轮次衔接：`FormFactPublicationEvent` 的 `AFTER_COMMIT` 监听只负责登记；`CustomerIssueDelayClosureProgressRepository.requestRound` 必须经 Spring 代理以 `REQUIRES_NEW` 在方法返回前完成独立短事务提交，调用方 `requestSourceRound` 随后才执行原 `submitAdvance` 唤醒。禁止在尚未释放的事务连接上登记后立即唤醒 worker；事实发布回滚不得登记或唤醒。
 - 表单管理项目候选由 `form_project_candidates` 只读投影提供：从已同步的 ODS `ods_gitlab_projects/namespaces` 幂等重建，搜索影子字段与事实查询一致（原文/去空白/全拼/首字母），分页前由服务端过滤；刷新挂在镜像运行成功事件之后，GET 不连接 GitLab、不触发同步、不新增轮询器，投影按 `sourceConfigId` 隔离并以十进制字符串返回 `projectId`。
 - 共享读源边界：客户问题记录、客户非法页与客户问题统计板读取已发布 `issue_fact`；代码走查非法页与相关质量图表继续读取老平台代码走查来源，不混入表单读源；生产 MR 在正式启用前继续 COMMENT。
 
