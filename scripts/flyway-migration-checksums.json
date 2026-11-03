@@ -170,5 +170,6 @@
 "V20261102_03__form_record_export.sql": "35b0ba67a53dd89dbdede75ebc6527ae856f510c38c48f17d7090f6517d8978c",
 "V20261102_04__merge_request_fact_form_authority.sql": "d5e7412b7a1ca1a07a2f73f43deb8f36772403fe759233d7e4e264b6f4979cd0",
   "V20261102_05__merge_request_fact_form_authority_evidence.sql": "5b965485f6e30a3c4cbac8b004e7b34c19a28ffd8e7a17d9e22c80faab59ab7b",
-  "V20261102_06__form_project_candidates.sql": "abd005621f4af2562a7ce7a484ef8e493dbba1cc500e255e573439ae34125de9"
+  "V20261102_06__form_project_candidates.sql": "abd005621f4af2562a7ce7a484ef8e493dbba1cc500e255e573439ae34125de9",
+  "V20261102_07__code_review_formal_records_business_identity.sql": "7aa9720e116fe6c744582b659d14d3b35759e4039088d35c236e61995e7bbf72"
 }

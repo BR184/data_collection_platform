@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
 import com.data.collection.platform.domain.customerissue.CustomerRequirementRules;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -15,6 +16,10 @@ final class IssueSlaRules {
       Set.of("申请延期", "设计如此", "申请否决", "数据异常", "未复现", "需求如此");
   private static final Set<String> COMMON_DELAY_EXEMPT_LABELS = Set.of(
       CustomerRequirementRules.REQUIREMENT_LABEL, CustomerRequirementRules.SUGGESTION_LABEL, "建议");
+  private static final List<String> NON_FIXED_CLOSURE_MEMBERS =
+      List.of("申请延期", "数据异常", "需求如此", "设计如此", "未复现");
+  private static final List<String> FIXED_CLOSURE_MEMBERS =
+      List.of("已修复", CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER, "待合并", "未更新");
   private static final Pattern STATUS_LABEL_PREFIX = Pattern.compile("^状态\\s*[：:]\\s*");
   private static final List<String> RESPONSE_HEADER_TOKENS =
       List.of(IssueResponseTemplateTitleRules.HEADING_TITLE, IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
@@ -103,9 +108,13 @@ final class IssueSlaRules {
    * @param plannedResolutionAt 最新有效响应的计划解决时间；评论侧取已发布事实的期限输入
    * @param responsePlanExempt 响应侧是否已有合法计划时间（D-21）
    * @param hasReply 是否存在有效回复（D-21 豁免与解决闭环）
+   * @param hasFixCaseNote 是否采用评论侧修复模板证据；表单回复已接管时不再沿用旧评论模板
    */
   record SlaInput(
-      LocalDateTime plannedResolutionAt, boolean responsePlanExempt, boolean hasReply) {}
+      LocalDateTime plannedResolutionAt,
+      boolean responsePlanExempt,
+      boolean hasReply,
+      boolean hasFixCaseNote) {}
 
   /**
    * 用统一业务事实判定响应/解决延期，供首次事实与周期重算共用。
@@ -116,6 +125,7 @@ final class IssueSlaRules {
    *
    * @param input 已确定的业务事实（表单或评论，不混源）
    * @param labels 当前来源标签（响应 SLA 优先级与延期豁免）
+   * @param statusMembers 规范状态成员（解决闭环）
    * @param createdAt 议题创建时间
    * @param priorityLevel 当前来源优先级
    * @param now 判定时刻
@@ -130,23 +140,15 @@ final class IssueSlaRules {
       String priorityLevel,
       LocalDateTime now,
       boolean open) {
-    return evaluate(input, labels, createdAt, priorityLevel, now, open);
-  }
-
-  static Evaluation evaluate(
-      SlaInput input,
-      List<String> labels,
-      LocalDateTime createdAt,
-      String priorityLevel,
-      LocalDateTime now,
-      boolean open) {
     LocalDateTime deadline = resolveDeadline(createdAt, input.plannedResolutionAt());
     int resolveSlaDays = resolveSlaDays(createdAt, input.plannedResolutionAt());
     boolean responseExempt = input.hasReply() || input.responsePlanExempt();
     boolean responseDelayed =
         open && !responseExempt && isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
     boolean resolveDelayed =
-        open && isResolveDelayed(labels, input.hasReply(), deadline, now);
+        open
+            && isResolveDelayedWithStatusMembers(
+                labels, statusMembers, input.hasReply(), input.hasFixCaseNote(), deadline, now);
     return new Evaluation(responseDelayed, resolveDelayed, deadline, resolveSlaDays);
   }
 
@@ -224,13 +226,51 @@ final class IssueSlaRules {
     return isResolveDelayed(labels, false, resolveDeadlineAt, now);
   }
 
+  /**
+   * 表单权威路径：解决闭环看规范状态成员，豁免仍取当前有效原始标签与修复模板（D-34）。
+   *
+   * <p>状态成员来自规范化结果，避免原因前缀等裸文本冒充闭环；单独回复只在命中固定闭环成员时
+   * 视为解决，不单独免除解决延期。豁免优先于期限与状态。
+   *
+   * @param labels 当前来源原始标签
+   * @param statusMembers 议题规范状态成员
+   * @param hasReply 是否存在有效回复
+   * @param hasFixCaseNote 是否采用评论侧修复模板证据
+   * @param resolveDeadlineAt 解决期限
+   * @param now 判定时刻
+   * @return 超过期限且未闭环时返回 {@code true}
+   */
+  static boolean isResolveDelayedWithStatusMembers(
+      List<String> labels,
+      List<String> statusMembers,
+      boolean hasReply,
+      boolean hasFixCaseNote,
+      LocalDateTime resolveDeadlineAt,
+      LocalDateTime now) {
+    if (resolveDeadlineAt == null || now == null) {
+      return false;
+    }
+    if (hasCommonDelayExemption(labels, hasFixCaseNote)) {
+      return false;
+    }
+    if (hasAnyClosureMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)) {
+      return false;
+    }
+    if (hasReply && hasAnyClosureMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
+      return false;
+    }
+    return now.isAfter(resolveDeadlineAt);
+  }
+
   static boolean isResolveDelayed(
       List<String> labels,
       boolean hasFixCaseNote,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
-    if (hasCommonDelayExemption(labels, hasFixCaseNote)
-        || resolveDeadlineAt == null || now == null) {
+    if (resolveDeadlineAt == null || now == null) {
+      return false;
+    }
+    if (hasCommonDelayExemption(labels, hasFixCaseNote)) {
       return false;
     }
     return now.isAfter(resolveDeadlineAt);
@@ -254,8 +294,18 @@ final class IssueSlaRules {
     return false;
   }
 
-  private static boolean hasAnyStatusMember(List<String> statusMembers, List<String> expectedMembers) {
-    return statusMembers != null && statusMembers.stream().anyMatch(expectedMembers::contains);
+  private static boolean hasAnyClosureMember(List<String> values, List<String> expectedMembers) {
+    if (values == null) {
+      return false;
+    }
+    for (String value : values) {
+      String normalized = value == null ? "" : value.trim();
+      String status = STATUS_LABEL_PREFIX.matcher(normalized).replaceFirst("").trim();
+      if (expectedMembers.contains(normalized) || expectedMembers.contains(status)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static int responseSlaHours(List<String> labels, String priorityLevel) {

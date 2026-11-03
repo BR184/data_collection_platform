@@ -32,6 +32,7 @@ class FormMergeRequestAuthorityUpgradeIntegrationTest {
   private static final long RECORDED_FORM_IID = 103L;
   private static final String V169 = "20261102.03";
   private static final String V170 = "20261102.04";
+  private static final String V171 = "20261102.05";
 
   @Container
   private final PostgreSQLContainer<?> POSTGRES =
@@ -60,7 +61,7 @@ class FormMergeRequestAuthorityUpgradeIntegrationTest {
     assertThat(authority(jdbc, COMMENT_IID)).isEqualTo("COMMENT");
     assertThat(authority(jdbc, RECORDED_FORM_IID)).isEqualTo("FORM");
 
-    assertThat(migrate(dataSource, null).migrationsExecuted).isEqualTo(1);
+    assertThat(migrate(dataSource, V171).migrationsExecuted).isEqualTo(1);
     assertThat(authority(jdbc, EMPTY_FORM_IID))
         .as("按所属发布的 CONSUMED FORM 捕获证据恢复 FORM")
         .isEqualTo("FORM");

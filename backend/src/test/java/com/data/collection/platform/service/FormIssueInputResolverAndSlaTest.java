@@ -305,7 +305,8 @@ class FormIssueInputResolverAndSlaTest {
     return new IssueSlaRules.SlaInput(
         input.responseAdopted() ? input.response().plannedResolutionAt() : null,
         input.response().planExempt(),
-        input.reply().present());
+        input.reply().present(),
+        false);
   }
 
   private static IssueFact commentFact() {

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.service.sync.PostgresIntegrationTestDatabase;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,9 +82,10 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
 
     assertThat(bare)
         .contains("\"fixed_label_time\":\"2026-02-01T10:00:00\"")
-        .contains("\"research_template_time\":\"2026-02-02T09:00:00\"");
+        .as("tab 空白行后的规范表头也必须被首次响应时间 SQL 识别")
+        .contains("\"research_template_time\":\"2026-02-02T08:30:00\"");
     assertThat(mixed)
-        .as("已撤标标签的后续 add 事件不能伪造当前完成时间")
+        .as("已撤标标签的后续 add 事件不能伪造当前完成时间；首行不是规范表头的 ## 标题不算响应模板")
         .contains("\"fixed_label_time\":\"2026-02-03T11:00:00\"")
         .contains("\"research_template_time\":\"2026-02-03T09:00:00\"");
     assertThat(missingEvent)
@@ -93,9 +93,31 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         .contains("\"fixed_label_time\":null");
     assertThat(fullWidth).contains("\"fixed_label_time\":\"2026-02-01T11:00:00\"");
 
-    List<String> scoped = rows(provider.issueSourceSqlForRoots(List.of(5L, 6L, 7L, 8L)),
-        List.of(5L, 6L, 7L, 8L));
-    assertThat(scoped).containsExactly(bare, mixed, missingEvent, fullWidth);
+    assertThat(row(rows, 9L))
+        .as("普通标签改名为完成后，改名前的 add 不能证明事件时语义")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 10L))
+        .as("改名后出现新的 add 才可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-11T10:00:00\"");
+    assertThat(row(rows, 11L))
+        .as("等价完成词之间改名且无新 add 时保持未知")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 12L))
+        .as("等价完成词改名后的新 add 可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-12T10:00:00\"");
+    assertThat(row(rows, 13L))
+        .as("完成→普通→完成且无新 add 时保持未知")
+        .contains("\"fixed_label_time\":null");
+    assertThat(row(rows, 14L))
+        .as("完成→普通→完成后的新 add 可证明完成语义")
+        .contains("\"fixed_label_time\":\"2026-02-13T10:00:00\"");
+
+    List<Long> roots = List.of(5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
+    List<String> scoped = rows(provider.issueSourceSqlForRoots(roots), roots);
+    assertThat(scoped)
+        .containsExactly(bare, mixed, missingEvent, fullWidth,
+            row(rows, 9L), row(rows, 10L), row(rows, 11L), row(rows, 12L),
+            row(rows, 13L), row(rows, 14L));
   }
 
   private String row(List<String> rows, long issueId) {
@@ -110,11 +132,14 @@ class GitlabFactIssueSourceRootScopeEquivalenceTest {
         "insert into ods_gitlab_projects(id, name, mirror_deleted) values (325, 'CC_Product', false)");
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_labels(id, title, mirror_deleted) values
-          (210, '已修复/完成', false),
-          (211, '状态:已修复/完成', false),
-          (212, '状态：已修复/完成', false),
-          (213, '其他客户标签', false)
+        insert into ods_gitlab_labels(id, title, updated_at, mirror_deleted) values
+          (210, '已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (211, '状态:已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (212, '状态：已修复/完成', timestamp '2026-02-01 00:00:00', false),
+          (213, '其他客户标签', timestamp '2026-02-01 00:00:00', false),
+          (214, '已修复/完成', timestamp '2026-02-10 00:00:00', false),
+          (215, '状态:已修复/完成', timestamp '2026-02-10 00:00:00', false),
+          (216, '已修复/完成', timestamp '2026-02-10 00:00:00', false)
         """);
     jdbcTemplate.update(
         """

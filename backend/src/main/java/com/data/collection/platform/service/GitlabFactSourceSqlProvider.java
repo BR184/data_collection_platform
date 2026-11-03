@@ -97,11 +97,11 @@ class GitlabFactSourceSqlProvider {
   // 与 IssueResponseTemplateTitleRules 使用同一组标题常量；只认首个非空行，正文提及不算模板。
   private static final String RESPONSE_TEMPLATE_TITLE_MATCH_SQL =
       """
-            (select btrim(title_line)
+            (select btrim(title_line, E' \\t\\r\\n\\f\\v')
                from regexp_split_to_table(
                       replace(replace(coalesce(n.note, ''), E'\\r\\n', E'\\n'), E'\\r', E'\\n'),
                       E'\\n') with ordinality as title_lines(title_line, line_position)
-              where btrim(title_line) <> ''
+              where btrim(title_line, E' \\t\\r\\n\\f\\v') <> ''
               order by line_position
               limit 1) in ('%s', '%s')
       """

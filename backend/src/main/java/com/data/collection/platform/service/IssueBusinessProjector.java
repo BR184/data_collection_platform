@@ -64,6 +64,10 @@ final class IssueBusinessProjector {
         input.replyAdopted()
             ? input.reply().present()
             : IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload());
+    // 表单回复已接管该侧时，旧评论修复模板不再作为解决豁免证据。
+    boolean hasFixCaseNote =
+        !input.replyAdopted()
+            && IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload());
     // 响应侧采用表单时才由表单计划推导期限；否则沿用已发布事实的评论期限，不混算。
     LocalDateTime deadline =
         input.responseAdopted()
@@ -80,8 +84,13 @@ final class IssueBusinessProjector {
                 labels, createdAt, fact.getPriorityLevel(), now);
     boolean resolveDelayed =
         open
-            && IssueSlaRules.isResolveDelayed(
-                labels, hasReply, deadline, now);
+            && IssueSlaRules.isResolveDelayedWithStatusMembers(
+                labels,
+                IssueStatusMembers.parse(fact.getBugStatus()),
+                hasReply,
+                hasFixCaseNote,
+                deadline,
+                now);
     return new IssueSlaRules.Evaluation(
         responseDelayed, resolveDelayed, deadline, resolveSlaDays);
   }
