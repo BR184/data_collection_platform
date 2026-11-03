@@ -1,6 +1,6 @@
 # 表单 v6 N5：集成与发布准备
 
-> 状态（2026-11-03，N5 实施中，范围已批准）：N4 整体验收通过（回执 `d09dbf04`）；回执 `eb906e43` 批准原功能分支受控合入 main、S1 项目选择与历史版本导出入口。允许 **main→功能分支** 普通合并并手工裁决冲突；未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`，批准输入 `39291fa2`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
+> 状态（2026-11-03，N5 修改后重审，R01—R05 已完成，待提交送审）：N4 整体验收通过（回执 `d09dbf04`）；范围回执 `eb906e43` 与复审回执 `aa85f101` 已吸收。审核输入 `af6d0330` 的 R01—R05 按[复审执行单](unified-form-system-implementation-plan-20261021.md#n5-review-af6d0330)整改，最终隔离套件与前端检查全绿；N4 批准、受控集成与已批准 UI 保留。未批准功能分支→main、黄金、正式出包、源码留档或生产启用。分支 `表单多版本与填写功能开发-20261026`。N4 活动计划已收口，原文可按 `git show 76dc4dd3:docs/plans/unified-form-v6-n4-implementation-20261030.md` 恢复。
 
 ## 进度与中间物
 
@@ -15,7 +15,12 @@
 - 首次默认套件（`.tmp-logs/n5-final-suite.log`，11:04 结束）出现 `IssueFactSourceInstancePipelineTest` 6 个 `setUp` 错误，报 `customer_issue_delay_closure_requests` 不存在；同一时段共享 15433 的 Flyway 历史被外部重建（installed_on 11:00:36–11:00:42），隔离单类复跑 6/6 通过，随后全量复跑 r3 全绿。两次日志均保留，失败不归因于本分支代码。
 - 桌面隔离验收（PG 15521、后端 18097、前端 18197，不改写 15432）：S1 项目名称跨页/拼音/路径搜索与单项目自动带出可用；发布 `PUBLISHED` 后导出按钮按版本项目导出并落审计；存量记录 990001 从填写页打开、带出原值、编辑问题原因保存成功并显示“更新 11/03 04:00”。
 - 桌面核对发现并修复 S1 缺陷：版本所属项目下拉传入 `FormAdminProjectOption`（无 `value`/`label`），显示裸项目号且选项为空；`FormTemplateAdminView.vue` 统一经 `toProjectSelectOption` 投影，并新增选项契约断言，管理页测试 29/29 通过。
-- 进行点：回填本计划证据、检查差异后提交并推送双远端；仍不运行黄金、不合入 main、不出包、不启用生产。
+- R01 已整改：`FormProjectCandidateService` 按 `source_instance` 分流；`default` 只取本 config 的 ODS 镜像归属（`ods_gitlab_projects.mirror_task_id → sync_run_table_tasks.config_id/mirror_table`），`dgm` 只取 `code_review_dgm_project_options`，其它来源显式不可用；命名空间沿 `parent_id` 递归到根，缺父/循环/深度超限/跨来源均不伪造路径。`FormProjectCandidateIntegrationTest` 10/10 覆盖两来源同时刷新、DGM 同 ID 不同平台、`team/sub/project` 根路径、空目录、失败保留。
+- R02 已整改：新增 `V20261102_08__form_project_candidate_state.sql` 与 `FormProjectCandidateStartupInitializer`，服务模式启动对已确认来源做一次幂等初始化，迁移模式不扫描业务包；状态区分 `UNSYNCED/READY/EMPTY/FAILED/UNAVAILABLE`，失败保留最后成功快照并在接口返回 message；DGM 同步事件成功/失败分别刷新与标记失败。专属库实测启动初始化 63 条候选 `READY`，`2001` 路径为 `demo/sub/payment-gateway`。
+- R03 已整改：管理 detail 的 `VersionView` 新增服务端 `exportable`、`recordSourceRole`、来源与版本项目元数据；导出服务优先读取 `form_template_publications.frozen_binding.projectIds`，范围重绑后仍按版本冻结项目导出。前端移除新增导出弹窗与实心主按钮，改为历史版本行内次要操作与内联项目/下载面板，复用范围/版本/来源/代次守卫且不写全局候选缓存。
+- R05 已核明（见下表）：`f22cd63d` 的 7 份快照均可追溯到已批准 main `eb9b2f8b` 或分支既有发布读取基线；未发现本轮新改或无法证明授权的快照变化，因此不回滚快照，只在文档更正该提交说明。
+- R04 已完成：首次专属库全量 2314 项/1 失败（`FormIssueAdoptionFactPipelineIntegrationTest` 轮次 30 秒未收敛，宿主可用内存约 0.8–1.2GB 时出现 Testcontainers 连接抖动；该失败类单独复测 25/25 通过）。重建专属 schema 后二次全量 2314 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，392 份 XML；日志 `.tmp-logs/n5-r04-final-20261103/final/final-suite.log`（SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`）。输入仍为 `HEAD=af6d0330e00c44088938690272dc022d13ad26b5`、backend diff SHA-256 `713698c35965c5ca734912834a4cd1e7764224e84f4ea991a36f8a0f59a1e849`；首次失败与复测日志同时保留。前端 typecheck/lint 通过，Vitest 174 文件 953 项通过，`vite build` 成功；桌面无头 Chrome 截图存于 `.tmp-logs/n5-r04-final-20261103/desktop/`。
+- 进行点：回填进度、运行护栏、按后端/前端/文档三批提交并双远端回读送复验。仍不运行黄金、不合入 main、不出包、不启用生产。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
@@ -36,7 +41,7 @@
 
 | 项 | main | 功能分支 | 判断 |
 | --- | --- | --- | --- |
-| 迁移总数 | 140 | 173 | 分支 = main 140 + 33（S1 新增 06/07），无 main 独有版本 |
+| 迁移总数 | 140 | 174 | 分支 = main 140 + 34（S1 新增 06/07、复审状态表 08），无 main 独有版本 |
 | 共享 140 条 checksum | — | 与 main 完全一致 | 无既有迁移改动 |
 | 分支新增 33 条 | — | 18 条发布读取 + 13 条表单 v6 + S1 投影 `20261102_06` + 集成视图重建 `20261102_07` | 全部前向；含 `V20261022_01/02/04`、`20261027_01`、`20261029_01/02`、`20261030_01/02`、`20261102_01`—`07` |
 | 旧主线升级测试 | 140 条基线 | `FormV6LegacyUpgradeIntegrationTest` 按 140+33、head `20261102.07` | 已与当前 main 迁移集对齐，最终默认套件通过 |
@@ -71,14 +76,14 @@
 | 原版读写与旧链接 | `FormRecordServiceIntegrationTest` 38；N2 桌面交互证据（批准输入 `94749f3a`） | 已有证据 |
 | 幂等跨发布 | `FormRecordServiceIntegrationTest` 38、`FormV6RegistrationIntegrationTest` 21 | 已有证据 |
 | 多人及多标签 | N2 双用户/多标签桌面交互证据；前端交互测试未变 | 沿用批准证据 |
-| 管理异步边界 | `FormTemplateAdminIntegrationTest` 22、管理页前端测试；批准 UI 基线 | 已有证据 |
-| 字段与条件 | `FormTemplateAdminIntegrationTest` 22、`FormVersionStructureVerifierIntegrationTest` 6 | 已有证据 |
+| 管理异步边界 | `FormTemplateAdminIntegrationTest` 23、管理页前端测试；批准 UI 基线 | 已有证据 |
+| 字段与条件 | `FormTemplateAdminIntegrationTest` 23、`FormVersionStructureVerifierIntegrationTest` 6 | 已有证据 |
 | 共同字段统计 | `FormCommonFieldServiceTest` 12、`FormReviewProjectionIntegrationTest` 3、`CodeReviewMultiBoardFormRecordsIntegrationTest` 3 | 已有证据 |
 | Issue 时间选择 | `FormIssueInputResolverAndSlaTest` 15、`FormIssueAdoptionFactPipelineIntegrationTest` 25 | 已有证据 |
 | 消费并发 | `ReadPublicationModelIntegrationTest` 49、`FormHeadCaptureIntegrationTest` 9、`CustomerIssueRequirementLabelAutoChainIntegrationTest` 9、`FormIssueAdoptionFactPipelineIntegrationTest` 25 | 已有证据 |
-| Excel | `FormRecordExportIntegrationTest` 5、`FormRecordExportSpringContextIntegrationTest` 1、导出布局测试 | 端点待黄金审批 |
+| Excel | `FormRecordExportIntegrationTest` 6、`FormRecordExportSpringContextIntegrationTest` 1、导出布局测试 | 端点待黄金审批 |
 | 初始化与恢复 | `FormV6LegacyUpgradeIntegrationTest` 1、`FormV6DirectoryMigrationTest` 3、`FormV6RenumberedHistoryUpgradeTest` 1 | 已有证据 |
-| 门禁 | 173 条迁移锁、端点/权限/工作区登记、最终默认套件 2307、前端 949 项与构建、隔离桌面证据 | 黄金未运行，按发布门禁另行审批 |
+| 门禁 | 174 条迁移锁、端点/权限/工作区登记、最终隔离默认套件 2314、前端 953 项与构建、隔离桌面证据 | 黄金未运行，按发布门禁另行审批 |
 
 矩阵说明：以上历史计数来自冻结 XML（`.tmp-logs/p6-r02-final-20261102/xml/`）；S1 与集成变更后在最终代码重跑一次默认套件，原始日志/XML 冻结于 `.tmp-logs/n5-final-20261103/`。前端变更后已重跑 typecheck/lint/全量 Vitest/build，并完成隔离桌面链路，不重复模板或浏览器全矩阵。
 
@@ -103,6 +108,54 @@ S1 实施要点：
 最小验证：跨页搜索（目标不在首 20 项）、同名跨来源、回显/失效、单多选自动带出、迟到响应；真实 PG 目录同步→投影→候选接口；导出资格/权限、项目谓词、空版本表头及失败反馈。完成后只做管理范围选择/回显/发布、历史版本按项目导出与原编辑主线的桌面核对。
 
 实施结果（2026-11-03）：迁移、投影、同步事件刷新、候选端点与 `FormTemplateAdminView` 接入选代已完成；真实 PG 集成测试 5/5（跨页拼音/路径、同名不同命名空间身份不合并、回显缺失、来源投影独立、成功事件刷新、幂等）；前端管理页 29/29、SmartSelect 1/1、类型检查与 ESLint 通过。本地 ODS 项目目录当前没有平台归属列，候选行按 `sourceConfigId` 独立存储和查询、切换来源使旧请求失效，同名身份由来源配置+项目 ID 确定；跨平台同名不合并依赖各来源目录内容与这一身份边界。桌面核对待整链验证阶段执行。
+
+## N5 复审整改（R01—R05）
+
+### R01/R02 候选来源、路径与目录状态
+
+- 来源隔离：`gitlab_sync_configs.source_instance='default'` 只读取本 config 经 `sync_run_table_tasks` 拥有的 ODS 项目/命名空间；`dgm` 只读取 `code_review_dgm_project_options` 的已同步目录；其它来源返回 `UNAVAILABLE`，不回退全量 ODS。
+- 路径：命名空间沿 `parent_id` 递归到根并校验深度≤32、缺失父项、循环与跨来源；无法证明的路径不输出候选。
+- 状态：`form_project_candidate_states` 记录 `UNSYNCED/READY/EMPTY/FAILED/UNAVAILABLE`；`EMPTY` 可用但无选项，`FAILED` 保留最后成功快照并返回 message，GET 不连远端、不触发同步。
+- 初始化：`FormProjectCandidateStartupInitializer` 仅在服务模式启动执行一次幂等初始化；`MigrationApplication` 不扫描平台业务包。专属库实测 63 条候选 `READY`，`2001` 返回 `demo/sub/payment-gateway`。
+- 回归：`FormProjectCandidateIntegrationTest` 10/10；含两来源同时刷新、同 ID 不同平台、根路径、缺父/循环/跨来源排除、空目录、失败保留、启动初始化。
+
+### R03 导出资格与历史抽屉交互
+
+- 后端 detail 返回 `exportable`、`recordSourceRole`、`sourceConfigId/sourceInstance/canonicalGitlabBaseUrl` 与版本 `projectIds`；`exportable` 仅对 AUTHORITATIVE 且 PUBLISHED/RETIRED 且来源可读、项目非空为真。
+- 导出项目范围优先取 `form_template_publications.frozen_binding.projectIds`，范围重绑后仍按版本冻结项目校验；请求外项目继续返回“必须属于该版本所在范围”。
+- 前端入口仅保留历史版本行内次要“导出Excel”，内联单项目回显/多项目 SmartSelect、下载与取消；无新增 dialog、无实心主按钮，切换范围/版本或关闭抽屉后迟到结果不覆盖当前状态。
+- 回归：管理详情 23/23、导出 29/29、前端 32/32；真实浏览器（后端 18098 / 前端 18198 / 专属 PG 15522）完成范围发布、历史抽屉单项目回显、`versionId=1&projectIds=2001` 下载 200/xlsx/4008 字节，审计行 `[2001]/row_count=0/byte_size=4008`。
+
+### R04 最终隔离验证（专属资源）
+
+- 专属资源：`dcp-n5-r04-pg`，容器 ID `8b5961d5b4a5e1560fc9a096de856db88a1d87482e3e1dcedb6fbb1468a6f530`，端口 `15522`，数据库 `qaflex`，schema `qaflex_n5_final`；桌面服务 18098/18198 使用同一容器 `public` schema，取证后已停止。
+- 固定命令：
+  `cd D:/projects/dcp-form-w4-20261026/backend`
+  `TEST_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:15522/qaflex?currentSchema=qaflex_n5_final,public'`
+  `TEST_DATASOURCE_USERNAME=qaflex TEST_DATASOURCE_PASSWORD=form_test_password`
+  `SPRING_FLYWAY_SCHEMAS=qaflex_n5_final SPRING_FLYWAY_DEFAULT_SCHEMA=qaflex_n5_final`
+  `mvn -o -Dfile.encoding=UTF-8 clean test`
+- 禁止：使用或修复共享 15432/15433，repair/重建/回退共享库；Testcontainers 类继续使用各自独占容器。
+- 输入与产物：`HEAD=af6d0330e00c44088938690272dc022d13ad26b5`，backend diff SHA-256 `713698c35965c5ca734912834a4cd1e7764224e84f4ea991a36f8a0f59a1e849`，全工作树 diff SHA-256 `aba9357de5f906834a9ace215b111be4c5c1ea7c1a528321843fdb80caeed709`，untracked manifest SHA-256 `18c39c16ba8e25f95cb93d10d20d9515ae95efa50183fea9026ed0db512843a5`。
+- 结果：首次全量 2314/1 失败（失败类单独复测 25/25，失败为宿主内存压力下的异步轮次超时/连接抖动）；重建 schema 后二次全量 2314/0/0/1，`BUILD SUCCESS`，392 份 XML；最终日志 SHA-256 `c316975c106d3e8c07874b6c49580e4b57bb0b0f9cbc3aa4e5da66d8368a5aa2`。首次日志、复测日志与两轮 XML 分目录保留，未用跳过/掩码/放宽断言让失败变绿。
+
+### R05 黄金快照变更来源
+
+`f22cd63d` 的提交说明称“未在本轮更新任何快照”，与实际修改 7 份快照不符；以下为逐文件核验，均为已批准输入的继承，没有本轮新改或无法证明授权的期望值，故不回滚快照，并在本文更正原说明（不改写 Git 历史）。
+
+| 快照 | f22cd63d 变更 | 来源/授权 | 与当前 main 差异 | 结论 |
+| --- | --- | --- | --- | --- |
+| `customer-issues/get___illegal-records_export__default.json` | 延期状态“未设定议题状态”→“数据异常”等业务值 | main `eb9b2f8b` 回放 | 与 main 完全相同 | 保留 |
+| `customer-issues/get___illegal-records_filter-options__default.json` | 新增选项“数据异常” | main `eb9b2f8b` 回放 | 仅差分支既有 `readView` 块 | 保留 |
+| `customer-issues/get___records_export__delay.json` | 延期导出业务值与状态 | main `eb9b2f8b` 回放（post 与其一致） | main 后续 `cbca4eeb` 已再更新 | 保留 |
+| `customer-issues/get___records_filter-options__cc-product.json` | 新增选项“数据异常” | main `eb9b2f8b` 回放 | 仅差分支既有 `readView` 块 | 保留 |
+| `customer-issues/get___records_filter-options__delay.json` | 新增选项“数据异常” | main `eb9b2f8b` 回放 | 仅差分支既有 `readView` 块 | 保留 |
+| `statistic-boards/get___{boardKey}_issues_export__customer-issue-defect-summary.json` | 客户问题缺陷汇总导出值 | main `eb9b2f8b` 回放 | 与 main 完全相同 | 保留 |
+| `statistic-boards/get___{boardKey}_rule-explanation__customer-issue-customer-statistics.json` | 校准集合 `outputCount` 169→164 | main `eb9b2f8b` 回放 | 余 `readView` 与延期范围 142（main 后续 `cbca4eeb` 为 110），均为分支既有基线 | 保留 |
+
+核验命令：`git show f22cd63d^..f22cd63d -- <file>`、`git rev-parse <ref>:<file>`、`git diff eb9b2f8b f22cd63d -- <file>`；`eb9b2f8b` 已是 main `f74fdef7` 的祖先。未运行黄金、未执行 update、未手改期望值或掩码。
+
+说明：`cbca4eeb` 对延期导出与规则说明快照的后续更新属于已批准 main 的测试基线变化，但本轮整改不运行 golden，故未手工搬运该期望值；它与本次 `f22cd63d` 的来源授权无关，留待后续发布门禁按黄金授权流程处理。
 
 ## 发布资料与差异清单（待审批，不执行）
 
@@ -132,7 +185,7 @@ S1 实施要点：
 5. S1 功能与导出入口按获批范围实施并做桌面验收；不重构批准 UI。
 6. 发布资料、黄金差异清单和外部前置齐备后另行申请；黄金、main 合入、出包、生产启用仍各自门禁。
 
-停止条件：迁移/契约冲突未解决、直接 merge 会删除发布读取文件、集成默认套件失败、S1 范围未批准、黄金未授权。资源：本 worktree 与自有构建输出、隔离 PG/端口/容器；默认后端套件按既有测试配置使用 15433，桌面与代表性链路使用隔离 15521 与 18097/18197；不写 15432 开发库、不触碰共享服务或真实写回。
+停止条件：迁移/契约冲突未解决、直接 merge 会删除发布读取文件、集成默认套件失败、S1 范围未批准、黄金未授权。资源：本 worktree 与自有构建输出、隔离 PG/端口/容器；复审最终默认套件使用专属 `dcp-n5-r04-pg`（15522，schema `qaflex_n5_final`），桌面使用同一容器与 18098/18198；拒绝落回 15432/15433，不写共享库、不触碰共享服务或真实写回。
 
 ## 风险、假设与敏感只读数据
 
