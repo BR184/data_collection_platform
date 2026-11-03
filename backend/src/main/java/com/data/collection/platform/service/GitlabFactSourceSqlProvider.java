@@ -94,6 +94,21 @@ class GitlabFactSourceSqlProvider {
         CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID,
         CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID,
         CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER);
+  // 与 IssueResponseTemplateTitleRules 使用同一组标题常量；只认首个非空行，正文提及不算模板。
+  private static final String RESPONSE_TEMPLATE_TITLE_MATCH_SQL =
+      """
+            (select btrim(title_line)
+               from regexp_split_to_table(
+                      replace(replace(coalesce(n.note, ''), E'\\r\\n', E'\\n'), E'\\r', E'\\n'),
+                      E'\\n') with ordinality as title_lines(title_line, line_position)
+              where btrim(title_line) <> ''
+              order by line_position
+              limit 1) in ('%s', '%s')
+      """
+          .formatted(
+              IssueResponseTemplateTitleRules.HEADING_TITLE,
+              IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
+
   private static final String ISSUE_SOURCE_SQL_TEMPLATE = """
       with __TARGET_ROOTS__distinct_issue_labels as (
         select distinct
@@ -127,7 +142,9 @@ class GitlabFactSourceSqlProvider {
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by n.created_at desc nulls last, n.id desc) as notes_text,
-               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
+               min(n.created_at) filter (
+                 where __RESPONSE_TEMPLATE_TITLE_MATCH__
+               ) as research_template_time,
                (
                  array_remove(
                    array_agg(
@@ -192,7 +209,9 @@ class GitlabFactSourceSqlProvider {
       """;
   private static final String ISSUE_SOURCE_SQL =
       injectFixLabelEvents(
-          ISSUE_SOURCE_SQL_TEMPLATE, FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
+          ISSUE_SOURCE_SQL_TEMPLATE.replace(
+              "__RESPONSE_TEMPLATE_TITLE_MATCH__", RESPONSE_TEMPLATE_TITLE_MATCH_SQL),
+          FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
       with __TARGET_ROOTS__reviewer_names as (

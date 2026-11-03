@@ -17,7 +17,7 @@ final class IssueSlaRules {
       CustomerRequirementRules.REQUIREMENT_LABEL, CustomerRequirementRules.SUGGESTION_LABEL, "建议");
   private static final Pattern STATUS_LABEL_PREFIX = Pattern.compile("^状态\\s*[：:]\\s*");
   private static final List<String> RESPONSE_HEADER_TOKENS =
-      List.of("# 问题调研情况说明", "问题调研情况说明");
+      List.of(IssueResponseTemplateTitleRules.HEADING_TITLE, IssueResponseTemplateTitleRules.TEMPLATE_TITLE);
   private static final List<String> FIX_CASE_NOTE_TOKENS = List.of("### 1、修复状态");
   private static final int RESPONSE_SLA_P1_HOURS = 24;
   private static final int RESPONSE_SLA_P2_HOURS = 48;
@@ -27,7 +27,7 @@ final class IssueSlaRules {
   private IssueSlaRules() {}
 
   static boolean hasResponse(String notesText) {
-    return templateSnapshot(notesText).hasTemplateReply();
+    return IssueResponseTemplateTitleRules.containsTemplateNote(notesText);
   }
 
   /**
@@ -252,6 +252,10 @@ final class IssueSlaRules {
       }
     }
     return false;
+  }
+
+  private static boolean hasAnyStatusMember(List<String> statusMembers, List<String> expectedMembers) {
+    return statusMembers != null && statusMembers.stream().anyMatch(expectedMembers::contains);
   }
 
   private static int responseSlaHours(List<String> labels, String priorityLevel) {
