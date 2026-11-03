@@ -127,7 +127,7 @@ class QualityBoardCodeReviewReadSupportPostgresIntegrationTest {
     insertCompatibilityRate("cc".equals(source) ? "dgm" : "cc", "CC2027R1&R2", "dev",
         9, 1205, 77, 9999, 1, 99, "MERGED");
     try (XSSFWorkbook workbook = exportCompatibility("CC2027R1", source)) {
-      assertCompatibilityMrRates(workbook);
+      assertCompatibilityTotals(workbook);
       var details = workbook.getSheet("ALL");
       var opened = java.util.stream.IntStream.rangeClosed(1, details.getLastRowNum())
           .mapToObj(details::getRow)
@@ -151,7 +151,7 @@ class QualityBoardCodeReviewReadSupportPostgresIntegrationTest {
     insertCompatibilityRate("cc".equals(source) ? "dgm" : "cc", "CC2026R4", branch,
         9, 1208, 77, 9999, 1, 99, "MERGED");
     try (XSSFWorkbook workbook = exportCompatibility("CC2026R4SP1", source)) {
-      assertCompatibilityMrRates(workbook);
+      assertCompatibilityTotals(workbook);
       var details = workbook.getSheet("ALL");
       for (int index = 1; index <= details.getLastRowNum(); index++) {
         assertThat(details.getRow(index).getCell(24).getStringCellValue()).isEqualTo(branch);
@@ -168,31 +168,20 @@ class QualityBoardCodeReviewReadSupportPostgresIntegrationTest {
     return new XSSFWorkbook(new ByteArrayInputStream(bytes));
   }
 
-  private void assertCompatibilityMrRates(XSSFWorkbook workbook) {
-    assertThat(workbook.getNumberOfSheets()).isEqualTo(1);
-    assertThat(workbook.getSheetName(0)).isEqualTo("ALL");
-    var details = workbook.getSheet("ALL");
-    assertThat(details.getRow(0).getLastCellNum()).isEqualTo((short) 35);
-    assertThat(details.getLastRowNum()).isEqualTo(3);
-    var repeated = java.util.stream.IntStream.rangeClosed(1, details.getLastRowNum())
-        .mapToObj(details::getRow)
-        .filter(row -> row.getCell(4).getNumericCellValue() == 77).toList();
-    assertThat(repeated).hasSize(2);
-    assertThat(repeated.stream().map(row -> row.getCell(11).getNumericCellValue()).toList())
-        .containsExactlyInAnyOrder(60D, 30D);
-    for (var row : repeated) {
-      assertThat(row.getCell(12).getNumericCellValue()).isEqualTo(1000);
-      assertThat(row.getCell(20).getNumericCellValue()).isCloseTo(1000D / 90 * 60,
-          org.assertj.core.data.Offset.offset(1e-9));
-      assertThat(row.getCell(21).getNumericCellValue()).isCloseTo(1D / 90 * 60,
-          org.assertj.core.data.Offset.offset(1e-9));
-    }
-    var otherMr = java.util.stream.IntStream.rangeClosed(1, details.getLastRowNum())
-        .mapToObj(details::getRow)
-        .filter(row -> row.getCell(4).getNumericCellValue() == 78).findFirst().orElseThrow();
-    assertThat(otherMr.getCell(12).getNumericCellValue()).isEqualTo(500);
-    assertThat(otherMr.getCell(11).getNumericCellValue()).isEqualTo(30);
-    assertThat(otherMr.getCell(20).getNumericCellValue()).isEqualTo(1000);
+  private void assertCompatibilityTotals(XSSFWorkbook workbook) {
+    assertThat(workbook.getSheet("ALL").getLastRowNum()).isEqualTo(3);
+    var summary = workbook.getSheet("走查速率汇总");
+    assertThat(summary.getLastRowNum()).isEqualTo(3);
+    var repeated = java.util.stream.IntStream.rangeClosed(1, 2).mapToObj(summary::getRow)
+        .filter(row -> row.getCell(3).getNumericCellValue() == 77).findFirst().orElseThrow();
+    assertThat(repeated.getCell(5).getNumericCellValue()).isEqualTo(1000);
+    assertThat(repeated.getCell(6).getNumericCellValue()).isEqualTo(90);
+    assertThat(repeated.getCell(7).getNumericCellValue()).isCloseTo(1000D / 90 * 60,
+        org.assertj.core.data.Offset.offset(1e-9));
+    var total = summary.getRow(3);
+    assertThat(total.getCell(5).getNumericCellValue()).isEqualTo(1500);
+    assertThat(total.getCell(6).getNumericCellValue()).isEqualTo(120);
+    assertThat(total.getCell(7).getNumericCellValue()).isEqualTo(750);
   }
 
   private void insertCompatibilityRate(String source, String project, String branch, long projectId,

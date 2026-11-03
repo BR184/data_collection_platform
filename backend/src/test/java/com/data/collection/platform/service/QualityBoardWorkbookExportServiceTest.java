@@ -104,6 +104,53 @@ class QualityBoardWorkbookExportServiceTest {
       assertThat(xlsx.getSheetAt(0).getRow(1).getCell(1).getStringCellValue()).isEqualTo("CrownCAD 2026 R4");
       assertThat(xlsx.getSheetAt(0).getRow(1).getCell(19).getNumericCellValue()).isEqualTo(3D);
       assertThat(xlsx.getSheetAt(0).getRow(1).getCell(33).getStringCellValue()).isEqualTo("DGM");
+      assertThat(xlsx.getSheetAt(1).getSheetName()).isEqualTo("走查速率汇总");
+      assertThat(xlsx.getActiveSheetIndex()).isEqualTo(1);
+      assertThat(xlsx.getSheetAt(0).isSelected()).isFalse();
+      assertThat(xlsx.getSheetAt(1).isSelected()).isTrue();
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(7).getNumericCellValue()).isEqualTo(120D);
     }
   }
+
+  @Test
+  void deduplicatesAddedLinesAndAccumulatesReviewMinutesInRateSummary() throws Exception {
+    when(codeReviewReadSupport.configuredReadMode()).thenReturn(CodeReviewDataReadMode.MATCH_MODE);
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
+    when(codeReviewReadSupport.codeReviewRecordRows("dgm", "CC2026R4", CodeReviewDataReadMode.MATCH_MODE))
+        .thenReturn(List.of(reviewRow(5001L, 1000, 60), reviewRow(5001L, 1000, 30)));
+
+    byte[] workbook = exportService.exportCodeReviewRecordsWorkbook("CC2026R4", "dgm");
+    try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
+      assertThat(xlsx.getSheetAt(0).getLastRowNum()).isEqualTo(2);
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(5).getNumericCellValue()).isEqualTo(1000D);
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(6).getNumericCellValue()).isEqualTo(90D);
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(7).getNumericCellValue()).isCloseTo(666.666666D, org.assertj.core.data.Offset.offset(0.000001D));
+      assertThat(xlsx.getSheetAt(1).getRow(2).getCell(7).getNumericCellValue()).isCloseTo(666.666666D, org.assertj.core.data.Offset.offset(0.000001D));
+    }
+  }
+
+  private QualityBoardCodeReviewRecordExportRow reviewRow(long iid, int lines, int minutes) {
+    return new QualityBoardCodeReviewRecordExportRow(
+        "dgm", LocalDateTime.of(2026, 7, 1, 9, 30), "CrownCAD 2026 R4", "几何", "MERGED", iid,
+        "修复几何问题", "作者A", "走查人A", "被指派人A", LocalDateTime.of(2026, 7, 2, 10, 20),
+        "合并人A", minutes, lines, 20, 1, 1, 0, 0, 1, 3, 120, 0.12, 25D, 0.5, "dev",
+        "扫描通过", 2, 60, "功能A", 15D, "编码规范通过", 0, "静态扫描通过", "DGM", 130);
+  }
+
+  @Test
+  void marksRateSummaryIncompleteWhenRepeatedReviewRowsDisagreeOnAddedLines() throws Exception {
+    when(codeReviewReadSupport.configuredReadMode()).thenReturn(CodeReviewDataReadMode.MATCH_MODE);
+    when(rdService.normalizeProjectName("CC2026R4")).thenReturn("CC2026R4");
+    when(codeReviewReadSupport.codeReviewRecordRows("cc", "CC2026R4", CodeReviewDataReadMode.MATCH_MODE))
+        .thenReturn(List.of(reviewRow(7001L, 1000, 60), reviewRow(7001L, 900, 30)));
+
+    byte[] workbook = exportService.exportCodeReviewRecordsWorkbook("CC2026R4", "cc");
+    try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(5).getStringCellValue()).isEmpty();
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(7).getStringCellValue()).isEmpty();
+      assertThat(xlsx.getSheetAt(1).getRow(1).getCell(9).getStringCellValue()).isEqualTo("数据不完整：同MR新增行数冲突");
+      assertThat(xlsx.getSheetAt(1).getRow(2).getCell(9).getStringCellValue()).isEqualTo("数据不完整");
+    }
+  }
+
 }
