@@ -1,3 +1,16 @@
+## 2026-11-03 表单N5输入4ae4f5ac复验：R04提交后轮次事务竞态修复
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | R03关闭；R04事务竞态已按执行单修复，针对性回归与最终默认套件2316/0/0/1通过 | 表单多版本与填写功能开发-20261026 | 冻结证据后提交双远端并送复验；黄金/main/出包/生产启用未准入 |
+
+- 回执`8db94c97`已吸收；R03和R01/R02/R05保持关闭，不重做。
+- 根因：事实提交后的`AFTER_COMMIT`回调中，`requestRound`复用尚未释放的事务连接，异步`claimBySource`在资源清理前领取为空，随后留下`REQUESTED`；原13:33现场不追认同因。
+- 修复：仅给`CustomerIssueDelayClosureProgressRepository.requestRound`加`@Transactional(REQUIRES_NEW)`，方法返回前完成提交；`requestSourceRound`随后才执行原`submitAdvance`。未改重算事务、写回链、`onConfigSaved`或UI，无新增迁移。
+- 回归：`afterCommitRequestIsVisibleToWorkerBeforeWakeUp`用真实PG+屏障验证提交后另一连接可领取；临时撤销注解时领取为空（红），恢复后通过（绿）。新增`rolledBackPublicationDoesNotRegisterDelayRound`；`formDriven...`保持IDLE、completed=request、failure=0。受影响49项全绿。
+- 最终套件：专属15523/`qaflex_n5_tx_final`，2316项、0失败、0错误、1条件跳过，`BUILD SUCCESS`，392份XML；日志SHA-256 `8e08852064534ed29606d06c0f4ed96078d12e2cfd26ec99090885aa9ea9a888`；输入HEAD `4ae4f5ac`、backend/frontend差异SHA-256 `7cac8ba1…`。旧2314结果不再作为新版本门禁。
+- 边界：黄金、main合入、正式包、真实权限与生产启用仍未批准；生产MR继续COMMENT，代码走查非法页整页旧源。
+
 ## 2026-11-03 表单N5输入445f0a53复验：面板溢出修复与首轮超时归因
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
