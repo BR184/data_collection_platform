@@ -26,8 +26,8 @@
 - R04 超时诊断保留：`awaitDelayClosureSettled` 与 `@AfterEach awaitInFlightDelayRound` 超时抛出 progress 全字段（含 `next_check_at`/租约/`updated_at`）、执行器 active/queue/poolSize 与 `platform-async-*` 线程状态及栈顶；未延长 30 秒、未加重试/跳过/掩码。
 - R04 最终默认套件（事务修复后，专属 15523 / schema `qaflex_n5_tx_final`）：**2316 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，25:13**，392 份 XML；日志 `.tmp-logs/n5-r04-tx-final-20261103/final-suite.log`（SHA-256 `8e08852064534ed29606d06c0f4ed96078d12e2cfd26ec99090885aa9ea9a888`）。输入 `HEAD=4ae4f5ac0d5bfdf736439d8c107ff59b3bc85633`、backend/frontend diff SHA-256 `7cac8ba140180c671dc41e874eb58eb10aeb0a5c769294c6bfecd05c080334cc`；无新增未跟踪代码文件。旧 2314 结果不再作为新版本门禁；前端未变，沿用已批准证据。
 - N5 技术验收（2026-11-03）：输入 `415e2889` 干净且双远端一致；独立真实 PG 3/3、零跳过，原确定性提交后领取反例在修复实现上通过、普通调用可见、发布回滚不登记；冻结 392 份 XML 汇总 2316/0/0/1，日志 SHA-256 `8e088520…` 与代码差异 `7cac8ba1…` 匹配；174 条迁移锁通过。R01—R05 全部关闭，技术通过不代替发布门禁。
-- 发布门禁盘点（只读）：端点 200→220（新增 23/删除 3/变更 2），19 个用例缺快照；快照 1A/8D/135M（共 144），其中 81 份仅读取帧/易变字段、54 份仍有业务差异（含 `cbca4eeb` 11 份），30 份需逐项裁定；夹具仅新增兼容性清单，未改业务行与掩码。详见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)。
-- 进行点：技术验收与发布资料完成；黄金执行/update、main 合入、出包与生产启用仍未准入。
+- 发布门禁盘点（只读）：端点 200→220（新增 23/删除 3/变更 2），19 个用例缺快照；严格口径为 1A/8D/135M（66 仅读取帧、38 等价、31 业务差异，业务差异零未归因）。T1 逐文件判定、T2 成功样本/导出提案、T3 升级开关与恢复步骤已完成资料稿，见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)文末入口；夹具业务行仍未改动。
+- 进行点：技术验收与发布资料完成；T1—T3 待审阅/批准；黄金执行/update、夹具变更、main 合入、出包与生产启用仍未准入。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
