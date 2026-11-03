@@ -1,3 +1,8 @@
+## 2026-11-03 两个看板测试阶段合并展示已确认
+
+- [决定] 用户转达领导确认，质量看板和BI看板测试阶段按合并范围展示；此前R1/R2拆分提案已撤回。共同规则见[业务规则](platform-page-business-rules.md#combined-2027-test-scope)，BI实现约束与状态从[本域入口](bi-dashboard/README.md)读取。
+- [下一步] 按[恢复记录](plans/product-version-attribution-pending-20261102.md)核对现有候选、查询及导出差异；缺少阶段议题、组合评审和信创版归属继续待确认。本轮只落档，未改代码、配置或数据，未测试或打包。
+
 ## 2026-11-03 老平台CC会话替换JAR离线交付，待内网验证
 
 - [范围] 用户明确只替换截图提供的CC会话。以已批准停写版JAR（SHA-256 `95b544f1…64dbc0b`）重新封装，仅更新application.properties、application-prod1.properties、application-test.properties中 `cc.gitlab.session`；未重新编译，DGM会话、API令牌、其它配置和业务保持。
@@ -7,7 +12,7 @@
 
 ## 2026-11-02 版本归属待领导裁定；延期专用包范围已确认
 
-- [待裁定] R1/R2、缺测试阶段议题、组合评审及信创版归属已按用户要求[落档暂停](plans/product-version-attribution-pending-20261102.md)；保留GitLab现状，未批准的设计不进入业务规则或员工实施。BI当前匹配行为按其域数据契约维护。
+- [历史，2026-11-03部分替代] 当时的R1/R2拆分暂停已被上方合并展示决定替代；缺测试阶段议题、组合评审及信创版归属仍按[恢复记录](plans/product-version-attribution-pending-20261102.md)待确认。BI当前匹配行为按其域数据契约维护。
 - [范围已确认] 用户确认[执行单](plans/delay-writeback-only-release-scope-20261102.md)I1—I7一并包含，含日期优先独立修复b5568ce8；直接基线`qaflex-update-20261029T093903Z-56953d50d4c7`，排除质量/BI/表单及版本归属变更。由用户自行转交外部AI员工实施和打包，审核方不代派任务。
 - [源码与门禁] 本包从f0817018整理仅含延期与必要发布保障的专项候选，明确例外于通常main构建；不得撤销main质量成果或整体合回。冻结实际SHA后做候选验证、延期黄金差异审核及实际包五步演练；历史deadline须现有ODS重建Issue事实，无ODS时刻纠正。
 - [边界] 当前仅完成确认记录与员工指令，未整合代码、未构建或部署；实际候选、环境、产物及验证计数由员工补齐，完成后送审核，用户执行内网测试。

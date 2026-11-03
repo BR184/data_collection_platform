@@ -70,11 +70,11 @@
 
 <a id="pending-version-attribution-20261102"></a>
 
-## 组合版本与评审名称：当前行为及待裁定边界
+## 组合版本展示与评审名称归属
 
 2026-11-02按稳定main `f74fdef7` 核对：BI需求/设计评审通过 `BiPlatformReviewSourceAdapter` 使用 `BiProductVersionMatcher` 从评审项目名称解析版本。直接运行该匹配器，`2027R1&R2` 同时匹配CC2027R1和CC2027R2，`信创版（2027R1）` 只匹配CC2027R1；这不是为两个名称建立的独立配置，也不证明信创版在业务上应该并入普通R1。编码页的组合名称同样按成员匹配。
 
-用户已要求将拆分与评审范围问题落档，等待领导裁定。此处只记录现状，不改变已冻结的指标公式，也不授权按日期猜版本、批量历史归属或修改GitLab。待定事项与恢复入口见[版本归属待裁定记录](../plans/product-version-attribution-pending-20261102.md)；领导确认后再统一版本归属与两个看板的消费范围。
+2026-11-03用户转达领导决定：两个看板的测试阶段合并展示，目标范围按[平台共同业务规则](../platform-page-business-rules.md#combined-2027-test-scope)执行。上面的名称匹配结果是实施前代码事实，不能作为继续拆分两个看板测试阶段的依据。缺少阶段议题、组合评审与信创版归属仍见[待确认记录](../plans/product-version-attribution-pending-20261102.md)；现有指标公式保持。
 
 ## CAT 接口契约
 
