@@ -10,6 +10,8 @@ import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 延期标签写回的来源级持久进度。
@@ -39,9 +41,13 @@ public class CustomerIssueDelayClosureProgressRepository {
    * {@code IDLE} 时才重新进入 {@code REQUESTED}。配置身份变化会撤销旧轮次绑定。
    * 存在失败退避时不提前 {@code next_check_at}。
    *
+   * <p>独立短事务：事实发布提交回调中调用时，请求必须在返回前对其他连接可见；否则异步唤醒
+   * 可能先领取到空结果，留下无人即时处理的 {@code REQUESTED}。调用方只在该方法返回后再唤醒。
+   *
    * @param config 当前数据源配置
    * @param reason 请求原因，仅用于日志
    */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void requestRound(GitlabSyncConfig config, String reason) {
     if (config == null || config.getId() == null) {
       return;
