@@ -42,6 +42,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayInputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -202,6 +205,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         throw new IllegalStateException("等待异步轮次结束被中断", error);
       }
     }
+    throw new AssertionError("平台异步任务未在期限内收尾：" + delayClosureDiagnostics());
   }
 
   /** 暂停表单公开后的后台轮次，避免异步轮次与测试线程竞争同一域候选。 */
@@ -363,7 +367,49 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         throw new IllegalStateException("等待延期轮次终态被中断", error);
       }
     }
-    return row;
+    throw new AssertionError("延期轮次未在期限内收敛：" + delayClosureDiagnostics());
+  }
+
+  /**
+   * 超时诊断：冻结轮次进度、租约与执行器现场。
+   *
+   * <p>仅在断言失败路径读取，成功用例不额外查询或抓取线程栈。
+   */
+  private String delayClosureDiagnostics() {
+    StringBuilder text = new StringBuilder();
+    try {
+      List<Map<String, Object>> rows =
+          jdbcTemplate.queryForList(
+              "select stage, request_revision, processed_revision, completed_revision,"
+                  + " failure_count, last_error, next_check_at, lease_owner, lease_until, updated_at"
+                  + " from customer_issue_delay_closure_requests where source_instance = ?",
+              SOURCE_INSTANCE);
+      text.append("轮次进度=").append(rows.isEmpty() ? "无" : rows.get(0));
+    } catch (RuntimeException error) {
+      text.append("轮次进度读取失败=").append(error.getMessage());
+    }
+    text.append(", 执行器active=")
+        .append(platformAsyncExecutor.getActiveCount())
+        .append(", queue=")
+        .append(platformAsyncExecutor.getThreadPoolExecutor().getQueue().size())
+        .append(", poolSize=")
+        .append(platformAsyncExecutor.getPoolSize());
+    ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+    for (ThreadInfo info : threads.dumpAllThreads(false, false)) {
+      if (!info.getThreadName().startsWith(PlatformAsyncConfiguration.THREAD_NAME_PREFIX)) {
+        continue;
+      }
+      text.append(", 线程=")
+          .append(info.getThreadName())
+          .append('(')
+          .append(info.getThreadState())
+          .append(')');
+      StackTraceElement[] frames = info.getStackTrace();
+      for (int index = 0; index < Math.min(3, frames.length); index++) {
+        text.append(" <- ").append(frames[index]);
+      }
+    }
+    return text.toString();
   }
 
   /** 等待平台异步轮次真实收尾，再执行需要独占域候选的同步重算。 */
