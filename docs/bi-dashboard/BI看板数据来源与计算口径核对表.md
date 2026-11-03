@@ -38,6 +38,7 @@
 | G-06 | 全局 | 数据结构版本 | 数据状态 | 数据采集平台 | 早期候选 `schemaVersion` | 当前响应使用 `ruleVersion` 和强类型 DTO，没有独立 `schemaVersion`。 | 当前未使用 | [ ] |
 | G-07 | 全局 | 数据生成时间 | 数据状态 | BI / CAT | BI `BiPageResponse.generatedAt` | 由 BI 生成响应时间，仅用于显示和追溯，不能代替一致快照；CAT 未提供来源生成时间。 | BI计算 | [ ] |
 | G-08 | 全局 | 数据快照 ID | 数据状态 | 数据采集平台 / CAT | 平台 `PageRecordSnapshotService` / `issueFactSourceVersion` 发布身份；CAT 等价稳定身份待提供 | 平台四页使用冻结后的已发布来源身份；CAT 四接口未提供，不能用响应哈希或调用时间代替。 | 待确认 | [ ] |
+| G-09 | 全局 | 看板合并版本范围 | 请求/维度 | 数据采集平台 | `dashboard-version-scopes.json`（schemaVersion 1）+ `IssueScopeCatalogService` | 两个看板的候选把分组登记的原目录成员合并为一个入口，请求解析为成员原始事实并集；分组只在看板查询范围生效，不改目录、独立系统测试、客户问题或 CAT。成员按稳定业务键和原目录 ID 解析，不接受标签前缀/显示名猜测；同一稳定身份只计一次。各指标公式不变。 | BI计算 | [x] 2026-11-03 用户确认范围；生产目录/来源映射待只读取证 |
 | G-08A | 全局 | 来源版本 | 数据状态 | 数据采集平台 / CAT | 平台 `PageRecordSnapshotService` / `issueFactSourceVersion`；CAT 等价稳定身份待提供 | 记录当前页面自己的来源版本，不要求六页采集时刻一致。 | 待确认 | [ ] |
 | G-08B | 全局 | 业务规则版本 | 数据状态 | BI | 各计算器和分类器 `RULE_VERSION` | 由 BI 权威实现输出；规则变化时用于追溯和失效判断。 | BI计算 | [ ] |
 | G-08C | 全局 | 数据状态 | 数据状态 | BI / CAT | BI `BiDataStatus`；CAT 响应 `code/message/data` | BI 按来源完整性和公式边界计算 `READY/EMPTY/NOT_APPLICABLE/INCOMPLETE/ERROR`；CAT 错误分类仍待补充。 | BI计算 | [ ] |
