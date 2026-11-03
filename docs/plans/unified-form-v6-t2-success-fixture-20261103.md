@@ -1,219 +1,224 @@
-# 表单 v6 T2 成功样本与导出提案（2026-11-03）
+# 表单 v6 T2 成功样本与导出提案（2026-11-03，修订一）
 
-> 状态：提案，未执行。**未改夹具/快照/目录/掩码，未运行 golden/update，未合并 main，未出包。**
-> 目的：在不扩大生产语义的前提下，为黄金基线补齐最小可判定的表单成功路径与按版 Excel 导出样本。
-> 本文件先交审核方，再交用户确认；批准后才进入快照生成与严格 compare。
+> 状态：吸收审核回执 `4812dbec` 后重写，**替换上一版“删除 head、关闭来源”的夹具设计**。本文件只交审核方与用户确认，未执行：未改夹具/快照/目录/掩码，未运行 golden/update，未合并 main，未出包，未授予真实权限。
+> 路径：真实创建 → 原 FACT_REFRESH/事实/投影真实消费 → 暂停调度 → 命令用例保留真实入队 → 按完整副作用还原。
 
-## 一、现状与问题
+## 一、现行事实与数量口径
 
-1. 功能分支 HEAD 的 `golden-baseline/snapshots/` 下没有任何 `collect-forms/` 文件；main 的 8 份旧表单快照已在 N5 删除。
-2. 端点目录已登记 20 个 `/api/collect-forms/**` 端点，其中 1 个为 `EXCLUDED`（导出），19 个会产生响应快照；当前 19 份响应快照全部缺失。
-3. 10 个写用例共声明 16 份表状态快照，当前全部缺失。
-4. `platform-seed.sql.gz` 不含任何表单表数据；`compatibility-completeness.sql.gz` 仅 380 字节，是兼容性清单元数据，不是业务行。表单成功样本必须在引导阶段单独构造。
-5. 导出端点当前因“需用户确认”被排除；用户已要求把导出纳入 `EXPORT` 类别并复用既有 Excel 单元格规范化，因此需要可读版本与有效记录。
+1. 功能分支 HEAD 的 `golden-baseline/snapshots/` 下没有 `collect-forms/` 文件；main 的 8 份旧表单快照已在 N5 删除。
+2. 端点目录登记 20 个 `/api/collect-forms/**` 端点：1 个 `EXCLUDED`（旧导出定义已改由新导出端点承担）、19 个响应快照，当前全部缺失。
+3. 10 个既有写用例声明 16 份表状态快照，当前全部缺失。
+4. `platform-seed.sql.gz` 不含表单业务行；表单成功基线必须在引导阶段用真实 API 构造，不能写种子。
+5. 上一版“59 份”按 25 响应 + 34 表计算，且依赖删除 head/关闭来源；本版按真实副作用重算为 **62 份（25 响应 + 37 表）**，详见第六节。
 
-## 二、最小成功夹具
+## 二、单一路径（审核指定）
 
-### 2.1 资源与身份（全部固定）
+### 2.1 来源种子固定 Web 地址
 
-| 项 | 取值 | 依据 |
-| --- | --- | --- |
-| 模板 | `issue_response` | 无人员目录依赖；字段校验可完全固定 |
-| GitLab 资源 | `projectId=9`、`resourceType=issue`、`resourceId=969`（全局 id `1228`） | 源切片 `issues` 行：id 1228、iid 969、project 9、state_id 2、无 labels |
-| 项目 | `cloudcad/crowncad`（namespace 4） | 源切片 `projects`/`namespaces` |
-| Web 基址 | `http://gitlab.test.local:18080` | 黄金测试 `platform.gitlab-mirror.web-base-url` 固定值 |
-| 范围 | `form_template_scopes.id=1`，`scope_key='golden-issue-response'`，`status='ACTIVE'` | 空库首行，显式 ID |
-| 版本 | `form_template_versions.id=1`，`version_label='CC2026R3'`，`storage_kind='RECORDS'`，`record_source_role='AUTHORITATIVE'`，`instance_mode='MATERIALIZED'`，`version_status='PUBLISHED'` | `ck_ftv_instance_shape` |
-| 物理表 | `form_s1_v1_instances`、`form_s1_v1_records` | `FormVersionSchemaService` 命名 |
-| 权威 | `form_resource_authorities`：`(configId, 'default', project 9, 'issue', 969, 'issue_response') = FORM`，revision 1 | 写入口 `FormRecordAuthorityService` 要求 |
-| 目录 | `form_record_locations.record_id=1`，`instance_id=1`，MATERIALIZED | 详情/导出/编辑/作废共用 |
-| 基线记录 | 1 条有效记录，`record_version=1`，`created_by='admin'` | 用于详情、编辑、作废、导出 |
-| 基线时间 | `2026-09-01 09:00:00`（创建）；`2026-09-01 08:00:00`（发布时间） | 黄金 `frozenClock`/`frozenBusinessDate` |
+在 `GoldenBaselineSupport.seedSyncConfig()` 的 INSERT 中增加 `web_base_url`，值为 `http://gitlab.test.local:18080`（与 `FormSourceUrlSupport.canonicalize` 及范围 `canonical_gitlab_base_url` 完全一致）。**保持来源 `enabled=true`、`source_enabled=true`，不关闭任何刷新。**
 
-`projectId=9` 的 `resourceId=969` 在 `ods_gitlab_issues` 中存在，`order by source_order` 首行即可解析 `root_id=1228`；`issue_fact` 是否有该模板议题不影响 ODS 回退。该议题无 labels，`severityLevel` 为 `未设定`，因此 `owner_confirmation` 非必填且必须为空。
+这是种子值而非测试期临时修改，下列既有快照会因此有意变化，生成前需一并批准：
 
-### 2.2 夹具构造步骤（建议放入 `GoldenBaselineSupport`）
-
-在 `GoldenBaselineChainTest.bootstrapChain()` 的全量同步、镜像发布、数据集发布完成之后，`captureWriteReplayBaselines()` 之前执行：
-
-1. 先暂停表单后台消费者，避免基线/写用例的 `form_change_heads` 被领取：
-   - `pauseScheduledProducer(FormPublicationWorker.class)`；
-   - `pauseScheduledProducer(FormDirectoryEventWorker.class)`；
-   - 两处都沿用现有断言，取消数为 0 时硬失败。
-2. 记录并临时关闭主来源的写回/同步副作用：
-   - 读取 `gitlab_sync_configs.id=1` 的 `enabled`、`source_enabled`；
-   - 置 `enabled=false`、`source_enabled=false`；
-   - 置 `web_base_url='http://gitlab.test.local:18080'`；
-   - 请求结束、基线头行清理后按原值恢复；`web_base_url` 保留固定值（见 2.4）。
-3. 用 `FormTemplateSpecCatalog.rawJson("issue_response")` 作为冻结 `field_spec`，按外键与 ACTIVE 约束顺序插入范围与版本；用 `FormScopeBinding.create/hash` 计算并写入 `binding_hash`：
-   - 先插 `status='DRAFT'`、`current_version_id=null` 的范围行（其余字段：`source_config_id=configId`、`source_instance='default'`、`canonical_gitlab_base_url='http://gitlab.test.local:18080'`、`project_ids='[9]'`、`version_project_id=9`、`source_set_revision=1`）；
-   - 再插版本行（`id=1`、`published_at='2026-09-01 08:00:00'`、`version_label='CC2026R3'`、`field_spec` 为上述原文）；
-   - 最后把范围更新为 `status='ACTIVE'`、`current_version_id=1`，并执行 `update form_template_scopes set source_set_hash = form_source_set_hash(1) where id = 1`；
-   - 不能在版本行存在前把范围置为 ACTIVE 或写入 `current_version_id=1`，否则外键/ACTIVE 检查失败。
-4. 调用 `FormVersionSchemaService.generate(1, 1, spec, false)`，按返回语句顺序执行实例表、记录表、索引 DDL；不手写 DDL。
-5. 插入 FORM 权威行；`cutover_manifest_id` 为空，`effective_at='2026-09-01 08:00:00'`，`authority_revision=1`。
-6. 通过真实新增端点生成基线记录（不手写记录/目录/审计/哈希）：
-   - `POST /api/collect-forms/records`
-   - `scopeId="1"`、`storageVersionId="1"`、`templateKey="issue_response"`、`gitlabBaseUrl` 同上、`projectId=9`、`resourceType="issue"`、`resourceId="969"`；
-   - `requestKey="00000000-0000-4000-8000-000000000001"`；
-   - `fields`：见 2.3。
-   - 断言 HTTP 200、`data.status=CREATED`、`data.record.id="1"`；随后核对实例 1 行、记录 1 行、目录 1 行、CREATE 审计 1 行。
-7. 清理基线副作用，使其不进入任何读快照：
-   - `delete from form_change_heads where ... template_key='issue_response' and resource_id='969'`；
-   - `delete from fact_change_heads where source_instance='default' and fact_type='ISSUE' and root_id=1228`；
-   - 恢复第 2 步记录的 `enabled`/`source_enabled`。
-8. 校准序列，保证后续成功用例 ID 固定：
-   - `select setval('form_record_id_seq', 1, true)`（下一次 nextval=2）；
-   - `select setval('form_template_scopes_id_seq', 1, true)`；
-   - `select setval('form_template_versions_id_seq', 1, true)`；
-   - 审计/实例表序列由写用例还原器按表最大值校准（见 5.4）。
-9. 自检：`FormScopeValidationService.validateActiveScopes()` 必须通过；`select form_source_set_hash(1)` 必须等于 1 号范围的 `source_set_hash`；基线记录必须能通过 `FormRecordDirectoryReader.find(1)` 回读。
-
-### 2.3 基线字段值
-
-| 字段 | 值 |
+| 既有快照 | 预期变化 |
 | --- | --- |
-| `problemType` | `DEFECT` |
-| `problemCause` | `黄金基线固定问题原因` |
-| `modificationPlan` | `黄金基线固定修改方案` |
-| `ownerConfirmation` | 省略或 `null`（严重程度未设定，必须为空） |
-| `plannedResolutionDate` | `2026-09-30` |
-| `plannedMergeVersionBranch` | `CC2026R3` |
-| `supplementNote` | `黄金基线样本` |
+| `gitlab-sync/get___configs__default.json` | `data[0].webBaseUrl`：`null` → `http://gitlab.test.local:18080` |
+| `gitlab-sync/get___status__by-config.json` | `config.webBaseUrl` 同上；`logs` 增加基线 FACT_REFRESH 运行 |
+| `gitlab-sync/put___config__golden-update.json` | 响应 `webBaseUrl` 同上；受影响表基线含该列 |
+| `gitlab-sync/get___source-health__by-config.json` | `latestLogStatus/latestLogMessage` 指向基线 FACT_REFRESH；`latestLogFinishedAt` 已在目录掩码 |
+| `facts/get___build-tasks_latest__default.json` | 最新任务变为基线增量 ISSUE 任务（`full=false`、`affectedRows=1`），时间列已掩码 |
+| `database-browser/get___tables__default.json` | 首次用本分支代码生成时新增 25 张 `form_*` 只读登记；属 N5 代码既有差异，不是夹具新增数据 |
 
-对应快照列：`owner_confirmation_applicable=false`；`created_at/updated_at='2026-09-01 09:00:00'`；`record_version=1`；`deleted=false`；`legacy_incomplete=false`。
+### 2.2 基线夹具构造（真实 API 之前）
 
-### 2.4 为什么需要 `web_base_url` 与临时关闭来源
+在 `bootstrapChain()` 的全量同步、镜像/数据集发布完成后、`captureWriteReplayBaselines()` 之前执行：
 
-- `FormRecordContextService.validateSource` 要求 `gitlab_sync_configs.web_base_url` 与范围 `canonical_gitlab_base_url` 完全一致；当前 `seedSyncConfig` 不写该列，所以必须先补固定值。
-- 成功写会通过 `FormIssueChangeBridge` 在事务提交后提交一次 `FACT_REFRESH`。若不抑制，黄金套件会在写用例进行中启动新的同步运行，污染 `sync_runs`、事实与读发布状态。临时把 `enabled`/`source_enabled` 置 false 只影响该次测试请求后的桥接判定，不改变表单写事务本身；请求 `finally` 恢复原值。
-- 该抑制**只用于黄金成功写用例**，不代表生产关闭事实刷新；真实桥接由 `FormIssueChangeBridge` 的独立集成测试覆盖。实现上给对应 `WriteCase` 增加 `suppress-fact-refresh: true`，执行器在请求前读取并保存该来源的 `enabled/source_enabled`，置 false，`finally` 恢复原值；未声明该标志的写用例不改变来源状态。
+1. 插入范围（1 行，显式 `id=1`）：
+   ```sql
+   insert into form_template_scopes(
+     id, template_key, scope_key, source_config_id, source_instance, canonical_gitlab_base_url,
+     project_ids, version_project_id, resource_type, status, updated_at)
+   values (1,'issue_response','golden-issue-response',1,'default',
+     'http://gitlab.test.local:18080','[9]',9,'issue','DRAFT','2026-09-01 08:00:00');
+   ```
+2. 插入版本（1 行，显式 `id=1`）：`scope_id=1`、`version_label='CC2026R3'`、`storage_kind='RECORDS'`、`instance_table='form_s1_v1_instances'`、`record_table='form_s1_v1_records'`、`field_spec=FormTemplateSpecCatalog.rawJson("issue_response")`、`version_status='PUBLISHED'`、`published_at='2026-09-01 08:00:00'`、`instance_mode='MATERIALIZED'`、`record_source_role='AUTHORITATIVE'`。
+3. 将范围置为 `ACTIVE` 并写指针/绑定（同一行）：
+   ```sql
+   update form_template_scopes
+      set status='ACTIVE', current_version_id=1,
+          source_set_revision=1,
+          binding_revision=1, binding_hash=<FormScopeBinding.create/hash>,
+          updated_at='2026-09-01 08:00:00'
+    where id=1;
+   update form_template_scopes set source_set_hash=form_source_set_hash(1) where id=1;
+   ```
+   顺序必须是 DRAFT → 版本 → ACTIVE；版本行存在前写 `current_version_id` 会触发外键/ACTIVE 检查。
+4. 调用 `FormVersionSchemaService.generate(1, 1, spec, false)` 执行返回的 DDL，生成 2 张物理表（`form_s1_v1_instances`、`form_s1_v1_records`）及索引；不手写 DDL。
+5. 插入 FORM 权威（1 行）：`(source_config_id=1, source_instance='default', canonical_gitlab_base_url='http://gitlab.test.local:18080', project_id=9, resource_type='issue', resource_id=969, template_key='issue_response', scope_id=1, authority='FORM', authority_revision=1, cutover_manifest_id=null, effective_at='2026-09-01 08:00:00')`。
+6. 运行自检：`FormScopeValidationService.validateActiveScopes()` 通过；`form_source_set_hash(1)` 等于范围值；`selected 1` 行范围、1 行版本、1 行权威。
 
-## 三、用例提案
+**准确行数（基线发布前）**：范围 1、版本 1、权威 1、物理表 2（0 行）；无记录/目录/审计/head。
 
-### 3.1 读/导出用例
+### 2.3 真实创建与消费（不禁用来源、不删 head）
 
-| 端点 | 用例 id | 请求 | 预期 |
-| --- | --- | --- | --- |
-| `GET /api/collect-forms/detail` | `missing-scope`（已有） | 保留现有查询 | 400 业务拒绝，快照锁定 |
-| `GET /api/collect-forms/detail` | `golden-record`（新增） | `gitlabBaseUrl=http://gitlab.test.local:18080&projectId=9&resourceType=issue&resourceId=969&templateKey=issue_response` | 200；当前版本 1；1 条记录；`writable=true`；能力位由 admin 权限决定 |
-| `GET /api/collect-forms/exports/records` | `golden-version`（新增，`EXPORT`） | `versionId=1&projectIds=9` | 200；xlsx；规范化单元格见 3.3 |
-| `GET /api/collect-forms/notification-payload` | `unregistered-source`（已有） | 保留现有查询 | 400 业务拒绝 |
-| `GET /api/collect-forms/notification-payload` | `registered-issue`（新增） | `gitlabBaseUrl=http://gitlab.test.local:18080&projectId=9&requestIid=969&resourceType=issue` | 200；仅四字段 `gitlabBaseUrl/projectId/requestIid/resourceType` |
-| `GET /api/collect-forms/reviewer-candidates` | `default`（已有） | `limit=20` | 200；空目录或固定候选；不新增人员夹具 |
-| `GET /api/collect-forms/templates` | `default`（已有） | — | 200；三模板定义 |
-| `GET /api/collect-forms/template-scopes/{scopeId}` | `missing-scope`（已有） | `scopeId=999999999` | 400 |
-| `GET /api/collect-forms/publications/{publicationId}` | `missing-publication`（已有） | `publicationId=999999999` | 404/400 业务拒绝（按现有实现） |
-| `GET /api/collect-forms/binding-options` | `default`（已有） | — | 200；来源 web 基址为固定值 |
-| `GET /api/collect-forms/version-milestones` | `unknown-source`（已有） | `sourceConfigId=999999999&projectId=1` | 400 |
-| `GET /api/collect-forms/admin/projects` | `unknown-source`（已有） | `sourceConfigId=999999999` | 400 |
+1. 用黄金会话调用真实新增端点：
+   `POST /api/collect-forms/records`，body：
+   ```json
+   {
+     "scopeId": "1", "storageVersionId": "1", "templateKey": "issue_response",
+     "gitlabBaseUrl": "http://gitlab.test.local:18080", "projectId": 9,
+     "resourceType": "issue", "resourceId": "969",
+     "requestKey": "00000000-0000-4000-8000-000000000001",
+     "fields": {
+       "problemType": "DEFECT",
+       "problemCause": "黄金基线固定问题原因",
+       "modificationPlan": "黄金基线固定修改方案",
+       "plannedResolutionDate": "2026-09-30",
+       "plannedMergeVersionBranch": "CC2026R3",
+       "supplementNote": "黄金基线样本"
+     }
+   }
+   ```
+   预期 HTTP 200、`data.status=CREATED`、`data.record.id=1`；写事务新增实例 1、记录 1、目录 1、CREATE 审计 1、`form_change_heads` 1（latest=1、PENDING）。`ownerConfirmation` 省略（该议题无 labels，严重程度未设定，条件必填必须为空）。
+2. 提交后 `FormIssueChangeBridge.onFormWrite` 真实执行：`fact_change_heads` 新增 1228/ISSUE 1 行；`SyncRunSubmissionService.submitFactRefresh(config, false, "表单记录变化触发事实刷新")` 真实插入 `sync_runs` 1 行（QUEUED、FACT_REFRESH、fullBuild=false）。调度器/事实 worker/投影 worker 此时仍保持运行。
+3. 等待真实消费收敛（每一步失败即停止，不进入快照）：
+   ```sql
+   -- 无活动运行
+   select count(*) from sync_runs where status in ('QUEUED','RUNNING','PAUSED','RETRYING');
+   -- form head 已消费
+   select status, latest_change_version, consumed_change_version
+     from form_change_heads
+    where source_config_id=1 and project_id=9 and resource_type='issue' and resource_id=969
+      and template_key='issue_response';
+   -- 捕获已结算
+   select c.status, c.latest_change_version, c.consumed_change_version
+     from form_head_captures c
+     join form_change_heads h on h.id=c.head_id
+    where h.source_instance='default' and h.project_id=9 and h.resource_id=969
+      and h.template_key='issue_response';
+   -- 事实带同一 FORM 签名与真实计划字段
+   select planned_resolution_at, planned_resolution_text, form_input_hash, deleted
+     from issue_fact where source_instance='default' and issue_id=1228;
+   -- ISSUE 域已完整公开且无在途候选
+   select p.state from read_publication_domains d
+     join read_publications p on p.id=d.current_publication_id
+    where d.producer_kind='GITLAB_FACT' and d.source_instance='default' and d.fact_type='ISSUE';
+   select count(*) from read_publications p join read_publication_domains d on d.id=p.domain_id
+    where d.producer_kind='GITLAB_FACT' and d.fact_type='ISSUE'
+      and p.state in ('BUILDING','PROJECTING','READY_TO_PUBLISH');
+   -- 延期闭包轮次已结算（写回开关关闭时只重算事实）
+   select stage from customer_issue_delay_closure_requests;
+   select count(*) from customer_issue_delay_label_writeback_jobs where status in ('PENDING','RUNNING');
+   ```
+   期望：活动运行 0；head `CONSUMED` 且 `consumed_change_version=latest_change_version`；capture `CONSUMED`；`issue_fact.planned_resolution_at='2026-09-30 00:00:00'`、`planned_resolution_text='CC2026R3'`、`form_input_hash` 为 64 位、`deleted=false`；ISSUE 域 `PUBLISHED` 且在途候选 0；闭包 `IDLE`、写回任务 0。
+4. 签名一致性：在测试包 `com.data.collection.platform.service` 增加探针，调用同包 `FormIssueBuildInputService.current("default",9,969)`，断言 `status=OK` 且 `hash()` 等于上一步 `issue_fact.form_input_hash`。这样用生产同一份冻结输入证明“事实绑定同一 FORM 签名”，不手写哈希。
+5. 记录实际行数：基线记录/实例/目录/审计各 1，`form_change_heads` 1，`form_head_captures` 1，`form_publication_captures` 1，`fact_change_heads` 1，基线 FACT_REFRESH 运行 ≥1（真实桥接触发），`fact_build_tasks` 至少 1 条 ISSUE 增量任务，`issue_fact` 1228 行更新为带表单签名版本。允许真实链路产生额外的闭环/旁路公开行；数值以生成前实际查询为准，不写死。
 
-### 3.2 写用例
+### 2.4 收敛后暂停调度（不改变来源开关）
 
-所有成功写用例均使用同一资源与基线记录；执行前还原受影响表到冻结基线，执行后再次还原。
+依次暂停并断言取消数为正（沿用 `GoldenBaselineSupport.pauseScheduledProducer`）：
 
-| 端点 | 用例 id | 请求要点 | 预期响应 |
-| --- | --- | --- | --- |
-| `POST /api/collect-forms/records` | `golden-create`（新增） | `requestKey="00000000-0000-4000-8000-000000000002"`；`fields` 使用 3.2.1 新增值 | 200；`status=CREATED`；记录 id 2、版本 1 |
-| `PUT /api/collect-forms/records/{id}` | `golden-update`（新增） | `id=1`；`recordVersion=1`；`storageVersionId="1"`；`expectedStorageVersionId="1"`；字段改 3.2.2 | 200；“表单记录已更新”；版本 2 |
-| `POST /api/collect-forms/records/{id}/void` | `golden-void`（新增） | `id=1`；`recordVersion=1`；`expectedStorageVersionId="1"`；`confirmVoid=true`；`confirmationText="作废"` | 200；“表单记录已作废”；`deleted=true`、版本 2 |
-| 其余 7 个写用例 | 保留现有 `missing-scope`/`unknown-template`/`missing-publication` | 不变 | 现有确定性拒绝 |
+- `SyncRunDispatcherService`（不再领取命令写产生的 QUEUED 运行）
+- `FactRefreshTaskWorkerService`（不再执行事实任务）
+- `FactProjectionTaskRecoveryScheduler`（不再领取/发布独立投影候选）
+- `FormPublicationWorker`、`FormDirectoryEventWorker`（不再处理命令写产生的表单事件）
+- `CustomerIssueDelayClosureScheduler`（避免周期闭包轮次在命令用例期间重算事实）
 
-3.2.1 新增字段值：
+暂停发生在基线收敛之后，因此基线是“表单已保存且事实已消费”的真实状态，不再出现“表单已保存、事实仍旧”。
 
-| 字段 | 值 |
-| --- | --- |
-| `problemType` | `REQUIREMENT` |
-| `problemCause` | `新增样本问题原因` |
-| `modificationPlan` | `新增样本修改方案` |
-| `ownerConfirmation` | 省略 |
-| `plannedResolutionDate` | `2026-10-15` |
-| `plannedMergeVersionBranch` | `CC2026R3` |
-| `supplementNote` | `新增样本` |
+### 2.5 命令用例：保留真实 head 与 AFTER_COMMIT 入队
 
-3.2.2 编辑字段值：仅将 `problemCause` 改为 `更新后的问题原因`、`supplementNote` 改为 `更新后补充`，其余与基线一致。
+写入口与 `FormIssueChangeBridge` 均不旁路、不新增 `suppress-fact-refresh`：
 
-### 3.3 导出工作簿预期
-
-- 文件名：`issue_response-records-1.xlsx`；工作表名：`CC2026R3`。
-- 系统列 A—J：记录ID、GitLab地址、项目、资源类型、资源ID、创建人、创建时间、记录修订、结构版本、状态。
-- 业务列 K—Q：问题类型、问题原因、修改方案、模块负责人确认、计划解决时间、计划合并的版本分支、补充说明。
-- 基线行：`1`、`http://gitlab.test.local:18080`、`9`、`issue`、`969`、`管理员`、`2026-09-01 09:00:00`、`1`、`CC2026R3`、`有效`、`DEFECT`、`黄金基线固定问题原因`、`黄金基线固定修改方案`、空、`2026-09-30`、`CC2026R3`、`黄金基线样本`。
-- 导出的是冻结列原值而非中文枚举标签，`problemType` 单元格必须是 `DEFECT`。
-- 规范化复用 `GoldenSnapshotSupport.assertExportSnapshot → normalizeExcel`，不新增 Excel 规范化分支。
-
-### 3.4 复用现有测试、不重复造样本
-
-| 行为 | 已覆盖测试 |
-| --- | --- |
-| 版本/项目/目录 C 三重谓词、作废排除、空版本表头、导出审计 | `FormRecordExportIntegrationTest#exportHonorsVersionProjectAndVoidPredicatesAndWritesAudit`、`#exportUsesFrozenVersionProjectsAfterScopeRebind`、`#exportRejectsForeignProjectAndUnreadableVersion`、`#exportLimitsAreExplicitAndEmptyVersionStillHasHeader` |
-| 新建/编辑/作废、并发、重放、回滚、权限 | `FormRecordServiceIntegrationTest` |
-| 三模板选择、发布/切换、退役、候选 | `FormTemplateAdminIntegrationTest` |
-| 旧 COMMENT 权威保持不变 | 现有客户问题/评审事实测试；本夹具只新增 1228 的 FORM 行，不更新任何已有 COMMENT 行或 `form_authority_cutover_*` |
-
-## 四、账号与测试权限
-
-- 黄金登录账号为 `admin`，本地认证映射 `SUPER_ADMIN`。迁移已使 SUPER_ADMIN 获得 `form.record.create/edit_own/delete_own`、`form.template.manage`。
-- `form.record.export` 按 `V20261102_03` 只登记、不授予任何角色。为覆盖真实权限门禁，导出用例执行前后临时授予/回收，不写迁移、不改生产授权：
-  1. 执行前查询 `select count(*) from platform_role_permissions where role_code='SUPER_ADMIN' and permission_code='form.record.export'`；
-  2. 计数为 0 时插入该行，并在 `finally` 删除；计数为 1 时不插入也不删除；
-  3. 临时授予只包围导出请求，权限设置页快照不受影响。
-- 若审核方不接受测试期临时授权，备选方案是把导出用例声明为预期 403；但这样无法产出“有值的按版 Excel”，不满足本轮 T2 目标。
-- 正式环境 `form.record.export` 的授予名单仍由权限管理员提供，属于外部启用前置，不在本提案内。
-
-## 五、副作用、快照与恢复
-
-### 5.1 成功写用例的表快照
-
-每个成功写用例声明以下受影响表（默认 `REPLAY`，基线在夹具完成后捕获）：
-
-| 表 | 新建 | 编辑 | 作废 | 说明/掩码 |
+| 端点 | 用例 | 请求要点 | 真实副作用 | 预期响应 |
 | --- | --- | --- | --- | --- |
-| `form_s1_v1_instances` | 1→1 | 1→1 | 1→1 | 只锁身份，不新增实例 |
-| `form_s1_v1_records` | 1→2 | 1 行改版本 2 | 1 行置作废、版本 2 | 全列严格 |
-| `form_record_locations` | 1→2 | 1→1 | 1→1 | 全列严格 |
-| `form_record_audit_logs` | 1→2 | 1→2 | 1→2 | `ignore-columns: [client_ip, user_agent]` |
-| `form_change_heads` | 0→1 | 0→1 | 0→1 | 全列严格；消费者已暂停 |
-| `fact_change_heads` | 0→1 | 0→1 | 0→1 | `ignore-columns: [updated_at]`；`latest_change_version` 由序列校准保持严格 |
+| `POST /records` | `golden-create` | `requestKey=…0002`，字段取 3.2.1 | 记录 id=2、实例复用、目录 1、CREATE 审计 1；`form_change_heads.latest=2`；`fact_change_heads.latest=2`；`sync_runs` 新增 1 行 QUEUED FACT_REFRESH | 200、`CREATED`、记录 id=2、记录版本 1 |
+| `PUT /records/{id}` | `golden-update` | `id=1`、`recordVersion=1`、`storageVersionId='1'`、`expectedStorageVersionId='1'`，字段取 3.2.2 | 记录版本 2、UPDATE 审计 1；两 head 各 +1；`sync_runs` 新增 1 行 QUEUED | 200、“表单记录已更新”、版本 2 |
+| `POST /records/{id}/void` | `golden-void` | `id=1`、`recordVersion=1`、`expectedStorageVersionId='1'`、`confirmVoid=true`、`confirmationText='作废'` | 记录 `deleted=true`、版本 2、VOID 审计 1；两 head 各 +1；`sync_runs` 新增 1 行 QUEUED | 200、“表单记录已作废” |
 
-新增 18 份表快照（3 个用例 × 6 表）。导出用例另产生 1 行 `form_record_export_logs`；该表不进入黄金表快照（xlsx 压缩包摘要/字节数受工作簿元数据影响），由现有导出集成测试断言审计字段。
+- 每次用例前 `REPLAY` 还原到基线，因此上述“新增 1 行”在三个用例中独立成立；若来源仍有活动运行，`submitRun` 会复用而不是新增——暂停后基线无活动运行，复用路径不应出现；若出现即停止排查夹具顺序。
+- `SyncRunSubmissionService.submitRun` 在本场景只插入 `sync_runs` 一行；`pg_advisory_xact_lock` 随事务释放，不产生持久行，不写 `sync_run_events`/`sync_run_table_states`/任务表。命令用例不产生事实任务、投影或公开指针变化；`sync_runs` 保持 `QUEUED` 是预期，不是“队列清空失败”。
+- 字段值：新增 `problemType=REQUIREMENT`、`problemCause=新增样本问题原因`、`modificationPlan=新增样本修改方案`、`plannedResolutionDate=2026-10-15`、`plannedMergeVersionBranch=CC2026R3`、`supplementNote=新增样本`；编辑仅改 `problemCause=更新后的问题原因`、`supplementNote=更新后补充`。
 
-### 5.2 序列与非确定性处理
+## 三、表快照、序列与掩码
 
-- 写用例还原器新增两类校准（只影响测试引擎，不改生产代码）：
-  - 还原任一 `form_s*_records` 表后，`form_record_id_seq` 设为 `max(id)+1, is_called=false`；
-  - 还原 `fact_change_heads` 后，`fact_change_version_seq` 设为 `max(latest_change_version)+1, is_called=false`。
-- `fact_change_heads.updated_at` 由 SQL `current_timestamp` 产生，掩码该列；其余时间列使用黄金固定时钟，保持严格。
-- 审计的 `client_ip`/`user_agent` 属请求环境元数据，掩码；`snapshot_json`、`operator_name`、`created_at` 保持严格。
-- 黄金 HTTP 会话可选统一 `User-Agent: golden-baseline`；若采用，则只需掩码 `client_ip`。两种方案二选一，生成前固定。
+### 3.1 每个成功写用例声明 7 张表（共 21 份）
 
-### 5.3 完整副作用清单
+| 表 | 新建 | 编辑 | 作废 | 掩码 |
+| --- | --- | --- | --- | --- |
+| `form_s1_v1_instances` | 1→1 | 1→1 | 1→1 | 无 |
+| `form_s1_v1_records` | 1→2 | 1 行版本 2 | 1 行作废、版本 2 | 无 |
+| `form_record_locations` | 1→2 | 1→1 | 1→1 | 无 |
+| `form_record_audit_logs` | 1→2 | 1→2 | 1→2 | `ignore-columns: [client_ip]`（会话固定 `User-Agent: golden-baseline`） |
+| `form_change_heads` | latest 1→2 | 1→2 | 1→2 | 无（时间来自冻结 Clock） |
+| `fact_change_heads` | latest 1→2 | 1→2 | 1→2 | `ignore-columns: [updated_at]`（SQL `current_timestamp`） |
+| `sync_runs` | 0→1 QUEUED | 0→1 | 0→1 | `ignore-columns: [run_id, created_at, updated_at]`；快照 scope：`run_type='FACT_REFRESH' and status='QUEUED'` |
+
+- 响应/业务字段/`payload_json`/`form_input_hash`/计划字段严格比较，不使用业务值或签名掩码。
+- `sync_runs.run_id` 由 `SyncRunIdGenerator` 生成随机 UUID，`created_at/updated_at` 为系统时钟，属运行身份而非业务值，故掩码；`id`、`status`、`priority`、`exclusive_scope`、`payload_json` 严格。
+- 固定请求 `User-Agent` 在 `GoldenHttpSession` 统一设置；`client_ip` 仍受容器网络影响，故只掩码该列。
+
+### 3.2 序列与完整恢复清单
+
+`GoldenWriteCaseSupport.replayTable` 已按主键 `id` 自动校准 serial；另需显式校准：
+
+- `form_record_id_seq`：还原任一 `form_s*_records` 后设为 `max(id)+1, is_called=false`（共享序列，不是表自有 serial）。
+- `fact_change_version_seq`：还原 `fact_change_heads` 后设为 `max(latest_change_version)+1, is_called=false`。
+- `sync_runs.id` 的 serial 由 `realignIdSequence` 处理；同时显式列入清单，避免表结构变化后静默跳过。
+
+完整副作用与恢复：
 
 | 副作用 | 产生方式 | 恢复 |
 | --- | --- | --- |
-| 新增/更新记录行 | 真实写事务 | 写用例前后 `REPLAY` 还原 |
-| 新增目录行 | `writeForCreatedRecord` | 同上 |
-| CREATE/UPDATE/VOID 审计 | `writeAudit` | 同上 |
-| 表单 head 变更 | `bumpHead` | 同上 |
-| 事实 head 变更 | `FormIssueChangeBridge.record` | 同上 |
-| 事实刷新运行 | AFTER_COMMIT 提交 | 成功写用例临时关闭来源后不产生；基线 created 后清理 |
-| 导出审计行 | `FormRecordExportService.export` | 新库每次运行自增；生产不适用 |
-| 权限临时授予 | 导出用例 | `finally` 精确回收 |
-| 表/函数/视图 | 迁移 | 不回退；回滚走数据库备份 |
+| 记录/实例/目录/审计 | 真实写事务 | 用例前后 `REPLAY` |
+| `form_change_heads` | `bumpHead` | `REPLAY` |
+| `fact_change_heads` | `FormIssueChangeBridge.record` | `REPLAY` |
+| `sync_runs` QUEUED | AFTER_COMMIT `submitFactRefresh` | `REPLAY` |
+| 事实任务/投影/公开指针 | 调度已暂停 | 不产生；若产生即停止 |
+| 导出审计 `form_record_export_logs` | `FormRecordExportService` | 导出前后删除/还原到基线，不累积 |
+| 导出权限临时授予 | 测试期 | 按原行精确恢复 |
+| 表/函数/视图 | 迁移 | 不回退；回滚走备份 |
 
-### 5.4 统计增量预期
+## 四、读/导出用例与成功响应
 
-成功写只产生 `form_change_heads`、`fact_change_heads` 和审计，不发布 `form_review_fact`，也不触发投影/发布消费者；因此本夹具对 BI、质量看板、客户问题统计的增量预期为 **0**。若生成后出现统计快照变化，视为实现或夹具隔离问题，先停止排查，不进入 update。
+| 端点 | 用例 | 请求/预期 |
+| --- | --- | --- |
+| `GET /detail` | `golden-record`（新增） | `gitlabBaseUrl`、`projectId=9`、`resourceType=issue`、`resourceId=969`、`templateKey=issue_response`；200、版本 1、1 条记录、`writable=true` |
+| `GET /notification-payload` | `registered-issue`（新增） | `gitlabBaseUrl`、`projectId=9`、`requestIid=969`、`resourceType=issue`；200，`data` 严格且仅四字段 `sourceAddress/projectId/requestIid/resourceType` |
+| `GET /exports/records` | `golden-version`（新增，EXPORT） | `versionId=1&projectIds=9`；200 xlsx，规范化后含基线 1 行 |
+| 其余 19 个既有用例 | 保持 `missing-scope/unregistered-source/missing-publication` 等 | 确定性拒绝，不新增人员夹具 |
 
-### 5.5 恢复与可重复性
+导出工作簿：文件名 `issue_response-records-1.xlsx`、工作表 `CC2026R3`；系统列 A—J、业务列 K—Q；基线行 `1 / http://gitlab.test.local:18080 / 9 / issue / 969 / 管理员 / 2026-09-01 09:00:00 / 1 / CC2026R3 / 有效 / DEFECT / 黄金基线固定问题原因 / 黄金基线固定修改方案 / 空 / 2026-09-30 / CC2026R3 / 黄金基线样本`。导出原值不转中文枚举；复用 `GoldenSnapshotSupport.assertExportSnapshot → normalizeExcel`。
 
-- 黄金套件每次新建 Testcontainers 数据库；夹具失败时整库丢弃，无需人工清理。
-- 同一库重复执行夹具必须显式失败（范围/版本/记录主键已存在），不静默覆盖。
-- 写用例失败时 `finally` 仍需还原表、恢复来源开关、回收临时权限；任何一步失败都作为测试失败传播。
+导出审计与权限：
 
-## 六、缺失快照清单
+1. 导出前记录 `form_record_export_logs` 基线，导出后在 `finally` 删除本次新增行（或按基线还原），保证不改变后续数据库浏览器/读快照。
+2. 执行前查询 `select count(*) from platform_role_permissions where role_code='SUPER_ADMIN' and permission_code='form.record.export'`；为 0 时插入 1 行并在 `finally` 删除；为 1 时不动。正式授权名单仍由权限管理员提供，不在本夹具内。
 
-### 6.1 现有 19 份响应快照（全部缺失）
+## 五、统计增量与页面范围
+
+基线消费只改变 `issue_fact` 中 1228 一行：`planned_resolution_at/planned_resolution_text/form_input_hash`，其余业务列不变。按页面范围计算：
+
+- 客户问题各页以 project 325 为业务范围（`appliedFilters.projectId=325`），1228 属于 project 9，**被项目范围排除**，增量为 0。
+- 系统测试/质量看板要求 testing_phase、milestone、system-test 标签或客户标签；1228 无 milestone、无 labels、无 testing_phase（切片：`milestone_id=null`、label_links=0、assignee=0），**被范围规则排除**，增量为 0。
+- BI 编码类读取 MR，评审数据读取评审记录，均不读取该表单字段，增量为 0。
+- 结论中的 0 来自页面范围规则，**不是消费者被暂停**；暂停发生在基线消费完成之后。若生成后任一统计快照变化，先停止排查，不进入 update。
+
+## 六、快照数量（按真实副作用重算）
+
+### 6.1 响应快照：25 份
+
+- 既有 19 份缺失（清单见 6.3）。
+- 新增 6 份：`detail/golden-record`、`notification-payload/registered-issue`、`exports/records/golden-version`、`records/golden-create`、`records/{id}/golden-update`、`records/{id}/void/golden-void`。
+
+### 6.2 表快照：37 份
+
+- 既有 16 份缺失（清单见 6.4）。
+- 新增 21 份：3 个成功写用例 × 7 张表（3.1）。
+- 导出审计不生成表快照，由既有导出集成测试断言并由夹具还原。
+
+**合计 62 份（25 响应 + 37 表）**。与旧提案 59 的差异：`sync_runs` 使每个成功用例多 1 份表快照（+3），数量口径由“抑制链路”改为“真实入队后还原”。
+
+### 6.3 既有 19 份响应快照（全部缺失）
 
 | # | 快照文件 |
 | ---: | --- |
@@ -237,7 +242,9 @@
 | 18 | `collect-forms/get___version-milestones__unknown-source.json` |
 | 19 | `collect-forms/get___admin_projects__unknown-source.json` |
 
-### 6.2 现有 16 份表快照（全部缺失）
+### 6.4 既有 16 份表快照（全部缺失）
+
+这些快照在基线存在后会显示基线行（例如 `form_template_scopes` 的 scope 1、`form_record_audit_logs`/`form_change_heads` 的基线记录），不再是空表；失败路径仍必须零新增，快照按基线行严格比较。
 
 | # | 快照文件 |
 | ---: | --- |
@@ -258,18 +265,24 @@
 | 15 | `collect-forms/delete___template-scopes_{scopeId}__missing-scope__form_template_scope_drafts.json` |
 | 16 | `collect-forms/post___publications_{publicationId}_recover__missing-publication__form_template_publications.json` |
 
-### 6.3 新增用例带来的快照
+### 6.5 既有快照的预期更新（不是新增）
 
-- 响应快照 +6：`detail/golden-record`、`exports/records/golden-version`、`notification-payload/registered-issue`、`records/golden-create`、`records/{id}/golden-update`、`records/{id}/void/golden-void`。
-- 表快照 +18：三个成功写用例各 6 张（见 5.1）。
-- 合计：响应 25、表 34。生成前必须由用户确认这 59 份新快照。
+除 2.1 的 6 份外，基线消费还会改变下列表快照，需在 update 前逐份审阅：
 
-## 七、边界与确认项
+| 快照 | 变化 |
+| --- | --- |
+| `customer-issues/post___illegal-records_refresh-one__first-issue__issue_fact.json` | 1228 行新增 `planned_resolution_at/text` 与 `form_input_hash` |
+| `question-metrics/post___illegal-records_refresh-one__first-issue__issue_fact.json` | 同上 |
 
-1. 本提案不修改 `compatibility-completeness.sql.gz`；该文件只承载兼容性清单元数据，业务行由夹具另行构造。
-2. 本提案不触碰旧非法页源码、旧 COMMENT 值或 `form_authority_cutover_*`；夹具插入前断言 1228/issue_response 无既有权威行。
-3. 临时关闭来源只用于黄金成功写用例；不写生产配置、不改迁移默认值。
-4. 导出权限只做测试期临时授予；正式授权名单仍由权限管理员提供。
-5. 59 份新快照、夹具辅助代码、写用例字段、序列校准和临时权限钩子都属夹具变更，须先经审核方、再经用户确认；确认后先 `-Dgolden.update=true` 生成并逐份审阅 diff，再严格 compare。
-6. 首次严格 compare 可能先暴露响应断言差异；用例内响应断言失败时不会继续执行同一用例的表快照断言，因此不能保证一次 compare 收齐后续表差异。必须按“生成 → 审阅 → 严格 compare → 修复 → 再 compare”收敛。
-7. 未执行事项：golden/update、夹具/快照/掩码修改、main 合入、正式出包、升级、真实授权、生产启用。
+## 七、执行顺序、批准与停止条件
+
+1. 先交审核方确认本文件；再交用户批准夹具辅助代码、种子 `web_base_url`、7 张表清单、3 个掩码、62 份生成范围及 2.1/6.5 的既有快照变化。
+2. 生成前先跑严格 compare 收集已覆盖差异（新用例响应缺失会阻断该用例后续表断言，用本文件静态清单补齐）；不要先无授权 update。
+3. 经批准后以 `-Dgolden.update=true` 生成，逐份审阅 diff（重点是 `form_input_hash`、计划字段、`sync_runs.payload_json`、两条有序人员数组）；再移除 update 严格复比。
+4. 停止条件：head 未消费、事实签名不一致、公开域未 PUBLISHED、出现活动运行/新事实任务/投影、统计快照变化、导出审计或权限未还原、任一掩码外业务值变化。
+5. 未执行事项：golden/update、夹具/快照/掩码修改、main 合入、正式出包、升级、真实授权、生产启用。
+
+### 附：源码基线
+
+- 黄金源码输入固定为当前分支 HEAD `56004c2e`（在其下包含资料提交 `30341633`）；**不得用资料提交作为源码输入**。
+- 生成前单独直接验证 `56004c2e` 的候选服务修复（项目候选按真实 ODS 整型列读取命名空间）：至少覆盖绑定选项/项目候选相关定向测试，并把结果记入生成前置证据；验证失败先停止。
