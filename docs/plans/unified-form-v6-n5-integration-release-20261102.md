@@ -30,7 +30,7 @@
 - 现场复验（无头 Chrome，`.tmp-logs/n5-latest-15432-desktop/`）：表单管理页三模板可用；适用范围抽屉项目下拉返回真实目录，状态 `READY`、首屏 50 项、关键字 `cloud` 命中 42 项，完整路径含根命名空间（`cloudcad/help/CrownCAD-Help`），请求仅走 `/api/collect-forms/admin/projects?sourceConfigId=1`。
 - R04 复验（int4 修复后，专属 15522 / schema `qaflex_n5_int4_final`）：**2316 项、0 失败、0 错误、1 条件跳过，`BUILD SUCCESS`，26:57**，392 份 XML；日志 `.tmp-logs/n5-int4-final-20261103/final-suite.log`（SHA-256 `fa91e1742d58e8f84c5c72cad4754c6af08eced1139dd264575117d5922c40bb`）。输入 `HEAD=3ed6c49f95fbae109e609eb22dd4c555ffb82e97`、backend diff SHA-256 `940121c66ffee9a3aafa43bbb35c7a179f168e00beeafa72c5f08e7d14f47b79`；`FormProjectCandidateIntegrationTest` 10/10 在全量内通过。运行期间并发提交 `30341633` 只改 docs，不构成代码输入变化；前端未变，沿用已批准证据。
 - 发布门禁盘点（只读）：端点 200→220（新增 23/删除 3/变更 2），既有 19 个用例缺快照（19 响应 + 16 表）；严格口径为 1A/8D/135M（66 仅读取帧、38 等价、31 业务差异，业务差异零未归因）。T1 已补两处人员顺序与 16 表规划依据；T2 改为真实创建消费后暂停调度、命令保留真实入队，需生成 62 份（25 响应 + 37 表）并另行批准 8 份既有快照更新；T3 已按回执修正。见[发布门禁资料准备](unified-form-v6-release-gate-prep-20261103.md)文末入口；夹具业务行仍未改动。
-- 进行点：T1—T3 已按 `4812dbec` 修订，待复审；最终源码固定为 HEAD `56004c2e`（资料提交 `30341633` 不作为黄金源码输入），生成前仍需直接验证 `56004c2e`；黄金执行/update、夹具变更、main 合入、出包与生产启用仍未准入。
+- 进行点：T1—T3 已按 `4812dbec` 修订，待复审；最终源码固定为 HEAD `56004c2e`（资料提交 `30341633` 不作为黄金源码输入），已直接复验 `FormProjectCandidateIntegrationTest` 10/10（真实 PostgreSQL，56.152 秒）；黄金执行/update、夹具变更、main 合入、出包与生产启用仍未准入。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
