@@ -140,7 +140,7 @@ const applicableProjectOptions = computed<RecordTableFilterOption[]>(() =>
   ]),
 );
 const versionProjectOptions = computed<RecordTableFilterOption[]>(() =>
-  bindingProjectIds.value.map(projectOptionFor),
+  bindingProjectIds.value.map((projectId) => toProjectSelectOption(projectOptionFor(projectId))),
 );
 const canExportRecords = computed(() =>
   hasPermission(authState.currentUser, 'form.record.export'),

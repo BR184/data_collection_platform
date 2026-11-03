@@ -539,6 +539,9 @@ describe('表单管理单页工作区', () => {
     await view.find('.range-summary').trigger('click'); await flushPromises();
     view.findAllComponents(SmartSelect)[0].vm.$emit('update:modelValue', ['9']);
     await flushPromises();
+    expect(view.findAllComponents(SmartSelect)[1].props('options')).toEqual([
+      { value: '9', label: '项目 9 · team/project-9' },
+    ]);
     expect(mocks.api.getFormMilestones).toHaveBeenCalledWith(1, 9);
   });
 
