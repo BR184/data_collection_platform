@@ -245,7 +245,7 @@ class BiPlatformSourceAdapterTest {
     when(compatibilityModeEnabled.getAsBoolean()).thenReturn(true);
 
     var response = new BiCodingCalculator().calculate(
-        codingAdapter().load(scope(), codingQuery()));
+        boundCoding(codingAdapter(), true).load(scope(), codingQuery()));
 
     assertThat(response.data().summary().mergeRequestCount()).isEqualTo(1L);
     assertThat(response.data().summary().addedLines()).isEqualTo(500L);
