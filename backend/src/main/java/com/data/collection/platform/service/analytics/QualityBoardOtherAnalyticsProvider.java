@@ -194,9 +194,9 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
       String exportKey, AnalyticsDashboardQueryContext context) {
     QualityBoardOtherTopic topic = QualityBoardOtherTopic.fromExportKey(exportKey);
     List<QualityBoardOtherQueryService.Row> rows = detailRows(topic, context);
-    String scope = queryService.scope(topic, context);
+    String scopeLabel = queryService.scopeLabel(topic, context);
     return AnalyticsDashboardExport.xlsx(
-        topic.filename(scope), workbookService.export(topic, scope, rows));
+        topic.filename(scopeLabel), workbookService.export(topic, scopeLabel, rows));
   }
 
   private AnalyticsDashboardResponse.Chart chart(

@@ -82,7 +82,8 @@ public class DashboardVersionScopeService {
     List<ActiveScope> activeScopes = activeScopes(groups, projectId, dimension);
     Optional<ActiveScope> scope = activeScopes.stream()
         .filter(candidate ->
-            candidate.definition().displayName().equalsIgnoreCase(normalized))
+            candidate.definition().key().equalsIgnoreCase(normalized)
+                || candidate.definition().displayName().equalsIgnoreCase(normalized))
         .findFirst();
     if (scope.isPresent()) {
       return Optional.of(toScope(scope.get(), projectId, dimension));
@@ -366,10 +367,11 @@ public class DashboardVersionScopeService {
     }
   }
 
-  /** 看板候选：groupId 为 BI 使用的稳定原目录 ID，value 为看板请求值。 */
+  /** 看板候选：groupId 为 BI 使用的稳定原目录 ID，value 为稳定查询身份。 */
   public record VersionOption(long groupId, String businessKey, String displayName, int sortOrder) {
+    /** 看板请求、下钻与导出使用的稳定身份；显示名只用于 label。 */
     public String value() {
-      return displayName;
+      return businessKey;
     }
   }
 

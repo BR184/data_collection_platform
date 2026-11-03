@@ -6,7 +6,7 @@ import com.data.collection.platform.bi.infrastructure.BiCatMirrorModels.Config;
 import com.data.collection.platform.bi.infrastructure.BiCatMirrorModels.Run;
 import com.data.collection.platform.bi.infrastructure.BiCatMirrorModels.ScopeMapping;
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import java.time.Clock;
@@ -40,7 +40,7 @@ public class BiCatMirrorManager {
 
   private final BiCatMirrorRepository repository;
   private final BiCatMirrorSyncService syncService;
-  private final BiPlatformProductVersionAdapter productVersions;
+  private final BiCatProductVersionAdapter productVersions;
   private final BiCatProperties properties;
   private final BiCatScopeMappingRecommender mappingRecommender;
   private final Clock clock;
@@ -50,12 +50,12 @@ public class BiCatMirrorManager {
   public BiCatMirrorManager(
       JdbcTemplate jdbcTemplate,
       TransactionTemplate transactionTemplate,
-      DashboardVersionScopeService versionScopeService,
+      IssueScopeCatalogService catalogService,
       BiCatProperties properties,
       ObjectMapper objectMapper) {
     this(
         new BiCatMirrorRepository(jdbcTemplate, transactionTemplate),
-        new BiPlatformProductVersionAdapter(versionScopeService),
+        new BiCatProductVersionAdapter(catalogService),
         properties,
         objectMapper,
         Clock.systemUTC(),
@@ -65,7 +65,7 @@ public class BiCatMirrorManager {
 
   BiCatMirrorManager(
       BiCatMirrorRepository repository,
-      BiPlatformProductVersionAdapter productVersions,
+      BiCatProductVersionAdapter productVersions,
       BiCatProperties properties,
       ObjectMapper objectMapper,
       Clock clock,

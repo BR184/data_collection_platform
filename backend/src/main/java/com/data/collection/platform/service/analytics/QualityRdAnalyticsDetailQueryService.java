@@ -79,7 +79,7 @@ public class QualityRdAnalyticsDetailQueryService {
   List<OptionItemResponse> phaseOptions() {
     return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE)
         .stream()
-        .map(option -> new OptionItemResponse(option.value(), option.value()))
+        .map(option -> new OptionItemResponse(option.displayName(), option.value()))
         .filter(option -> TextQuerySupport.hasText(option.value()))
         .toList();
   }
@@ -625,7 +625,7 @@ public class QualityRdAnalyticsDetailQueryService {
   String canonicalProjectName(String requestedProjectName) {
     return versionScopeService
         .resolve(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requestedProjectName)
-        .displayName();
+        .businessKey();
   }
 
   private void validateCrownCadProject(String projectId) {

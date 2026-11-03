@@ -31,6 +31,9 @@ class QualityBoardOtherAnalyticsProviderTest {
     when(queryService.scope(
         any(QualityBoardOtherTopic.class),
         any(AnalyticsDashboardQueryContext.class))).thenReturn("CC2026R4");
+    when(queryService.scopeLabel(
+        any(QualityBoardOtherTopic.class),
+        any(AnalyticsDashboardQueryContext.class))).thenReturn("CC2026R4");
     when(workbookService.export(
         QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY, "CC2026R4", rows))
         .thenReturn(new byte[] {1, 2, 3});

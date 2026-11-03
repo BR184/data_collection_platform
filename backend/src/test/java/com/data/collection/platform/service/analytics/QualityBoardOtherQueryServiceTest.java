@@ -19,6 +19,45 @@ import org.springframework.jdbc.core.RowMapper;
 class QualityBoardOtherQueryServiceTest {
 
   @Test
+  void releaseLeakageCandidateUsesStableKeyButDisplaysCombinedName() {
+    var jdbc = new CapturingJdbcTemplate(true);
+    var service = new QualityBoardOtherQueryService(
+        jdbc,
+        mock(QualityBoardCodeReviewReadSupport.class),
+        DashboardVersionScopeTestSupport.service(
+            List.of(
+                DashboardVersionScopeTestSupport.group(
+                    10L,
+                    "CC2027R1",
+                    1,
+                    DashboardVersionScopeTestSupport.member(101L, "CC2027R1第一轮系统测试", 1)),
+                DashboardVersionScopeTestSupport.group(
+                    20L,
+                    "CC2027R2",
+                    2,
+                    DashboardVersionScopeTestSupport.member(201L, "CC2027R2第一轮系统测试", 1))),
+            List.of(DashboardVersionScopeTestSupport.scope(
+                "cc-2027-r1-r2",
+                "CC2027R1&R2",
+                "CC2027R1",
+                List.of("CC2027R1", "CC2027R2"),
+                List.of(),
+                List.of()))));
+
+    var rows = service.load(
+        QualityBoardOtherTopic.RELEASE_LEAKAGE_RATE,
+        AnalyticsDashboardQueryContext.empty());
+
+    assertThat(rows).extracting(QualityBoardOtherQueryService.Row::name)
+        .containsExactly("CC2027R1&R2");
+    assertThat(rows).extracting(QualityBoardOtherQueryService.Row::scope)
+        .containsExactly("CC2027R1&R2");
+    assertThat(jdbc.queryCalls).singleElement().satisfies(call -> assertThat(call.args())
+        .contains("cc-2027-r1-r2", "CC2027R1第一轮系统测试",
+            "cc-2027-r1-r2", "CC2027R2第一轮系统测试"));
+  }
+
+  @Test
   void releaseLeakageAggregatesAllEnabledProjectsInOneIssueQuery() {
     var jdbc = new CapturingJdbcTemplate(true);
     var service = service(jdbc);

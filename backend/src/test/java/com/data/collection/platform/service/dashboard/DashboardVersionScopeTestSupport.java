@@ -33,6 +33,15 @@ public final class DashboardVersionScopeTestSupport {
 
   public static ScopeGroup group(
       long id, String businessKey, int sortOrder, ScopeMember... members) {
+    return group(id, businessKey, businessKey, sortOrder, members);
+  }
+
+  public static ScopeGroup group(
+      long id,
+      String businessKey,
+      String displayName,
+      int sortOrder,
+      ScopeMember... members) {
     return new ScopeGroup(
         1L,
         IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
@@ -40,7 +49,7 @@ public final class DashboardVersionScopeTestSupport {
         IssueScopeDimension.TESTING_PHASE,
         id,
         businessKey,
-        businessKey,
+        displayName,
         sortOrder,
         List.of(members));
   }

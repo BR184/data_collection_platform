@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /** 组合入口的评审去重与集成测试来源展开。 */
 class QualityBoardRdServiceCombinedScopeTest {
+  private static final String COMBINED_KEY = "cc-2027-r1-r2";
   private static final String COMBINED = "CC2027R1&R2";
   private static final String DEMAND = "需求说明书评审";
 
@@ -55,7 +56,7 @@ class QualityBoardRdServiceCombinedScopeTest {
                 List.of("2027R1&R2"),
                 List.of()))));
 
-    var overview = service.getOverview(COMBINED, CodeReviewDataReadMode.FORMAL);
+    var overview = service.getOverview(COMBINED_KEY, CodeReviewDataReadMode.FORMAL);
 
     assertThat(overview.demandReviewReportDensity()).isEqualTo(0.75D);
     assertThat(overview.designReviewReportDensity()).isZero();
@@ -79,13 +80,45 @@ class QualityBoardRdServiceCombinedScopeTest {
                 List.of(),
                 List.of()))));
 
-    var overview = service.getOverview(COMBINED, CodeReviewDataReadMode.FORMAL);
+    var overview = service.getOverview(COMBINED_KEY, CodeReviewDataReadMode.FORMAL);
 
     assertThat(overview.integrationPassRate()).isEqualTo(70D);
     assertThat(jdbc.integrationPhases)
         .containsExactly("CC2027R1集成测试", "CC2027R2集成测试")
         .doesNotContain(COMBINED + "集成测试");
     assertThat(jdbc.notPassCount).isEqualTo(2L);
+  }
+
+  @Test
+  void renamedNormalVersionSupportsDefaultAndStableKeySelection() {
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    when(jdbc.queryForObject(anyString(), eq(Boolean.class), any(Object[].class)))
+        .thenReturn(false);
+    when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
+        .thenReturn(0L);
+    QualityBoardRdService service = new QualityBoardRdService(
+        jdbc,
+        mock(ReviewDataRecordReadRepository.class),
+        mock(ReviewDataMatchModeRecordRepository.class),
+        mock(QualityBoardCodeReviewReadSupport.class),
+        DashboardVersionScopeTestSupport.service(
+            DashboardVersionScopeTestSupport.group(
+                11L,
+                "CC2026R3",
+                "CC 2026 R3 发布版",
+                1,
+                DashboardVersionScopeTestSupport.member(111L, "CC2026R3第一轮系统测试", 1))));
+
+    var options = service.listProjectOptions();
+    assertThat(options.defaultProjectName()).isEqualTo("CC2026R3");
+    assertThat(options.options()).singleElement().satisfies(option -> {
+      assertThat(option.value()).isEqualTo("CC2026R3");
+      assertThat(option.label()).isEqualTo("CC 2026 R3 发布版");
+    });
+    assertThat(service.getOverview(null, CodeReviewDataReadMode.FORMAL).projectName())
+        .isEqualTo("CC 2026 R3 发布版");
+    assertThat(service.getOverview("CC2026R3", CodeReviewDataReadMode.FORMAL).projectName())
+        .isEqualTo("CC 2026 R3 发布版");
   }
 
   private static com.data.collection.platform.service.IssueScopeCatalogService.ScopeGroup r1Group() {

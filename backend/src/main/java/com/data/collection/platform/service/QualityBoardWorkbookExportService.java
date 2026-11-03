@@ -64,7 +64,7 @@ public class QualityBoardWorkbookExportService {
   }
 
   public String rdChartFilename(String projectName, String chartKey) {
-    String normalizedProjectName = normalizeProjectName(projectName);
+    String normalizedProjectName = displayProjectName(projectName);
     return switch (chartKey) {
       case "assignee-defect-density" -> normalizedProjectName + "走查人千行缺陷率统计.xlsx";
       case "author-defect-density" -> normalizedProjectName + "被走查人千行缺陷率统计.xlsx";
@@ -253,11 +253,15 @@ public class QualityBoardWorkbookExportService {
 
   public String codeReviewRecordsFilename(String projectName, String source) {
     String sourceLabel = "dgm".equalsIgnoreCase(source) ? "DGM" : "CC";
-    return sourceLabel + "库-" + normalizeProjectName(projectName) + "项目-代码走查数据.xlsx";
+    return sourceLabel + "库-" + displayProjectName(projectName) + "项目-代码走查数据.xlsx";
   }
 
   private String normalizeProjectName(String projectName) {
     return rdService.normalizeProjectName(projectName);
+  }
+
+  private String displayProjectName(String projectName) {
+    return rdService.displayProjectName(projectName);
   }
 
   private String formatDate(java.time.LocalDateTime value) {

@@ -51,7 +51,7 @@ public class QualityBoardRdService {
     List<OptionItemResponse> options =
         versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
             .filter(option -> StringUtils.hasText(option.value()))
-            .map(option -> new OptionItemResponse(option.value(), option.value()))
+            .map(option -> new OptionItemResponse(option.displayName(), option.value()))
             .toList();
     String defaultProject = options.stream().map(OptionItemResponse::value).findFirst().orElse("");
     return new QualityBoardProjectOptionsResponse(defaultProject, options);
@@ -71,7 +71,8 @@ public class QualityBoardRdService {
 
   public QualityBoardRdOverviewResponse getOverview(
       String requestedProjectName, CodeReviewDataReadMode codeReviewReadMode) {
-    String projectName = normalizeProjectName(requestedProjectName);
+    DashboardVersionScope scope = resolveScope(requestedProjectName);
+    String projectName = scope.businessKey();
     double demandReviewDensity = reviewDensity(projectName, DEMAND_REVIEW_TYPE);
     double designReviewDensity = reviewDensity(projectName, DESIGN_REVIEW_TYPE);
     double codeReviewCcDensity =
@@ -93,7 +94,7 @@ public class QualityBoardRdService {
             new QualityBoardMetricResponse("defectEliminationRate", "开发缺陷遗留率", defectEliminationRate, "%", "目标值：不低于 90.00%"),
             new QualityBoardMetricResponse("newIssueFixRate", "新发缺陷修复率", newIssueFixRate, "%", "新发缺陷中已修复/未复现占比"));
     return new QualityBoardRdOverviewResponse(
-        projectName,
+        scope.displayName(),
         demandReviewDensity,
         designReviewDensity,
         codeReviewCcDensity,
@@ -137,10 +138,11 @@ public class QualityBoardRdService {
   }
 
   public QualityBoardOtherOverviewResponse getOtherOverview(String requestedProjectName) {
-    String projectName = normalizeProjectName(requestedProjectName);
+    DashboardVersionScope scope = resolveScope(requestedProjectName);
+    String projectName = scope.businessKey();
     List<String> phases = phaseValues(projectName);
     return new QualityBoardOtherOverviewResponse(
-        projectName,
+        scope.displayName(),
         functionDefectCountRows(phases),
         functionDefectDensityRows(projectName, phases),
         qualityRankingRows(projectName, phases),
@@ -218,13 +220,15 @@ public class QualityBoardRdService {
 
   private List<QualityBoardChartRowResponse> releaseLeakageRateRows() {
     return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
-        .map(option -> new QualityBoardChartRowResponse(option.value(), defectLeakageRate(option.value())))
+        .map(option -> new QualityBoardChartRowResponse(
+            option.displayName(), defectLeakageRate(option.value())))
         .toList();
   }
 
   private List<QualityBoardChartRowResponse> developmentLeakageRateRows() {
     return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
-        .map(option -> new QualityBoardChartRowResponse(option.value(), defectEliminationRate(option.value())))
+        .map(option -> new QualityBoardChartRowResponse(
+            option.displayName(), defectEliminationRate(option.value())))
         .toList();
   }
 
@@ -555,8 +559,13 @@ public class QualityBoardRdService {
     }
   }
 
-  /** 将请求值规范化为看板候选；未传值时使用管理员排序第一项。 */
+  /** 将请求值规范化为稳定业务键；未传值时使用候选第一项。 */
   public String normalizeProjectName(String requestedProjectName) {
+    return resolveScope(requestedProjectName).businessKey();
+  }
+
+  /** 返回候选的显示名，仅用于页面文案和文件名。 */
+  public String displayProjectName(String requestedProjectName) {
     return resolveScope(requestedProjectName).displayName();
   }
 

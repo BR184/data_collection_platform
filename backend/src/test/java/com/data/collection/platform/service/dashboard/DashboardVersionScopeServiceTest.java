@@ -40,6 +40,8 @@ class DashboardVersionScopeServiceTest {
     var options = service.listOptions(PROJECT_ID, IssueScopeDimension.TESTING_PHASE);
 
     assertThat(options).extracting(DashboardVersionScopeService.VersionOption::value)
+        .containsExactly("CC2026R3", "cc-2027-r1-r2", "CC2026R2");
+    assertThat(options).extracting(DashboardVersionScopeService.VersionOption::displayName)
         .containsExactly("CC2026R3", "CC2027R1&R2", "CC2026R2");
     assertThat(options.get(1).groupId()).isEqualTo(10L);
     assertThat(options.get(1).businessKey()).isEqualTo("cc-2027-r1-r2");
@@ -111,7 +113,7 @@ class DashboardVersionScopeServiceTest {
 
     var options = service.listOptions(PROJECT_ID, IssueScopeDimension.TESTING_PHASE);
     assertThat(options).extracting(DashboardVersionScopeService.VersionOption::value)
-        .containsExactly("CC2027R1&R2");
+        .containsExactly("cc-2027-r1-r2");
 
     DashboardVersionScope scope = service.resolve(
         PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2027R1&R2");
@@ -173,6 +175,51 @@ class DashboardVersionScopeServiceTest {
     assertThat(scope.reviewProjectNames())
         .containsExactly("CC2027R1", "CC2027R2", "2027R1&R2", "2027R1&R2回归");
     assertThat(scope.integrationTestPhases()).containsExactly("2027R1&R2集成测试");
+  }
+
+  @Test
+  void renamedNormalVersionKeepsStableKeyForDefaultAndSelection() {
+    DashboardVersionScopeService service = service(
+        DashboardVersionScopeTestSupport.group(
+            11L,
+            "CC2026R3",
+            "CC 2026 R3 发布版",
+            1,
+            DashboardVersionScopeTestSupport.member(111L, "CC2026R3第一轮系统测试", 1)));
+
+    var options = service.listOptions(PROJECT_ID, IssueScopeDimension.TESTING_PHASE);
+    assertThat(options).singleElement().satisfies(option -> {
+      assertThat(option.value()).isEqualTo("CC2026R3");
+      assertThat(option.displayName()).isEqualTo("CC 2026 R3 发布版");
+    });
+    assertThat(service.resolve(PROJECT_ID, IssueScopeDimension.TESTING_PHASE, null).businessKey())
+        .isEqualTo("CC2026R3");
+    assertThat(service.resolve(
+            PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "CC2026R3").displayName())
+        .isEqualTo("CC 2026 R3 发布版");
+  }
+
+  @Test
+  void renamedCombinedVersionKeepsStableKeyAndMembers() {
+    DashboardVersionScopeConfig.ScopeDefinition renamed =
+        DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "2027 R1与R2合并",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of(),
+            List.of());
+    DashboardVersionScopeService service = service(renamed, r1Group(), r2Group());
+
+    var option = service.listOptions(PROJECT_ID, IssueScopeDimension.TESTING_PHASE).getFirst();
+    assertThat(option.value()).isEqualTo("cc-2027-r1-r2");
+    assertThat(option.displayName()).isEqualTo("2027 R1与R2合并");
+
+    DashboardVersionScope scope = service.resolve(
+        PROJECT_ID, IssueScopeDimension.TESTING_PHASE, "cc-2027-r1-r2");
+    assertThat(scope.businessKey()).isEqualTo("cc-2027-r1-r2");
+    assertThat(scope.displayName()).isEqualTo("2027 R1与R2合并");
+    assertThat(scope.memberBusinessKeys()).containsExactly("CC2027R1", "CC2027R2");
   }
 
   @Test

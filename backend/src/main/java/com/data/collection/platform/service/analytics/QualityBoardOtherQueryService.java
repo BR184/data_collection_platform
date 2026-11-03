@@ -37,7 +37,8 @@ public class QualityBoardOtherQueryService {
   }
 
   List<Row> load(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
-    String selectedScope = scope(topic, context);
+    String selectedScopeKey = scope(topic, context);
+    String selectedScopeLabel = scopeLabel(topic, context);
     List<Row> rows = switch (topic) {
       case FUNCTION_DEFECT_COUNT -> functionDefectCountRows(scope(topic, context));
       case FUNCTION_DEFECT_DENSITY -> functionDefectDensityRows(scope(topic, context));
@@ -47,11 +48,25 @@ public class QualityBoardOtherQueryService {
       case DEVELOPMENT_LEAKAGE_RATE -> developmentLeakageRateRows();
     };
     return rows.stream()
-        .map(row -> StringUtils.hasText(row.scope()) ? row : row.withScope(selectedScope))
+        .map(row -> StringUtils.hasText(row.scope())
+            ? row
+            : row.withScope(selectedScopeLabel != null ? selectedScopeLabel : selectedScopeKey))
         .toList();
   }
 
+  /** 返回下钻、导出和来源版本使用的稳定查询身份。 */
   String scope(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
+    if (topic.scopeParameterKey() == null) {
+      return "全部启用版本";
+    }
+    String requested = context.parameter(topic.scopeParameterKey()).orElse(null);
+    return versionScopeService
+        .resolve(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requested)
+        .businessKey();
+  }
+
+  /** 返回页面文案和文件名使用的显示名。 */
+  String scopeLabel(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
     if (topic.scopeParameterKey() == null) {
       return "全部启用版本";
     }
@@ -216,10 +231,14 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> releaseLeakageRateRows() {
-    List<String> projectNames = enabledProjectNames();
-    Map<String, IssueCounts> issueCounts = issueCountsByProject(projectNames);
-    return projectNames.stream()
-        .map(projectName -> releaseLeakageRateRow(projectName, issueCounts.get(projectName)))
+    List<DashboardVersionScopeService.VersionOption> options =
+        versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE);
+    Map<String, IssueCounts> issueCounts =
+        issueCountsByProject(options.stream().map(DashboardVersionScopeService.VersionOption::value)
+            .toList());
+    return options.stream()
+        .map(option -> releaseLeakageRateRow(
+            option.displayName(), issueCounts.get(option.value())))
         .sorted((left, right) -> {
           int byValue = Double.compare(right.value(), left.value());
           return byValue == 0 ? left.name().compareTo(right.name()) : byValue;
@@ -227,10 +246,10 @@ public class QualityBoardOtherQueryService {
         .toList();
   }
 
-  private Row releaseLeakageRateRow(String projectName, IssueCounts counts) {
+  private Row releaseLeakageRateRow(String projectLabel, IssueCounts counts) {
     long total = counts == null ? 0L : counts.total();
     long open = counts == null ? 0L : counts.open();
-    return Row.ratio(projectName, projectName, open, total, percentage(open, total));
+    return Row.ratio(projectLabel, projectLabel, open, total, percentage(open, total));
   }
 
   private List<Row> developmentLeakageRateRows() {
