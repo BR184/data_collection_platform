@@ -1,3 +1,10 @@
+## 2026-11-03 老平台CC会话替换JAR离线交付，待内网验证
+
+- [范围] 用户明确只替换截图提供的CC会话。以已批准停写版JAR（SHA-256 `95b544f1…64dbc0b`）重新封装，仅更新application.properties、application-prod1.properties、application-test.properties中 `cc.gitlab.session`；未重新编译，DGM会话、API令牌、其它配置和业务保持。
+- [制品] `D:/projects/data_collection_platform_deploy/crowncad-spider-cc-session-20261103/crowncad-spider-0.0.1-SNAPSHOT.jar`，134,982,420字节，SHA-256 `1e982cf8de6c9fbf0127dc98dcbb1109fa026d85fa737542bf19bff580a4cb07`；同目录有sha256、README和逐条目VERIFICATION.json。此制品含用户授权会话，仅本地受控交付，不提交Git或推送；文档不记录凭据值。
+- [验证] 原包与用户解压配置一致；封包及独立二次审计均确认仅3处指定键值变化，其余字节内容一致，435个class、160个嵌套依赖、145个静态文件不变，CRC/条目唯一性/顺序与压缩类型通过，旧延期停写class不变；临时明文输入已删除。脚本与离线证据位于忽略目录 `.tmp/legacy-cc-session-20261103/`，无源码或环境改动。
+- [部署边界] 未运行JAR、访问内网或触发采集。用户停止旧服务、备份并同名替换后重启；维护人员核对外置配置/启动参数是否覆盖CC会话，先验证MR列表可读再采集。原有空结果清数据行为未修，不恢复旧延期标签写回；内网运行结果由用户验证。
+
 ## 2026-11-02 版本归属待领导裁定；延期专用包范围已确认
 
 - [待裁定] R1/R2、缺测试阶段议题、组合评审及信创版归属已按用户要求[落档暂停](plans/product-version-attribution-pending-20261102.md)；保留GitLab现状，未批准的设计不进入业务规则或员工实施。BI当前匹配行为按其域数据契约维护。
