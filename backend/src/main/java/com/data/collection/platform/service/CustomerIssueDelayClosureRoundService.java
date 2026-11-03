@@ -184,12 +184,23 @@ public class CustomerIssueDelayClosureRoundService {
             progress.mirrorRunId(),
             progress.enqueueCursorIssueId(),
             batchSize);
-    CustomerIssueDelayClosureProgress updated =
-        (page.hasMore()
-                ? progressRepository.advanceCursor(claim, page.lastIssueId())
-                : progressRepository.completeRound(claim))
-            .orElseThrow(
-                () -> new IllegalStateException("延期写回进度所有权已丢失，回滚本页候选登记"));
+    CustomerIssueDelayClosureProgress updated;
+    if (page.hasMore()) {
+      updated =
+          progressRepository
+              .advanceCursor(claim, page.lastIssueId())
+              .orElseThrow(
+                  () -> new IllegalStateException("延期写回进度所有权已丢失，回滚本页候选登记"));
+    } else {
+      queueService.settleObsoletePendingJobs(
+          GitlabSourceInstanceSupport.sourceInstanceOf(config),
+          progress.authorizationRevision());
+      updated =
+          progressRepository
+              .completeRound(claim)
+              .orElseThrow(
+                  () -> new IllegalStateException("延期写回进度所有权已丢失，回滚本页候选登记"));
+    }
     CustomerIssueDelayClosureProgressClaim next = claim.withProgress(updated);
     return page.hasMore()
         ? EnqueueResult.advanced(next, page.enqueued())

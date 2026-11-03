@@ -71,7 +71,8 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
             progressRepository,
             readinessService,
             formHeadCaptureService,
-            formIssueBuildInputService);
+            formIssueBuildInputService,
+            Runnable::run);
     config = new GitlabSyncConfig();
     config.setId(CONFIG_ID);
     config.setSourceInstance("default");

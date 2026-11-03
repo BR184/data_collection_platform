@@ -81,7 +81,7 @@ final class IssueBusinessProjector {
     boolean resolveDelayed =
         open
             && IssueSlaRules.isResolveDelayed(
-                IssueStatusMembers.parse(fact.getBugStatus()), hasReply, deadline, now);
+                labels, hasReply, deadline, now);
     return new IssueSlaRules.Evaluation(
         responseDelayed, resolveDelayed, deadline, resolveSlaDays);
   }

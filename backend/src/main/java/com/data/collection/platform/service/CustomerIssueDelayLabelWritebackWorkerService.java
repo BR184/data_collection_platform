@@ -1,15 +1,21 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
+import com.data.collection.platform.service.form.FormHeadCaptureService;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -29,6 +35,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class CustomerIssueDelayLabelWritebackWorkerService {
   private static final int DEFER_SECONDS = 30;
+  /** 默认 5 秒最小 PUT 间隔下，一次连续占用不超过 30 秒的作业数。 */
+  private static final int MAX_JOBS_PER_BATCH = 6;
 
   private final GitlabMirrorProperties properties;
   private final GitlabConfigService configService;
@@ -38,11 +46,12 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
   private final CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
   private final CustomerIssueDelayClosureProgressRepository progressRepository;
   private final CustomerIssueDelaySourceReadinessService readinessService;
-  private final com.data.collection.platform.service.form.FormHeadCaptureService
-      formHeadCaptureService;
+  private final FormHeadCaptureService formHeadCaptureService;
   private final FormIssueBuildInputService formIssueBuildInputService;
+  private final Executor writebackExecutor;
   private final String workerOwner = "customer-delay-label-worker-" + UUID.randomUUID();
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private volatile long lastSendStartedAtNanos;
 
   public CustomerIssueDelayLabelWritebackWorkerService(
       GitlabMirrorProperties properties,
@@ -53,8 +62,10 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
       CustomerIssueDelayClosureProgressRepository progressRepository,
       CustomerIssueDelaySourceReadinessService readinessService,
-      com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService,
-      FormIssueBuildInputService formIssueBuildInputService) {
+      FormHeadCaptureService formHeadCaptureService,
+      FormIssueBuildInputService formIssueBuildInputService,
+      @Qualifier(PlatformAsyncConfiguration.CUSTOMER_ISSUE_DELAY_WRITEBACK_EXECUTOR)
+          Executor writebackExecutor) {
     this.properties = properties;
     this.configService = configService;
     this.writebackService = writebackService;
@@ -65,8 +76,15 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     this.readinessService = readinessService;
     this.formHeadCaptureService = formHeadCaptureService;
     this.formIssueBuildInputService = formIssueBuildInputService;
+    this.writebackExecutor = writebackExecutor;
   }
 
+  /**
+   * 调度触发只向写回专用执行器提交一次有界批次，不在公共调度线程上领取或发送。
+   *
+   * <p>单飞标志覆盖"已提交但批次未结束"的整个区间；提交被拒绝、批次异常或正常退出都释放标志，
+   * 未完成任务保留在数据库，由下一次触发继续。
+   */
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.customer-issue-delay-writeback-worker-delay-ms:5000}")
   public void runOnce() {
     if (!properties.isSchedulerEnabled() || !properties.isCustomerIssueDelayWritebackWorkerEnabled()) {
@@ -76,14 +94,53 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       return;
     }
     try {
-      CustomerIssueDelayLabelWritebackJob job =
-          queueService.claimNext(workerOwner, properties.getCustomerIssueDelayWritebackLeaseSeconds());
-      if (job != null) {
+      writebackExecutor.execute(this::drainBatch);
+    } catch (RejectedExecutionException error) {
+      running.set(false);
+      log.warn("Customer issue delay label writeback executor rejected the batch, retry on next trigger");
+    }
+  }
+
+  private void drainBatch() {
+    try {
+      for (int index = 0; index < MAX_JOBS_PER_BATCH; index++) {
+        if (index > 0) {
+          awaitSendInterval();
+        }
+        CustomerIssueDelayLabelWritebackJob job =
+            queueService.claimNext(
+                workerOwner, properties.getCustomerIssueDelayWritebackLeaseSeconds());
+        if (job == null) {
+          return;
+        }
         process(job);
       }
     } finally {
       running.set(false);
     }
+  }
+
+  /** 保证相邻两次 PUT 起始至少间隔既有 5 秒配置；上一次 HTTP 已超过间隔时不再追加空等。 */
+  private void awaitSendInterval() {
+    long remainingNanos = remainingSendIntervalNanos(lastSendStartedAtNanos, System.nanoTime());
+    if (remainingNanos <= 0L) {
+      return;
+    }
+    try {
+      TimeUnit.NANOSECONDS.sleep(remainingNanos);
+    } catch (InterruptedException error) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  long remainingSendIntervalNanos(long lastSendStartedAtNanos, long nowNanos) {
+    if (lastSendStartedAtNanos == 0L) {
+      return 0L;
+    }
+    long intervalNanos =
+        TimeUnit.MILLISECONDS.toNanos(
+            Math.max(0, properties.getCustomerIssueDelayWritebackWorkerDelayMs()));
+    return Math.max(0L, intervalNanos - (nowNanos - lastSendStartedAtNanos));
   }
 
   /**
@@ -150,12 +207,38 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
           job.issueIid());
       return;
     }
+    lastSendStartedAtNanos = System.nanoTime();
     try {
       int status = writebackService.sendLabelUpdate(config, job.projectId(), job.issueIid(), plan.change());
       boolean settled = queueService.markSucceeded(job);
       if (!settled) {
+        if (queueService.markSucceededIfSameChange(
+            job, plan.change().addLabels(), plan.change().removeLabels())) {
+          log.info(
+              "Customer issue delay label writeback succeeded; the newer revision requires the same change, acknowledged,"
+                  + " sourceInstance={}, projectId={}, issueIid={}, httpStatus={}, addLabels={}, removeLabels={}",
+              job.sourceInstance(),
+              job.projectId(),
+              job.issueIid(),
+              status,
+              plan.change().addLabels(),
+              plan.change().removeLabels());
+          return;
+        }
+        if (queueService.releaseForNewRevision(job)) {
+          log.info(
+              "Customer issue delay label writeback succeeded but a newer revision requires different work;"
+                  + " released for the new revision, sourceInstance={}, projectId={}, issueIid={}, httpStatus={}, addLabels={}, removeLabels={}",
+              job.sourceInstance(),
+              job.projectId(),
+              job.issueIid(),
+              status,
+              plan.change().addLabels(),
+              plan.change().removeLabels());
+          return;
+        }
         log.info(
-            "Customer issue delay label writeback succeeded but a newer revision arrived, keep it pending,"
+            "Customer issue delay label writeback succeeded but ownership changed, keep it pending,"
                 + " projectId={}, issueIid={}, addLabels={}, removeLabels={}",
             job.projectId(),
             job.issueIid(),
@@ -218,6 +301,11 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
         readinessService.validateRoundAuthorization(
             config, current, preWritebackSyncService.preWritebackTables());
     if (!readiness.allowed()) {
+      if (current.authorizedFactVersion() != null
+          && readiness.factVersion() > current.authorizedFactVersion()) {
+        progressRepository.requestRecoveryIfIdleWithExpiredAuthorization(
+            job.sourceInstance(), config.getId(), readiness.factVersion());
+      }
       return AuthorizationCheck.waitingFor(readiness.reason());
     }
     if (formHeadCaptureService.hasUnconsumedFormEvidence(

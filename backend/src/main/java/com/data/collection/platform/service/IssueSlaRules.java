@@ -1,18 +1,21 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules;
+import com.data.collection.platform.domain.customerissue.CustomerRequirementRules;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
 final class IssueSlaRules {
   private static final List<String> RESPONSE_DELAY_LABELS = List.of("响应已延期");
-  // 闭环资格只比较规范状态成员：显式原因前缀、否定词和扩展文本不会进入成员集合。
-  private static final List<String> NON_FIXED_CLOSURE_MEMBERS =
-      List.of("申请延期", "数据异常", "需求如此", "设计如此", "未复现");
-  private static final List<String> FIXED_CLOSURE_MEMBERS =
-      List.of("已修复", CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER, "待合并", "未更新");
+  // 仅延期判定共用此豁免，不改变其它统计中的状态、修复或需求身份。
+  private static final Set<String> COMMON_DELAY_EXEMPT_STATUSES =
+      Set.of("申请延期", "设计如此", "申请否决", "数据异常", "未复现", "需求如此");
+  private static final Set<String> COMMON_DELAY_EXEMPT_LABELS = Set.of(
+      CustomerRequirementRules.REQUIREMENT_LABEL, CustomerRequirementRules.SUGGESTION_LABEL, "建议");
+  private static final Pattern STATUS_LABEL_PREFIX = Pattern.compile("^状态\\s*[：:]\\s*");
   private static final List<String> RESPONSE_HEADER_TOKENS =
       List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final List<String> FIX_CASE_NOTE_TOKENS = List.of("### 1、修复状态");
@@ -28,7 +31,7 @@ final class IssueSlaRules {
   }
 
   /**
-   * 响应延期豁免：回复模板存在，或响应模板存在且其“计划解决时间”合法。
+   * 响应延期先应用双标签共用豁免，其次检查响应模板中的合法计划日期。
    *
    * <p>合法格式以规则总表 5.4／11.4 为唯一标准，凡不符合即视为“没有写时间”，与非法模板判定同源；
    * 计划解决时间按最新一份响应模板取值，不可解析时回退更早模板。回复模板存在时优先豁免，
@@ -38,7 +41,11 @@ final class IssueSlaRules {
    * @return 应豁免响应延期时返回 {@code true}
    */
   static boolean isResponseExempt(String notesText) {
-    return hasFixCaseNote(notesText)
+    return isResponseExempt(List.of(), notesText);
+  }
+
+  private static boolean isResponseExempt(List<String> labels, String notesText) {
+    return hasCommonDelayExemption(labels, hasFixCaseNote(notesText))
         || IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
   }
 
@@ -56,7 +63,7 @@ final class IssueSlaRules {
   }
 
   static boolean isResponseDelayed(List<String> labels, String notesText) {
-    return !isResponseExempt(notesText)
+    return !isResponseExempt(labels, notesText)
         && IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);
   }
 
@@ -66,7 +73,7 @@ final class IssueSlaRules {
       LocalDateTime createdAt,
       String priorityLevel,
       LocalDateTime now) {
-    if (isResponseExempt(notesText)) {
+    if (isResponseExempt(labels, notesText)) {
       return false;
     }
     return isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
@@ -108,8 +115,7 @@ final class IssueSlaRules {
    * 超过 18 天时按 18 天默认值。关闭议题不产生延期。
    *
    * @param input 已确定的业务事实（表单或评论，不混源）
-   * @param labels 当前来源标签（仅用于响应 SLA 优先级）
-   * @param statusMembers 从 {@code 状态：值} 解析出的规范闭环状态成员
+   * @param labels 当前来源标签（响应 SLA 优先级与延期豁免）
    * @param createdAt 议题创建时间
    * @param priorityLevel 当前来源优先级
    * @param now 判定时刻
@@ -124,13 +130,23 @@ final class IssueSlaRules {
       String priorityLevel,
       LocalDateTime now,
       boolean open) {
+    return evaluate(input, labels, createdAt, priorityLevel, now, open);
+  }
+
+  static Evaluation evaluate(
+      SlaInput input,
+      List<String> labels,
+      LocalDateTime createdAt,
+      String priorityLevel,
+      LocalDateTime now,
+      boolean open) {
     LocalDateTime deadline = resolveDeadline(createdAt, input.plannedResolutionAt());
     int resolveSlaDays = resolveSlaDays(createdAt, input.plannedResolutionAt());
     boolean responseExempt = input.hasReply() || input.responsePlanExempt();
     boolean responseDelayed =
         open && !responseExempt && isResponseDelayedByClock(labels, createdAt, priorityLevel, now);
     boolean resolveDelayed =
-        open && isResolveDelayed(statusMembers, input.hasReply(), deadline, now);
+        open && isResolveDelayed(labels, input.hasReply(), deadline, now);
     return new Evaluation(responseDelayed, resolveDelayed, deadline, resolveSlaDays);
   }
 
@@ -204,36 +220,38 @@ final class IssueSlaRules {
   }
 
   static boolean isResolveDelayed(
-      List<String> statusMembers, LocalDateTime resolveDeadlineAt, LocalDateTime now) {
-    if (resolveDeadlineAt == null || now == null) {
-      return false;
-    }
-    if (hasAnyStatusMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)
-        || hasAnyStatusMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
-      return false;
-    }
-    return now.isAfter(resolveDeadlineAt);
+      List<String> labels, LocalDateTime resolveDeadlineAt, LocalDateTime now) {
+    return isResolveDelayed(labels, false, resolveDeadlineAt, now);
   }
 
   static boolean isResolveDelayed(
-      List<String> statusMembers,
+      List<String> labels,
       boolean hasFixCaseNote,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
-    if (resolveDeadlineAt == null || now == null) {
-      return false;
-    }
-    if (hasAnyStatusMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)) {
-      return false;
-    }
-    if (hasFixCaseNote && hasAnyStatusMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
+    if (hasCommonDelayExemption(labels, hasFixCaseNote)
+        || resolveDeadlineAt == null || now == null) {
       return false;
     }
     return now.isAfter(resolveDeadlineAt);
   }
 
-  private static boolean hasAnyStatusMember(List<String> statusMembers, List<String> expectedMembers) {
-    return statusMembers != null && statusMembers.stream().anyMatch(expectedMembers::contains);
+  /** 原始标签与修复模板共同决定双延期豁免；原因前缀、否定词和其它标签组不能冒充豁免状态。 */
+  private static boolean hasCommonDelayExemption(List<String> labels, boolean hasFixCaseNote) {
+    if (hasFixCaseNote) {
+      return true;
+    }
+    for (String label : labels == null ? List.<String>of() : labels) {
+      String value = label == null ? "" : label.trim();
+      if (COMMON_DELAY_EXEMPT_LABELS.contains(value)) {
+        return true;
+      }
+      String status = STATUS_LABEL_PREFIX.matcher(value).replaceFirst("").trim();
+      if (COMMON_DELAY_EXEMPT_STATUSES.contains(status)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static int responseSlaHours(List<String> labels, String priorityLevel) {
