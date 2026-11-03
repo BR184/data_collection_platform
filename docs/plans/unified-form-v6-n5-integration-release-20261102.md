@@ -4,14 +4,18 @@
 
 ## 进度与中间物
 
-- 阶段：N4 通过并归档；N5 受控合并完成，S1 与历史版本导出入口已实施，待整链验证与送审。
+- 阶段：N4 通过并归档；N5 受控合并、S1 与历史版本导出入口已实施并完成整链验证，待文档护栏与双远端送审。
 - 已完成：N4 长期事实归入 `docs/product.md`、`docs/architecture.md` 与 `docs/decisions.md` D-35；N4 活动计划删除；N5 基线差异、证据矩阵、发布资料已入档；范围审批已吸收。
 - 已完成：`main→功能分支` 手工合并提交 `8c58938d`，主线专属修复依次回放至 `f22cd63d`；`ab88ab38` 完整业务身份详情读取已在工作树核实存在。
 - 已完成 S1：迁移 `V20261102_06__form_project_candidates.sql`；`FormProjectCandidateService` 从 ODS 项目/命名空间幂等重建投影，`FormProjectCandidateRefreshListener` 挂在镜像成功终态；`GET /api/collect-forms/admin/projects` 支持分页前名称/路径/拼音/首字母搜索、`projectIds` 精确回显与缺失 ID；隔离真实 PG 5 项通过（含同步事件→投影→候选、跨页拼音/路径、同名不同命名空间、来源投影独立、幂等）。
 - 已完成前端：范围抽屉以 SmartSelect 替换项目编号输入（适用项目多选、版本所属项目从已选集合单选、唯一来源/单项目自动带出、迟到响应丢弃、失败/未同步/失效保留选择与重试），`version-members` 显示改为“版本分支”；历史版本行新增受 `form.record.export` 控制的“导出Excel”，按该版本冻结项目默认全选并复用现有下载契约。
+- 已完成集成修复：延期语义按“主线 D-34 原始标签/修复模板豁免 + 表单规范状态成员闭环”合并，单独回复不再冒充修复模板；`V20261102_07` 重建 `code_review_formal_records` 视图以暴露发布读取新增列；首次响应模板 SQL 的首行判定与 `IssueResponseTemplateTitleRules` 同源（含制表符等前导空白）。
 - 输入 SHA：功能分支批准输入 `39291fa29eb340234a680aca86a34cb1e89306b1`；main `f74fdef75ea2e1f093c131ceb8c6eee490d397ef`（origin/gitlab25 一致）；共同祖先 `84e7c023449de190e722d79d027accb062358172`。
-- 已有验证复用：后端默认套件 2191 项、0 失败、0 错误、1 条件跳过（日志 SHA-256 `24a45a17…`，XML 383 份，`.tmp-logs/p6-r02-final-20261102/`）；171 条迁移锁通过。该证据只对 `63ac96ae` 代码有效，S1 后的集成代码须重新运行默认套件及代表性链路。
-- 进行点：执行整链验证（后端默认套件一次、前端 typecheck/lint/test/build、S1 与导出代表性链路、桌面管理范围/导出/原编辑主线核对），随后更新证据、护栏与双远端送审。
+- 已完成整链验证（工作树基于 `e476e6e7`，含本次集成改动）：后端默认套件 2307 项、0 失败、0 错误、1 条件跳过，日志 `.tmp-logs/n5-final-20261103/final-suite.log`（SHA-256 `4a045fa373544c5eb2c3936b7ba95f8ead96c61a254b8d6f71672d43d6b85bbf`，XML 392 份）；173 条迁移锁通过；前端 typecheck/lint 通过，Vitest 174 文件 949 项通过，`vite build` 成功；仓库护栏与 `git diff --check` 通过。
+- 首次默认套件（`.tmp-logs/n5-final-suite.log`，11:04 结束）出现 `IssueFactSourceInstancePipelineTest` 6 个 `setUp` 错误，报 `customer_issue_delay_closure_requests` 不存在；同一时段共享 15433 的 Flyway 历史被外部重建（installed_on 11:00:36–11:00:42），隔离单类复跑 6/6 通过，随后全量复跑 r3 全绿。两次日志均保留，失败不归因于本分支代码。
+- 桌面隔离验收（PG 15521、后端 18097、前端 18197，不改写 15432）：S1 项目名称跨页/拼音/路径搜索与单项目自动带出可用；发布 `PUBLISHED` 后导出按钮按版本项目导出并落审计；存量记录 990001 从填写页打开、带出原值、编辑问题原因保存成功并显示“更新 11/03 04:00”。
+- 桌面核对发现并修复 S1 缺陷：版本所属项目下拉传入 `FormAdminProjectOption`（无 `value`/`label`），显示裸项目号且选项为空；`FormTemplateAdminView.vue` 统一经 `toProjectSelectOption` 投影，并新增选项契约断言，管理页测试 29/29 通过。
+- 进行点：回填本计划证据、检查差异后提交并推送双远端；仍不运行黄金、不合入 main、不出包、不启用生产。
 - 恢复命令：`git status --short --branch`、`git log -1`、`git worktree list`；本计划文件即 N5 恢复入口。
 
 ## 原始需求、成功标准与禁止行为
@@ -32,10 +36,10 @@
 
 | 项 | main | 功能分支 | 判断 |
 | --- | --- | --- | --- |
-| 迁移总数 | 140 | 171 | 分支 = main 140 + 31，无 main 独有版本 |
+| 迁移总数 | 140 | 173 | 分支 = main 140 + 33（S1 新增 06/07），无 main 独有版本 |
 | 共享 140 条 checksum | — | 与 main 完全一致 | 无既有迁移改动 |
-| 分支新增 31 条 | — | 18 条发布读取 + 13 条表单 v6 | 全部前向；含 `V20261022_01/02/04`、`20261027_01`、`20261029_01/02`、`20261030_01/02`、`20261102_01`—`05` |
-| 旧主线升级测试 | 140 条基线 | `FormV6LegacyUpgradeIntegrationTest` 按 140+31、head `20261102.05` | 已与当前 main 迁移集对齐，1/1 通过 |
+| 分支新增 33 条 | — | 18 条发布读取 + 13 条表单 v6 + S1 投影 `20261102_06` + 集成视图重建 `20261102_07` | 全部前向；含 `V20261022_01/02/04`、`20261027_01`、`20261029_01/02`、`20261030_01/02`、`20261102_01`—`07` |
+| 旧主线升级测试 | 140 条基线 | `FormV6LegacyUpgradeIntegrationTest` 按 140+33、head `20261102.07` | 已与当前 main 迁移集对齐，最终默认套件通过 |
 
 集成时必须把 18 条发布读取迁移及对应读服务视为**待恢复的基线**，不能因 Git 自动合并结果为零而接受。
 
@@ -74,9 +78,9 @@
 | 消费并发 | `ReadPublicationModelIntegrationTest` 49、`FormHeadCaptureIntegrationTest` 9、`CustomerIssueRequirementLabelAutoChainIntegrationTest` 9、`FormIssueAdoptionFactPipelineIntegrationTest` 25 | 已有证据 |
 | Excel | `FormRecordExportIntegrationTest` 5、`FormRecordExportSpringContextIntegrationTest` 1、导出布局测试 | 端点待黄金审批 |
 | 初始化与恢复 | `FormV6LegacyUpgradeIntegrationTest` 1、`FormV6DirectoryMigrationTest` 3、`FormV6RenumberedHistoryUpgradeTest` 1 | 已有证据 |
-| 门禁 | 171 条迁移锁、端点/权限/工作区登记、默认套件 2191、批准前端构建/桌面证据 | 黄金未运行，按发布门禁另行审批 |
+| 门禁 | 173 条迁移锁、端点/权限/工作区登记、最终默认套件 2307、前端 949 项与构建、隔离桌面证据 | 黄金未运行，按发布门禁另行审批 |
 
-矩阵说明：以上计数来自冻结 XML（`.tmp-logs/p6-r02-final-20261102/xml/`），按输入哈希复用；若集成改变运行链路，只在最终集成代码跑一次默认套件及必要代表性链路，先冻结原始日志/XML 再单跑。前端未变时沿用已批准版本的 typecheck/lint/build/桌面证据，不重复模板或浏览器全矩阵。
+矩阵说明：以上历史计数来自冻结 XML（`.tmp-logs/p6-r02-final-20261102/xml/`）；S1 与集成变更后在最终代码重跑一次默认套件，原始日志/XML 冻结于 `.tmp-logs/n5-final-20261103/`。前端变更后已重跑 typecheck/lint/全量 Vitest/build，并完成隔离桌面链路，不重复模板或浏览器全矩阵。
 
 ## S1 与导出实施范围（已批准）
 
@@ -128,7 +132,7 @@ S1 实施要点：
 5. S1 功能与导出入口按获批范围实施并做桌面验收；不重构批准 UI。
 6. 发布资料、黄金差异清单和外部前置齐备后另行申请；黄金、main 合入、出包、生产启用仍各自门禁。
 
-停止条件：迁移/契约冲突未解决、直接 merge 会删除发布读取文件、集成默认套件失败、S1 范围未批准、黄金未授权。资源：本 worktree 与自有构建输出、隔离 PG/端口/容器；不使用 15432/15433、共享服务或真实写回。
+停止条件：迁移/契约冲突未解决、直接 merge 会删除发布读取文件、集成默认套件失败、S1 范围未批准、黄金未授权。资源：本 worktree 与自有构建输出、隔离 PG/端口/容器；默认后端套件按既有测试配置使用 15433，桌面与代表性链路使用隔离 15521 与 18097/18197；不写 15432 开发库、不触碰共享服务或真实写回。
 
 ## 风险、假设与敏感只读数据
 
