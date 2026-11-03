@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -88,6 +91,49 @@ class CustomerIssueDelayClosureProgressRepositoryIntegrationTest {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  void afterCommitRequestIsVisibleToWorkerBeforeWakeUp() throws Exception {
+    CountDownLatch claimFinished = new CountDownLatch(1);
+    AtomicReference<Optional<CustomerIssueDelayClosureProgressClaim>> claimed =
+        new AtomicReference<>();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      new TransactionTemplate(transactionManager)
+          .executeWithoutResult(
+              status -> {
+                jdbcTemplate.update(
+                    "update gitlab_sync_configs set name = name where id = ?", configId);
+                TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                      @Override
+                      public void afterCommit() {
+                        repository.requestRound(config, "after-commit");
+                        executor.submit(
+                            () -> {
+                              claimed.set(
+                                  repository.claimBySource(SOURCE, "worker", "token", 60));
+                              claimFinished.countDown();
+                            });
+                        try {
+                          if (!claimFinished.await(15, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException("异步领取未在期限内返回");
+                          }
+                        } catch (InterruptedException error) {
+                          Thread.currentThread().interrupt();
+                          throw new IllegalStateException("等待异步领取被中断", error);
+                        }
+                      }
+                    });
+              });
+    } finally {
+      executor.shutdownNow();
+    }
+
+    assertThat(claimed.get())
+        .as("提交回调登记的轮次须在唤醒前对其他连接可见")
+        .isPresent();
   }
 
   @Test

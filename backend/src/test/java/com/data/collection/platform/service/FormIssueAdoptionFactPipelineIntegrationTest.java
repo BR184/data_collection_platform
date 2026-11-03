@@ -62,10 +62,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -142,6 +145,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private CustomerIssueDelayIssuesBoardService delayIssuesBoardService;
   @Autowired private CustomerIssueResponseEfficiencyBoardService responseEfficiencyBoardService;
   @Autowired private BusinessDateProvider businessDateProvider;
+  @Autowired private ApplicationEventPublisher applicationEventPublisher;
+  @Autowired private PlatformTransactionManager transactionManager;
 
   @Autowired
   @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
@@ -334,6 +339,22 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .isEqualTo(requested);
     assertThat(((Number) after.get("completed_revision")).longValue()).isEqualTo(requested);
     assertThat(((Number) after.get("failure_count")).intValue()).isZero();
+  }
+
+  @Test
+  void rolledBackPublicationDoesNotRegisterDelayRound() {
+    resumeDelayRounds();
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              applicationEventPublisher.publishEvent(
+                  new FormFactPublicationEvent(SOURCE_INSTANCE, UUID.randomUUID()));
+              status.setRollbackOnly();
+            });
+
+    assertThat(delayClosureProgress())
+        .as("事实发布回滚后不登记也不唤醒延期轮次")
+        .isEmpty();
   }
 
   private Map<String, Object> awaitDelayClosureSettled() {
