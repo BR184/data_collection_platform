@@ -1,10 +1,10 @@
 ## 进度与中间物
 
-- N0阶段历史批准（2026-10-27，当前实施阶段见[总执行单](unified-form-system-implementation-plan-20261021.md#n1-approval)）：**N0五审通过，IV-01/IV-02关闭；准入N1多版本目录、原位登记与读源基础实施。** N2—N5须逐阶段验收，W5、真实登记/切换、黄金、main和正式包未获本次授权。此前W4/R05及批准UI保持。
+- N0阶段历史批准（2026-10-27，当前实施阶段见[总执行单](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)）：**N0五审通过，IV-01/IV-02关闭；准入N1多版本目录、原位登记与读源基础实施。** N2—N5须逐阶段验收，W5、真实登记/切换、黄金、main和正式包未获本次授权。此前W4/R05及批准UI保持。
 - 批准输入：员工`4cd8588db31c162d619fafcd5e49a63d15e2f1f3`；N0送审SHA-256 `8fb94e3ab44a3427c744e31a26f429ccb25f0a9ccc98721c943b113feddff212`；Node源码`58694efeb95dc3a716b56a8a4f44d80cae241c11413439df8eb86d4a700defda`。原送审SHA不指加入审批记录后的本文。
 - 独立验证：Node正常134项通过；identity/domain/type/no-common四个实现突变由固定原断言检出，均退出1；源码前后hash一致。另独立重建四审文本类型反例，返回NO_COMMON_FIELD、total=null、TYPE_DECLARATION_CONFLICT，已消除OK/2误判。21份SQL与四审批准输入完全一致，沿用115/6/33真实PG证据，本轮不重复数据库套件。
 - 工作区与恢复：审核树`C:/Users/admin/.codex/worktrees/form-admin-ui/data_collection_platform` / `codex/form-admin-ui-20261027`已快进吸收4cd8588d；员工树`D:/projects/dcp-form-w4-20261026`只读核对为干净4cd8588d，双远端相同。先读AGENTS/进度/本文及执行单，运行status/worktree/HEAD核对后吸收最终审核回执SHA。
-- 下一步：员工先建立N1活动实施计划，再按[当前执行指令](unified-form-system-implementation-plan-20261021.md#ai员工下一步执行指令2026-10-27)实施，无需再次申请N0。前端保持94749f3a；需要前端功能时另报差异，当前不改UI。
+- 下一步：员工先建立N1活动实施计划，再按[当前执行指令](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)实施，无需再次申请N0。前端保持94749f3a；需要前端功能时另报差异，当前不改UI。
 - 证据与资源：审核本树`.tmp/n0-review-r5/verification.json`、normal及四突变日志、独立类型反例；本轮只运行Node和文档护栏，没有数据库/容器/端口/业务服务/真实外部资源。
 - 归属与期限：本文§1—§11为统一表单活动实施期的已批精确合同，由实施与审核方维护至N5结项；产品/架构/主方案只保留各自稳定边界及引用。结项时按AGENTS归并长期事实并移除本活动材料，历史由Git保留。
 

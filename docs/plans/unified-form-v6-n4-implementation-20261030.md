@@ -1,6 +1,6 @@
 # 表单 v6 N4：多版本消费、共同字段统计、Issue 选择器与按版 Excel
 
-> 状态（2026-10-30）：开工。批准依据 [N3 最终验收与 N4 准入](unified-form-system-implementation-plan-20261021.md#n4-admission)，技术合同 [N0 §5—§8](v6-n0-technical-admission-20261027.md#5-多版本消费r04q3)。N4 通过前不进入 N5，不运行黄金，不合 main、不出包、不操作真实业务库/正式权限/外部写回。
+> 状态（2026-10-30）：开工。批准依据 [N3 最终验收与 N4 准入](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)，技术合同 [N0 §5—§8](v6-n0-technical-admission-20261027.md#5-多版本消费r04q3)。N4 通过前不进入 N5，不运行黄金，不合 main、不出包、不操作真实业务库/正式权限/外部写回。
 
 ## 进度与中间物
 

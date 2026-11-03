@@ -84,7 +84,7 @@
 
 缺陷原因真实多选保存，Wiki合规在原门槛内检查具体原因唯一性，0项或多于1项标异常，不自动截断或猜主因；统计仍使用既有原因个数口径。版本留存不改变这项业务裁定，见[D-30](decisions.md#d-30-缺陷原因采集与合规判定分层)。
 
-完整设计见[方案v6.0](plans/unified-form-system-plan-20261009.md)，管理页项目选择/命名/最短流程的功能设计见[N0 §11](plans/v6-n0-technical-admission-20261027.md#11-s1-管理页功能设计合同本轮只设计不改-frontend)。业务设计按阶段交付，记录维护与填写验收不代表新版发布、统计、导出及部署已整体完成。当前阶段与获准填写范围见[进度](progress.md)和[N2验收边界](plans/unified-form-system-implementation-plan-20261021.md#n2-approval)；批准管理页和填写页UI继续保持，后续功能、上线切换与正式发布分别验收。
+完整设计见[方案v6.0](plans/unified-form-system-plan-20261009.md)，管理页项目选择/命名/最短流程见[N0 §11](plans/v6-n0-technical-admission-20261027.md#11-s1-管理页功能设计合同本轮只设计不改-frontend)。实现与集成技术验收已通过，发布准备见[进度](progress.md)及[当前执行清单](plans/unified-form-system-implementation-plan-20261021.md#当前状态与待办)；批准的管理页和填写页UI保持，功能扩展、生产切换与正式发布分别审批。
 
 ### 系统测试
 

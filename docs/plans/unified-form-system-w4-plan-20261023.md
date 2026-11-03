@@ -1,10 +1,10 @@
 # 统一表单 W4：字段管理与受控版本发布 · 工作单元计划（2026-10-23）
 
-> 本文件仅冻结当前已下发的v5.1修复轮次，保留其原验收输入，不是v6存储实施规范。员工第三次封包已收到，本次复审一起提供[方案v6.0](unified-form-system-plan-20261009.md)。新版原版本留存/共同字段统计/Excel的技术准入见[执行单交接清单](unified-form-system-implementation-plan-20261021.md#v60待下发工作单元与交接清单)；当前不新增旧复制方案工作，不自动准入W5。
+> 本文件仅冻结当前已下发的v5.1修复轮次，保留其原验收输入，不是v6存储实施规范。员工第三次封包已收到，本次复审一起提供[方案v6.0](unified-form-system-plan-20261009.md)。新版原版本留存/共同字段统计/Excel的技术准入见[执行单交接清单](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)；当前不新增旧复制方案工作，不自动准入W5。
 
 ## 进度与中间物
 
-- 状态：2026-10-27 R05独立26项+3项复验通过，R01—R07全部关闭，W4冻结v5.1目标通过。N0首次审批退回，N1/W5未准入；批准范围见[执行单](unified-form-system-implementation-plan-20261021.md#r05通过与n0首次审批2026-10-27)。
+- 状态：2026-10-27 R05独立26项+3项复验通过，R01—R07全部关闭，W4冻结v5.1目标通过。N0首次审批退回，N1/W5未准入；批准范围见[执行单](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)。
 - 当前下一步：本计划仅作为尚在交接的旧实现基线核对，不再安排旧复制建设；员工修改[N0合同](v6-n0-technical-admission-20261027.md#n0首次审核2026-10-27)，获批后进入新工作单元，并在旧基线不再作为活动输入时清理本计划，历史由Git及执行单保留。
 - 首次整改交付摘要（历史，当前关闭项以二次整改复审为准）：
   - R01：`FormRecordWriteService.create`、`FormPublicationTxService.switchVersion` 统一为“记录序列咨询锁（如涉及）→范围行→发布任务行→head行（按id）”；新增同范围创建/切换、不同范围并行、初始迁移切换的 `pg_blocking_pids` 交错回归，并核验指针/记录/审计/head/栅栏。
@@ -48,7 +48,7 @@
 
 ## 恢复线索
 
-- 恢复先读本文件、[W3通过与W4准入记录](unified-form-system-implementation-plan-20261021.md#w3通过与w4准入记录2026-10-23)、[主方案§3.4](../plans/unified-form-system-plan-20261009.md#34-管理员字段管理与受控版本发布机制)、[进度](../progress.md)。
+- 恢复先读本文件、[W3通过与W4准入记录](unified-form-system-implementation-plan-20261021.md#已通过阶段摘要)、[主方案§3.4](../plans/unified-form-system-plan-20261009.md#34-管理员字段管理与受控版本发布机制)、[进度](../progress.md)。
 - 上一条可恢复命令：`git status --short`，确认工作树仅含既有混合改动与本单元新增文件。
 - 本计划完成并验收后，将长期事实归入主方案/架构/进度，再删除本文件。
 
