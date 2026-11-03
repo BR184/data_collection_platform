@@ -115,6 +115,8 @@
 
 本次实施保留缺少测试阶段议题与信创版评审的现有处理，剩余新口径按[待确认记录](plans/product-version-attribution-pending-20261102.md)处理。组合评审按真实来源名称接入合并范围，不改写原始评审记录；实现与验收见[看板实施方案](plans/dashboard-combined-version-implementation-20261103.md)。
 
+本轮只修改两个看板的版本展示与对应取数范围。CAT尚未接入，连接、映射、同步及阶段内容保持；独立系统测试、客户问题模块和BI独立客户问题页均保持原状，包括统计、导出及延期写回。
+
 ### 3.1 老平台页面数据链路定位索引
 
 本索引用于从老平台源码中逐页定位筛选规则。老平台规则不是只写在一个后端接口里，常同时散落在 `Router.js` 路由、Vue 组件默认值、`request/issueApi.js` 请求参数、Controller 默认参数、`SpiderIssueDataQueryBuilder` / `ProjectIssueInfoQueryBuilder` / `SpiderCrowncadQueryBuilder`、DAO 方法和下钻组件中。修复新平台数据差异时，必须先按本索引在老平台逐段确认规则，再把确认后的口径沉淀到新平台事实层、规则层或共享查询层。
