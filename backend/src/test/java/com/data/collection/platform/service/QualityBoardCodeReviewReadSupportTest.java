@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowMapper;
 
 class QualityBoardCodeReviewReadSupportTest {
 
@@ -110,48 +111,48 @@ class QualityBoardCodeReviewReadSupportTest {
   }
 
   @Test
-  void matchModeScopeTieBreaksOnLegacyBusinessIdentity() {
-    QualityBoardCodeReviewReadScope scope =
-        support.resolveAllProjectsScope("cc", CodeReviewDataReadMode.MATCH_MODE);
+  void productVersionSpUsesOnlyExactReleaseBranchAndKeepsSpNumbersDistinct() {
+    QualityBoardCodeReviewReadScope sp1 = support.resolveProductVersionScope(
+        "cc", "CC2026R4SP1", CodeReviewDataReadMode.MATCH_MODE);
+    QualityBoardCodeReviewReadScope sp2 = support.resolveProductVersionScope(
+        "cc", "CC2026R4SP2", CodeReviewDataReadMode.MATCH_MODE);
 
-    assertThat(scope.stableTieBreak()).isEqualTo("nullif(btrim(legacy_source_id), ''), id");
-    assertThat(scope.stableRowRank()).isEqualTo("id asc");
+    assertThat(sp1.additionalPredicate()).contains("target_branch");
+    assertThat(sp1.additionalArgs()).contains("release_2026R4_SP1");
+    assertThat(sp2.additionalArgs()).contains("release_2026R4_SP2");
+    assertThat(sp1.additionalArgs()).doesNotContain("dev");
   }
 
   @Test
-  void formalScopeTieBreaksOnBusinessRootAndRevisionVisibility() {
-    QualityBoardCodeReviewReadScope scope =
-        support.resolveScope("cc", "CC2026R4", CodeReviewDataReadMode.FORMAL);
-
-    assertThat(scope.stableTieBreak()).isEqualTo("business_order_id, visible_from");
-    assertThat(scope.stableRowRank()).isEqualTo("business_order_id asc, visible_from asc");
-  }
-
-  @Test
-  void codeReviewRecordRowsTieBreakOnStableBusinessIdentity() {
+  void productVersionMembersUseWholeTokensAndSupportInheritedYears() {
     RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
     QualityBoardCodeReviewReadSupport readSupport =
         new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
 
-    readSupport.codeReviewRecordRows("cc", "CC2026R4", CodeReviewDataReadMode.MATCH_MODE);
+    QualityBoardCodeReviewReadScope scope = readSupport.resolveProductVersionScope(
+        "cc", "CC2027R2", CodeReviewDataReadMode.MATCH_MODE);
 
-    assertThat(jdbc.lastSql())
-        .contains("order by merged_at_source desc nulls last, merge_request_iid desc, "
-            + "nullif(btrim(legacy_source_id), ''), id desc");
+    assertThat(scope.available()).isTrue();
+    assertThat(scope.projectNames()).containsExactly("CC2027R1&R2");
   }
 
   @Test
-  void densityRowRankNeverUsesPhysicalRevisionId() {
-    RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
-    QualityBoardCodeReviewReadSupport readSupport =
-        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+  void emptyProductVersionCreatesUnavailableScopeInsteadOfAllProjects() {
+    QualityBoardCodeReviewReadScope scope = support.resolveProductVersionScope(
+        "cc", "  ", CodeReviewDataReadMode.MATCH_MODE);
 
-    readSupport.addedLinesByAuthorAcrossAllProjects();
+    assertThat(scope.available()).isFalse();
+    assertThat(scope.projectNames()).isEmpty();
+  }
 
-    assertThat(jdbc.lastSql())
-        .contains("row_number() over(partition by project_id, merge_request_id "
-            + "order by business_order_id asc, visible_from asc)")
-        .doesNotContain("order by id asc");
+  @Test
+  void nonCanonicalProductKeyKeepsExactProjectNameSemantics() {
+    QualityBoardCodeReviewReadScope scope = support.resolveProductVersionScope(
+        "cc", "custom", CodeReviewDataReadMode.FORMAL);
+
+    assertThat(scope.available()).isTrue();
+    assertThat(scope.projectNames()).containsExactly("custom");
+    assertThat(support.queryScope(scope).args()).contains("custom");
   }
 
   private static final class RecordingJdbcTemplate extends JdbcTemplate {
@@ -164,10 +165,12 @@ class QualityBoardCodeReviewReadSupportTest {
     }
 
     @Override
-    public <T> List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> rowMapper,
-        Object... args) {
+    public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
       lastSql = sql;
-      return List.of();
+      @SuppressWarnings("unchecked")
+      List<T> names = (List<T>) List.of(
+          "CC2027R1&R2", "CC2027R10", "Other2027R1", "CC2027R1SP1");
+      return names;
     }
 
     private String lastSql() {

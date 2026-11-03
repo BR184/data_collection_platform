@@ -69,7 +69,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         .containsExactlyInAnyOrder("projectName", "codeReviewSource");
     assertThat(provider.readModeSource())
         .isEqualTo(AnalyticsDashboardProvider.ReadModeSource.CODE_REVIEW_SETTING);
-    assertThat(provider.ruleVersion(context)).isEqualTo("quality-rd-rules@1");
+    assertThat(provider.ruleVersion(context)).isEqualTo("quality-rd-rules@2");
     assertThat(provider.sourceVersion(context)).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
     assertThat(dashboard.metrics()).hasSize(8);
     assertThat(dashboard.charts()).hasSize(5);
