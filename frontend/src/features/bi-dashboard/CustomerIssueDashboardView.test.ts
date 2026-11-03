@@ -368,7 +368,13 @@ function readyResponse(
     customers,
     modules: [{ kind: 'VALUE', value: '模块A', displayName: '模块A' }],
     functions: [{ kind: 'VALUE', value: '功能A', displayName: '功能A' }],
-    defectMetrics,
+    // 顺序故意与后端契约不同：验证前端按 key 分组，而不是按数组位置切片。
+    defectMetrics: [
+      'defect_fix_rate', 'defect_unfixed', 'week_resolved', 'p1_calibrated_fix_rate', 'defect_total',
+      'today_new', 'defect_data_exception', 'level1_fix_rate', 'defect_calibrated_fix_rate', 'week_new',
+      'defect_applied_delay', 'p2_fix_rate', 'defect_not_reproduced', 'today_resolved', 'defect_fixed',
+      'p1_fix_rate', 'p2_calibrated_fix_rate',
+    ].map((key) => metric(key, DEFECT_METRIC_LABELS[key] ?? key)),
     requirementMetrics: Array.from({ length: 4 }, (_, index) => metric(`r-${index}`, `需求指标${index + 1}`)),
     moduleDefects: [{ module: '模块A', fixedCount: 1, unfixedCount: 0, totalCount: 1 }],
     severityDistribution: [{ severity: '一级', count: 1 }],

@@ -289,9 +289,8 @@ const moduleDemand = computed<CategorySeriesData>(() => {
     ],
   };
 });
-const dailyTrend = computed<DailyDefectTrendData>(() => {
-  return buildCustomerIssueDailyTrend(currentData.value?.dailyTrend ?? []);
-});
+const dailyTrend = computed<DailyDefectTrendData>(() =>
+  buildCustomerIssueDailyTrend(currentData.value?.dailyTrend ?? []));
 
 let loadSequence = 0;
 async function loadCurrentRoute(): Promise<void> {
