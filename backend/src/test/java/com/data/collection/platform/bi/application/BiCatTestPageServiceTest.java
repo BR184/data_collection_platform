@@ -19,7 +19,8 @@ class BiCatTestPageServiceTest {
   void returnsVerifiedCatDataWithIncompleteSourceIdentityInsteadOfHidingCharts() {
     BiProductVersionPort versions = mock(BiProductVersionPort.class);
     when(versions.requireScope(10L)).thenReturn(new BiProductVersionScope(
-        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of()));
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp"));
     var attainment = new BiTestQualityPageData.Attainment(
         new BiTestQualityPageData.CountSummary(
             BiTestQualityPageData.CountUnit.FUNCTION, 12, 15),
@@ -48,7 +49,8 @@ class BiCatTestPageServiceTest {
   void returnsIncompleteWithoutPlatformOrMockFallbackWhenCatContractIsUnavailable() {
     BiProductVersionPort versions = mock(BiProductVersionPort.class);
     when(versions.requireScope(10L)).thenReturn(new BiProductVersionScope(
-        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of()));
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp"));
     BiCatTestPageService service = new BiCatTestPageService(
         BiCatTestSourcePort.TestStage.UNIT_TEST,
         versions,
@@ -71,7 +73,8 @@ class BiCatTestPageServiceTest {
   void explainsVerifiedIntegrationContractGapsWithoutClaimingTheContractIsMissing() {
     BiProductVersionPort versions = mock(BiProductVersionPort.class);
     when(versions.requireScope(10L)).thenReturn(new BiProductVersionScope(
-        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of()));
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp"));
     BiCatTestPageService service = new BiCatTestPageService(
         BiCatTestSourcePort.TestStage.INTEGRATION_TEST,
         versions,

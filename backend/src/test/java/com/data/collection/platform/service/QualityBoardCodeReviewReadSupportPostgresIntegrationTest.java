@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.io.ByteArrayInputStream;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.flywaydb.core.Flyway;
@@ -42,7 +43,9 @@ class QualityBoardCodeReviewReadSupportPostgresIntegrationTest {
     Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
     jdbcTemplate = new JdbcTemplate(dataSource);
     support = new QualityBoardCodeReviewReadSupport(
-        jdbcTemplate, mock(CodeReviewMatchModeSwitchService.class));
+        jdbcTemplate,
+        mock(CodeReviewMatchModeSwitchService.class),
+        DashboardVersionScopeTestSupport.service());
   }
 
   @BeforeEach

@@ -7,7 +7,6 @@ import com.data.collection.platform.bi.domain.source.BiProductVersionScope;
 import com.data.collection.platform.bi.domain.source.BiSourceDimension;
 import com.data.collection.platform.bi.domain.source.BiSystemTestSource;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
-import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.PageRecordSnapshotService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -141,11 +140,7 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
   }
 
   private String sourceVersion(BiProductVersionScope scope) {
-    return snapshotService.issueFactSourceVersion(
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-        scope.projectId(),
-        IssueScopeDimension.TESTING_PHASE,
-        scope.businessKey());
+    return BiScopeSourceVersions.systemTest(snapshotService, scope);
   }
 
   private void verifyStableVersion(String before, String after) {

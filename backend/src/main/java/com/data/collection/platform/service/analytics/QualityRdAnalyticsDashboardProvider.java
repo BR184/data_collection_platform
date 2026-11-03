@@ -10,8 +10,11 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
+import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,24 +47,28 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   private final QualityBoardWorkbookExportService workbookExportService;
   private final QualityRdAnalyticsDetailQueryService detailQueryService;
   private final QualityRdAnalyticsWorkbookService analyticsWorkbookService;
+  private final DashboardVersionScopeService versionScopeService;
 
   @Autowired
   public QualityRdAnalyticsDashboardProvider(
       QualityBoardRdService rdService,
       QualityBoardWorkbookExportService workbookExportService,
       QualityRdAnalyticsDetailQueryService detailQueryService,
-      QualityRdAnalyticsWorkbookService analyticsWorkbookService) {
+      QualityRdAnalyticsWorkbookService analyticsWorkbookService,
+      DashboardVersionScopeService versionScopeService) {
     this.rdService = rdService;
     this.workbookExportService = workbookExportService;
     this.detailQueryService = detailQueryService;
     this.analyticsWorkbookService = analyticsWorkbookService;
+    this.versionScopeService = versionScopeService;
   }
 
   /** Kept for the focused provider unit fixture; production wiring always uses the full constructor. */
   QualityRdAnalyticsDashboardProvider(
       QualityBoardRdService rdService,
-      QualityBoardWorkbookExportService workbookExportService) {
-    this(rdService, workbookExportService, null, null);
+      QualityBoardWorkbookExportService workbookExportService,
+      DashboardVersionScopeService versionScopeService) {
+    this(rdService, workbookExportService, null, null, versionScopeService);
   }
 
   @Override
@@ -71,12 +78,17 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public String ruleVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-rules@2";
+    return "quality-rd-rules@3";
   }
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-facts@1:" + context.readMode().key();
+    String fingerprint = versionScopeService.resolve(
+            IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+            IssueScopeDimension.TESTING_PHASE,
+            context.parameter("projectName").orElse(null))
+        .fingerprint();
+    return "quality-rd-facts@2:" + context.readMode().key() + "|scope:" + fingerprint;
   }
 
   @Override
@@ -265,6 +277,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   public AnalyticsDashboardRulesResponse loadRules(AnalyticsDashboardQueryContext context) {
     String projectName = rdService.normalizeProjectName(
         context.parameter("projectName").orElse(null));
+    String integrationScope = integrationScopeDescription(projectName);
     String source = canonicalCodeReviewSource(context);
     String codeReviewScope = projectName + "，" + sourceLabel(source) + " 代码走查数据";
     return new AnalyticsDashboardRulesResponse(
@@ -302,7 +315,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "integration-pass-rate",
                 "集成测试通过率",
                 "各集成测试记录的（通过用例数 / 执行用例数 × 100%）之和 / 记录数",
-                projectName + "集成测试；逐条通过率先保留两位小数后再取算术平均",
+                integrationScope + "；逐条通过率先保留两位小数后再取算术平均",
                 "不低于 90.00%",
                 "执行用例为空或为 0 的记录按 0 参与记录数平均。"),
             rule(
@@ -316,7 +329,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "development-leakage-rate",
                 "开发缺陷遗留率",
                 "集成测试未通过用例数 /（集成测试未通过用例数 + 系统测试有效缺陷数）× 100%",
-                projectName + " 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录",
+                integrationScope + " 与系统测试阶段；系统测试有效缺陷排除已拒绝记录",
                 "不低于 90.00%",
                 null),
             rule(
@@ -650,6 +663,16 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
     if (detailQueryService == null || analyticsWorkbookService == null) {
       throw new IllegalStateException("研发质量看板详情服务未初始化");
     }
+  }
+
+  private String integrationScopeDescription(String projectName) {
+    return String.join(
+        "、",
+        versionScopeService.resolve(
+                IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+                IssueScopeDimension.TESTING_PHASE,
+                projectName)
+            .integrationTestPhases());
   }
 
   private String sourceLabel(String source) {

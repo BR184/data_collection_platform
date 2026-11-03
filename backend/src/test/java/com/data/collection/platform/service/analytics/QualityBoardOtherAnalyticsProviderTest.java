@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardDetailRes
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.service.PageRecordSnapshotService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -34,7 +35,10 @@ class QualityBoardOtherAnalyticsProviderTest {
         QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY, "CC2026R4", rows))
         .thenReturn(new byte[] {1, 2, 3});
     QualityBoardOtherAnalyticsProvider provider = new QualityBoardOtherAnalyticsProvider(
-        queryService, workbookService, mock(PageRecordSnapshotService.class));
+        queryService,
+        workbookService,
+        mock(PageRecordSnapshotService.class),
+        DashboardVersionScopeTestSupport.service());
     AnalyticsDashboardQueryContext context = AnalyticsDashboardQueryContext.empty();
 
     AnalyticsDashboardResponse.Chart chart = provider.loadDashboard(context).charts().stream()
@@ -77,7 +81,10 @@ class QualityBoardOtherAnalyticsProviderTest {
         .thenReturn("CC2026R3");
 
     var provider = new QualityBoardOtherAnalyticsProvider(
-        queryService, workbookService, mock(PageRecordSnapshotService.class));
+        queryService,
+        workbookService,
+        mock(PageRecordSnapshotService.class),
+        DashboardVersionScopeTestSupport.service());
     AnalyticsDashboardResponse dashboard = provider.loadDashboard(AnalyticsDashboardQueryContext.empty());
     AnalyticsDashboardResponse.Chart chart = dashboard.charts().stream()
         .filter(item -> item.key().equals(QualityBoardOtherTopic.FUNCTION_DEFECT_COUNT.chartKey()))

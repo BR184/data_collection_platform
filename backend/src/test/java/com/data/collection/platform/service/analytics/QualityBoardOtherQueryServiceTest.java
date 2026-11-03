@@ -5,7 +5,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ class QualityBoardOtherQueryServiceTest {
     QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     when(codeReview.reviewedAddedLinesByFunction("CC2026R3"))
         .thenReturn(Map.of("装配", 1000L, "工程图", 500L));
-    var service = new QualityBoardOtherQueryService(jdbc, phaseResolver(), codeReview);
+    var service = new QualityBoardOtherQueryService(jdbc, codeReview, versionScopeService());
 
     var rows = service.load(
         QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
@@ -109,7 +110,7 @@ class QualityBoardOtherQueryServiceTest {
     QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     when(codeReview.addedLinesByAuthorAcrossAllProjects())
         .thenReturn(Map.of("张金花", 1000L, "刘敏", 2000L));
-    var service = new QualityBoardOtherQueryService(jdbc, phaseResolver(), codeReview);
+    var service = new QualityBoardOtherQueryService(jdbc, codeReview, versionScopeService());
 
     var rows = service.load(
         QualityBoardOtherTopic.QUALITY_RANKING,
@@ -130,19 +131,22 @@ class QualityBoardOtherQueryServiceTest {
 
   private QualityBoardOtherQueryService service(CapturingJdbcTemplate jdbc) {
     return new QualityBoardOtherQueryService(
-        jdbc, phaseResolver(), mock(QualityBoardCodeReviewReadSupport.class));
+        jdbc, mock(QualityBoardCodeReviewReadSupport.class), versionScopeService());
   }
 
-  private SystemTestPhaseScopeResolver phaseResolver() {
-    var resolver = mock(SystemTestPhaseScopeResolver.class);
-    when(resolver.listEnabledParentNames(9L))
-        .thenReturn(List.of("CC2026R3", "CC2026R4"));
-    when(resolver.defaultParentName(9L)).thenReturn("CC2026R3");
-    when(resolver.resolvePhases(9L, "CC2026R3"))
-        .thenReturn(List.of("CC2026R3第一轮系统测试", "CC2026R3回归测试"));
-    when(resolver.resolvePhases(9L, "CC2026R4"))
-        .thenReturn(List.of("CC2026R4系统测试"));
-    return resolver;
+  private DashboardVersionScopeService versionScopeService() {
+    return DashboardVersionScopeTestSupport.service(
+        DashboardVersionScopeTestSupport.group(
+            30L,
+            "CC2026R3",
+            1,
+            DashboardVersionScopeTestSupport.member(301L, "CC2026R3第一轮系统测试", 1),
+            DashboardVersionScopeTestSupport.member(302L, "CC2026R3回归测试", 2)),
+        DashboardVersionScopeTestSupport.group(
+            40L,
+            "CC2026R4",
+            2,
+            DashboardVersionScopeTestSupport.member(401L, "CC2026R4系统测试", 1)));
   }
 
   private static final class CapturingJdbcTemplate extends JdbcTemplate {

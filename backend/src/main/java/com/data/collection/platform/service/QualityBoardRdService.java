@@ -1,7 +1,5 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.common.exception.BizException;
-
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
 import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowResponse;
@@ -12,11 +10,13 @@ import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdFilterOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,31 +29,29 @@ public class QualityBoardRdService {
   private static final long CROWN_CAD_PROJECT_ID = IssueScopeCatalogService.CROWN_CAD_PROJECT_ID;
 
   private final JdbcTemplate jdbcTemplate;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final ReviewDataRecordReadRepository reviewDataRecordReadRepository;
   private final ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
+  private final DashboardVersionScopeService versionScopeService;
 
   public QualityBoardRdService(
       JdbcTemplate jdbcTemplate,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
       ReviewDataRecordReadRepository reviewDataRecordReadRepository,
       ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository,
-      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport,
+      DashboardVersionScopeService versionScopeService) {
     this.jdbcTemplate = jdbcTemplate;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.reviewDataRecordReadRepository = reviewDataRecordReadRepository;
     this.reviewDataMatchModeRecordRepository = reviewDataMatchModeRecordRepository;
     this.codeReviewReadSupport = codeReviewReadSupport;
+    this.versionScopeService = versionScopeService;
   }
 
   public QualityBoardProjectOptionsResponse listProjectOptions() {
-    List<String> projectNames = phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID);
     List<OptionItemResponse> options =
-        projectNames.stream()
-            .filter(StringUtils::hasText)
-            .distinct()
-            .map(value -> new OptionItemResponse(value, value))
+        versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
+            .filter(option -> StringUtils.hasText(option.value()))
+            .map(option -> new OptionItemResponse(option.value(), option.value()))
             .toList();
     String defaultProject = options.stream().map(OptionItemResponse::value).findFirst().orElse("");
     return new QualityBoardProjectOptionsResponse(defaultProject, options);
@@ -123,7 +121,7 @@ public class QualityBoardRdService {
     String projectName = normalizeProjectName(requestedProjectName);
     String codeReviewSource =
         resolveCodeReviewSource(requestedCodeReviewSource, codeReviewReadMode);
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     return new QualityBoardRdDashboardResponse(
         getOverview(projectName, codeReviewReadMode),
         codeReviewSource,
@@ -140,7 +138,7 @@ public class QualityBoardRdService {
 
   public QualityBoardOtherOverviewResponse getOtherOverview(String requestedProjectName) {
     String projectName = normalizeProjectName(requestedProjectName);
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     return new QualityBoardOtherOverviewResponse(
         projectName,
         functionDefectCountRows(phases),
@@ -219,14 +217,14 @@ public class QualityBoardRdService {
   }
 
   private List<QualityBoardChartRowResponse> releaseLeakageRateRows() {
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
-        .map(name -> new QualityBoardChartRowResponse(name, defectLeakageRate(name)))
+    return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
+        .map(option -> new QualityBoardChartRowResponse(option.value(), defectLeakageRate(option.value())))
         .toList();
   }
 
   private List<QualityBoardChartRowResponse> developmentLeakageRateRows() {
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
-        .map(name -> new QualityBoardChartRowResponse(name, defectEliminationRate(name)))
+    return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE).stream()
+        .map(option -> new QualityBoardChartRowResponse(option.value(), defectEliminationRate(option.value())))
         .toList();
   }
 
@@ -286,23 +284,35 @@ public class QualityBoardRdService {
   }
 
   private double reviewDensity(String projectName, String reviewType) {
-    List<ReviewDataRecordRowResponse> formalRows =
-        reviewDataRecordReadRepository.loadRecords(null, projectName, null, null, null, null, null, null).stream()
-            .filter(row -> matchesReviewType(row.reviewType(), reviewType))
-            .toList();
-    Stream<ReviewDataRecordRowResponse> rows = formalRows.stream();
-    List<ReviewDataRecordRowResponse> matchRows =
-        reviewDataMatchModeRecordRepository.loadRecords().stream()
-            .filter(row -> equalsText(row.projectName(), projectName))
-            .filter(row -> matchesReviewType(row.reviewType(), reviewType))
-            .toList();
-    rows = Stream.concat(rows, matchRows.stream());
-    ReviewDensityAccumulator accumulator =
-        rows.collect(
-            () -> new ReviewDensityAccumulator(0, 0),
-            (acc, row) -> acc.add(row.problemCount(), row.reviewScalePages()),
-            ReviewDensityAccumulator::merge);
+    DashboardVersionScope scope = resolveScope(projectName);
+    List<ReviewDataRecordRowResponse> rows = new ArrayList<>();
+    Set<Long> seenRecordIds = new HashSet<>();
+    for (String reviewProjectName : scope.reviewProjectNames()) {
+      reviewDataRecordReadRepository
+          .loadRecords(null, reviewProjectName, null, null, null, null, null, null).stream()
+          .filter(row -> matchesReviewType(row.reviewType(), reviewType))
+          .forEach(row -> addUniqueRecord(rows, seenRecordIds, row));
+    }
+    Set<String> projectNames = new HashSet<>();
+    scope.reviewProjectNames().forEach(value ->
+        projectNames.add(TextQuerySupport.normalizeDisplay(value)));
+    reviewDataMatchModeRecordRepository.loadRecords().stream()
+        .filter(row -> projectNames.contains(TextQuerySupport.normalizeDisplay(row.projectName())))
+        .filter(row -> matchesReviewType(row.reviewType(), reviewType))
+        .forEach(row -> addUniqueRecord(rows, seenRecordIds, row));
+    ReviewDensityAccumulator accumulator = new ReviewDensityAccumulator(0, 0);
+    rows.forEach(row -> accumulator.add(row.problemCount(), row.reviewScalePages()));
     return divide(accumulator.problemCount(), accumulator.reviewScalePages(), 1D);
+  }
+
+  private void addUniqueRecord(
+      List<ReviewDataRecordRowResponse> rows,
+      Set<Long> seenRecordIds,
+      ReviewDataRecordRowResponse row) {
+    if (row.id() != null && !seenRecordIds.add(row.id())) {
+      return;
+    }
+    rows.add(row);
   }
 
   private List<QualityBoardFixUserSeverityRowResponse> fixUserSeverityRows(List<String> phases) {
@@ -384,7 +394,15 @@ public class QualityBoardRdService {
     if (!tableExists("integration_test_fact")) {
       return 0D;
     }
-    String testingPhase = projectName + "集成测试";
+    List<String> testingPhases = integrationPhases(projectName);
+    if (testingPhases.isEmpty()) {
+      return 0D;
+    }
+    String placeholders = String.join(",", testingPhases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(testingPhases);
     return jdbcTemplate.query(
         """
         select pass_case, execute_case
@@ -392,8 +410,8 @@ public class QualityBoardRdService {
          where deleted = false
            and lower(coalesce(source_instance, '')) = ?
            and project_id = ?
-           and testing_phase = ?
-        """,
+           and testing_phase in (%s)
+        """.formatted(placeholders),
         rs -> {
           double totalRate = 0D;
           long rowCount = 0L;
@@ -407,13 +425,11 @@ public class QualityBoardRdService {
           }
           return rowCount <= 0 ? 0D : ReviewDataNumberSupport.roundToTwoDecimals(totalRate / rowCount);
         },
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-        CROWN_CAD_PROJECT_ID,
-        testingPhase);
+        args.toArray());
   }
 
   private double defectLeakageRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -425,7 +441,7 @@ public class QualityBoardRdService {
   }
 
   private double defectEliminationRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -438,7 +454,7 @@ public class QualityBoardRdService {
   }
 
   private double newIssueFixRate(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return 0D;
     }
@@ -460,6 +476,15 @@ public class QualityBoardRdService {
     if (!tableExists("integration_test_fact")) {
       return 0L;
     }
+    List<String> testingPhases = integrationPhases(projectName);
+    if (testingPhases.isEmpty()) {
+      return 0L;
+    }
+    String placeholders = String.join(",", testingPhases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(testingPhases);
     Long count =
         jdbcTemplate.queryForObject(
             """
@@ -468,12 +493,10 @@ public class QualityBoardRdService {
              where deleted = false
                and lower(coalesce(source_instance, '')) = ?
                and project_id = ?
-               and testing_phase = ?
-            """,
+               and testing_phase in (%s)
+            """.formatted(placeholders),
             Long.class,
-            GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-            CROWN_CAD_PROJECT_ID,
-            projectName + "集成测试");
+            args.toArray());
     return count == null ? 0L : count;
   }
 
@@ -532,16 +555,24 @@ public class QualityBoardRdService {
     }
   }
 
-  /** 将请求值规范化为启用目录中的业务键；未传值时使用管理员排序第一项。 */
+  /** 将请求值规范化为看板候选；未传值时使用管理员排序第一项。 */
   public String normalizeProjectName(String requestedProjectName) {
-    String normalized = TextQuerySupport.trimToNull(requestedProjectName);
-    if (normalized == null) {
-      return phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID);
-    }
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
-        .filter(value -> value.equalsIgnoreCase(normalized))
-        .findFirst()
-        .orElseThrow(() -> new BizException("研发质量看板范围不存在或已停用：" + normalized));
+    return resolveScope(requestedProjectName).displayName();
+  }
+
+  private DashboardVersionScope resolveScope(String requestedProjectName) {
+    return versionScopeService.resolve(
+        CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requestedProjectName);
+  }
+
+  private List<String> phaseValues(String requestedProjectName) {
+    return resolveScope(requestedProjectName).phases().stream()
+        .map(DashboardVersionScope.PhaseMember::sourceValue)
+        .toList();
+  }
+
+  private List<String> integrationPhases(String requestedProjectName) {
+    return resolveScope(requestedProjectName).integrationTestPhases();
   }
 
   private String resolveCodeReviewSource(String requestedSource) {
@@ -574,10 +605,6 @@ public class QualityBoardRdService {
     }
     String keyword = normalizedExpected.contains("需求") ? "需求" : normalizedExpected.contains("设计") ? "设计" : normalizedExpected;
     return normalizedActual.equals(normalizedExpected) || normalizedActual.contains(keyword);
-  }
-
-  private boolean equalsText(String actual, String expected) {
-    return Objects.equals(TextQuerySupport.normalizeDisplay(actual), TextQuerySupport.normalizeDisplay(expected));
   }
 
   private double divide(double numerator, double denominator, double multiplier) {

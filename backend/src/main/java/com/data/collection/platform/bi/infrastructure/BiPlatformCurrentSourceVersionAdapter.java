@@ -3,8 +3,6 @@ package com.data.collection.platform.bi.infrastructure;
 import com.data.collection.platform.bi.domain.port.BiCatTestSourcePort;
 import com.data.collection.platform.bi.domain.port.BiCurrentSourceVersionPort;
 import com.data.collection.platform.bi.domain.source.BiProductVersionScope;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
-import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.PageRecordSnapshotService;
 
 /** 使用平台发布版本服务核对 BI 页面来源身份。 */
@@ -25,13 +23,11 @@ public final class BiPlatformCurrentSourceVersionAdapter implements BiCurrentSou
   @Override
   public String current(String pageKey, BiProductVersionScope scope) {
     return switch (pageKey) {
-      case "requirements", "design" -> snapshotService.reviewDataSourceVersion();
-      case "coding" -> codeReviewSourceContextFactory.capture().sourceVersion();
-      case "system-test" -> snapshotService.issueFactSourceVersion(
-          GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-          scope.projectId(),
-          IssueScopeDimension.TESTING_PHASE,
-          scope.businessKey());
+      case "requirements", "design" ->
+          snapshotService.reviewDataSourceVersion() + "|scope:" + scope.fingerprint();
+      case "coding" ->
+          codeReviewSourceContextFactory.capture().sourceVersion() + "|scope:" + scope.fingerprint();
+      case "system-test" -> BiScopeSourceVersions.systemTest(snapshotService, scope);
       case "unit-test" -> catRepository.requireCurrentSourceVersion(
           scope, BiCatTestSourcePort.TestStage.UNIT_TEST.name());
       case "integration-test" -> catRepository.requireCurrentSourceVersion(

@@ -5,6 +5,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,8 +18,10 @@ class QualityBoardCodeReviewReadSupportTest {
   private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
   private final CodeReviewMatchModeSwitchService matchModeSwitchService =
       mock(CodeReviewMatchModeSwitchService.class);
+  private final DashboardVersionScopeService versionScopeService =
+      DashboardVersionScopeTestSupport.service();
   private final QualityBoardCodeReviewReadSupport support =
-      new QualityBoardCodeReviewReadSupport(jdbcTemplate, matchModeSwitchService);
+      new QualityBoardCodeReviewReadSupport(jdbcTemplate, matchModeSwitchService, versionScopeService);
 
   @Test
   void compatibilityDgmUsesLegacySnapshotAliasesAndMergeRequestIid() {
@@ -90,7 +94,7 @@ class QualityBoardCodeReviewReadSupportTest {
   void functionDensityExcludesMergeRequestsMarkedAsNoCodeReview() {
     RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
     QualityBoardCodeReviewReadSupport readSupport =
-        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService, versionScopeService);
 
     readSupport.reviewedAddedLinesByFunction("CC2026R4");
 
@@ -102,7 +106,7 @@ class QualityBoardCodeReviewReadSupportTest {
   void qualityRankingAuthorDenominatorIncludesAllMergedCode() {
     RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
     QualityBoardCodeReviewReadSupport readSupport =
-        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService, versionScopeService);
 
     readSupport.addedLinesByAuthorAcrossAllProjects();
 
@@ -127,7 +131,7 @@ class QualityBoardCodeReviewReadSupportTest {
   void productVersionMembersUseWholeTokensAndSupportInheritedYears() {
     RecordingJdbcTemplate jdbc = new RecordingJdbcTemplate();
     QualityBoardCodeReviewReadSupport readSupport =
-        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService);
+        new QualityBoardCodeReviewReadSupport(jdbc, matchModeSwitchService, versionScopeService);
 
     QualityBoardCodeReviewReadScope scope = readSupport.resolveProductVersionScope(
         "cc", "CC2027R2", CodeReviewDataReadMode.MATCH_MODE);

@@ -9,7 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -26,16 +27,18 @@ class QualityRdAnalyticsDetailQueryServiceTest {
   private static final String PROJECT_PHASE = "CC2026R4系统测试";
 
   private final FakeIssueJdbcTemplate jdbcTemplate = new FakeIssueJdbcTemplate();
-  private final SystemTestPhaseScopeResolver phaseScopeResolver =
-      mock(SystemTestPhaseScopeResolver.class);
+  private final DashboardVersionScopeService versionScopeService =
+      DashboardVersionScopeTestSupport.service(
+          DashboardVersionScopeTestSupport.group(
+              40L,
+              "CC2026R4",
+              1,
+              DashboardVersionScopeTestSupport.member(401L, PROJECT_PHASE, 1)));
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport =
       mock(QualityBoardCodeReviewReadSupport.class);
   private final QualityRdAnalyticsDetailQueryService service =
-      new QualityRdAnalyticsDetailQueryService(jdbcTemplate, phaseScopeResolver, codeReviewReadSupport);
-
-  QualityRdAnalyticsDetailQueryServiceTest() {
-    when(phaseScopeResolver.resolvePhases(anyLong(), anyString())).thenReturn(List.of(PROJECT_PHASE));
-  }
+      new QualityRdAnalyticsDetailQueryService(
+          jdbcTemplate, codeReviewReadSupport, versionScopeService);
 
   @Test
   void releaseLeakageDrilldownShowsChineseLabelsWhileLeakageStateKeepsRawSemantics() {
