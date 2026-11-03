@@ -8,6 +8,7 @@ import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.domain.form.FormFieldSpec;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.service.ExcelExportStyles;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
@@ -137,9 +138,11 @@ public class FormRecordExportService {
             """
             select v.id, v.scope_id, v.version_label, v.field_spec::text as field_spec,
                    v.record_source_role, v.version_status, v.instance_mode, v.record_table,
-                   v.source_table, s.template_key, s.project_ids::text as project_ids
+                   v.source_table, s.template_key, s.project_ids::text as project_ids,
+                   p.frozen_binding::text as frozen_binding
               from form_template_versions v
               join form_template_scopes s on s.id = v.scope_id
+              left join form_template_publications p on p.to_version_id = v.id
              where v.id = ?
             """,
             versionId);
@@ -165,7 +168,21 @@ public class FormRecordExportService {
         (String) row.get("record_table"),
         (String) row.get("source_table"),
         spec,
-        parseProjectIds((String) row.get("project_ids")));
+        versionProjectIds((String) row.get("frozen_binding"), (String) row.get("project_ids")));
+  }
+
+  private List<Long> versionProjectIds(String frozenBinding, String scopeProjects) {
+    if (frozenBinding != null && !frozenBinding.isBlank()) {
+      try {
+        JsonNode projectIds = objectMapper.readTree(frozenBinding).path("projectIds");
+        if (projectIds.isArray()) {
+          return parseProjectIds(projectIds.toString());
+        }
+      } catch (Exception error) {
+        throw new IllegalStateException("表单版本冻结绑定无法解析", error);
+      }
+    }
+    return parseProjectIds(scopeProjects);
   }
 
   private List<Long> resolveProjects(List<Long> scopeProjects, List<Long> requested) {

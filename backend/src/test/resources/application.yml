@@ -33,6 +33,8 @@ logging:
     com.zaxxer.hikari: warn
 
 platform:
+  form-project-candidates:
+    startup-init-enabled: false
   background-jobs:
     enabled: false
   auth:

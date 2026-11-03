@@ -635,21 +635,53 @@ public class FormTemplateAdminService {
   private List<FormAdminViews.VersionView> versions(long scopeId) {
     return jdbcTemplate.query(
         """
-        select id, version_label, storage_kind, version_status, instance_table, record_table,
-               published_at
-          from form_template_versions where scope_id = ? order by id desc
+        select v.id, v.version_label, v.storage_kind, v.version_status, v.instance_table,
+               v.record_table, v.published_at, v.record_source_role,
+               s.source_config_id, s.source_instance, s.canonical_gitlab_base_url,
+               s.project_ids::text as project_ids,
+               p.frozen_binding::text as frozen_binding
+          from form_template_versions v
+          join form_template_scopes s on s.id = v.scope_id
+          left join form_template_publications p on p.to_version_id = v.id
+         where v.scope_id = ?
+         order by v.id desc
         """,
-        (rs, rowNum) ->
-            new FormAdminViews.VersionView(
-                rs.getLong("id"),
-                rs.getString("version_label"),
-                rs.getString("storage_kind"),
-                rs.getString("version_status"),
-                rs.getString("instance_table"),
-                rs.getString("record_table"),
-                rs.getTimestamp("published_at") == null
-                    ? null
-                    : rs.getTimestamp("published_at").toLocalDateTime()),
+        (rs, rowNum) -> {
+          JsonNode frozenBinding = readJson(rs.getString("frozen_binding"));
+          List<Long> projectIds =
+              frozenProjectIds(frozenBinding, rs.getString("project_ids"));
+          Long sourceConfigId =
+              frozenLong(frozenBinding, "sourceConfigId", rs.getObject("source_config_id", Long.class));
+          String sourceInstance =
+              frozenText(frozenBinding, "sourceInstance", rs.getString("source_instance"));
+          String canonicalUrl =
+              frozenText(
+                  frozenBinding,
+                  "canonicalGitlabBaseUrl",
+                  rs.getString("canonical_gitlab_base_url"));
+          String status = rs.getString("version_status");
+          boolean exportable =
+              "AUTHORITATIVE".equals(rs.getString("record_source_role"))
+                  && ("PUBLISHED".equals(status) || "RETIRED".equals(status))
+                  && sourceConfigId != null
+                  && !projectIds.isEmpty();
+          return new FormAdminViews.VersionView(
+              rs.getLong("id"),
+              rs.getString("version_label"),
+              rs.getString("storage_kind"),
+              status,
+              rs.getString("instance_table"),
+              rs.getString("record_table"),
+              rs.getTimestamp("published_at") == null
+                  ? null
+                  : rs.getTimestamp("published_at").toLocalDateTime(),
+              rs.getString("record_source_role"),
+              exportable,
+              sourceConfigId,
+              sourceInstance,
+              canonicalUrl,
+              projectIds);
+        },
         scopeId);
   }
 
@@ -1099,6 +1131,35 @@ public class FormTemplateAdminService {
   private long count(String fromWhere) {
     Integer value = jdbcTemplate.queryForObject("select count(*) from " + fromWhere, Integer.class);
     return value == null ? 0 : value;
+  }
+
+  private List<Long> frozenProjectIds(JsonNode frozenBinding, String fallbackRaw) {
+    if (frozenBinding != null
+        && frozenBinding.isObject()
+        && frozenBinding.path("projectIds").isArray()) {
+      return parseProjects(frozenBinding.path("projectIds").toString());
+    }
+    return parseProjects(fallbackRaw);
+  }
+
+  private Long frozenLong(JsonNode frozenBinding, String field, Long fallback) {
+    if (frozenBinding != null && frozenBinding.isObject()) {
+      JsonNode node = frozenBinding.get(field);
+      if (node != null && node.canConvertToLong()) {
+        return node.asLong();
+      }
+    }
+    return fallback;
+  }
+
+  private String frozenText(JsonNode frozenBinding, String field, String fallback) {
+    if (frozenBinding != null && frozenBinding.isObject()) {
+      JsonNode node = frozenBinding.get(field);
+      if (node != null && node.isTextual() && !node.asText().isBlank()) {
+        return node.asText();
+      }
+    }
+    return fallback;
   }
 
   private List<Long> parseProjects(String raw) {

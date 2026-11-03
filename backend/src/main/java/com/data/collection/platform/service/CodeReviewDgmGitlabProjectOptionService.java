@@ -54,16 +54,19 @@ public class CodeReviewDgmGitlabProjectOptionService {
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
   private final PageRecordSnapshotService pageRecordSnapshotService;
+  private final org.springframework.context.ApplicationEventPublisher events;
   private final HttpClient httpClient;
   private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
   public CodeReviewDgmGitlabProjectOptionService(
       JdbcTemplate jdbcTemplate,
       ObjectMapper objectMapper,
-      PageRecordSnapshotService pageRecordSnapshotService) {
+      PageRecordSnapshotService pageRecordSnapshotService,
+      org.springframework.context.ApplicationEventPublisher events) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
+    this.events = events;
     this.httpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
   }
 
@@ -147,6 +150,7 @@ public class CodeReviewDgmGitlabProjectOptionService {
       LocalDateTime finishedAt = LocalDateTime.now();
       markSyncFinished("SUCCESS", "DGM GitLab 项目候选同步成功", count, finishedAt);
       pageRecordSnapshotService.invalidatePage(CodeReviewIllegalRecordService.WORKSPACE_KEY);
+      events.publishEvent(new DgmProjectOptionsSyncEvent(true, null));
       return new CodeReviewDgmGitlabProjectSyncResponse(
           true,
           "SUCCESS",
@@ -158,6 +162,7 @@ public class CodeReviewDgmGitlabProjectOptionService {
       LocalDateTime finishedAt = LocalDateTime.now();
       String message = rootMessage(error, "DGM GitLab 项目候选同步失败");
       markSyncFinished("FAILED", message, 0, finishedAt);
+      events.publishEvent(new DgmProjectOptionsSyncEvent(false, message));
       throw new BizException(message);
     } finally {
       syncRunning.set(false);

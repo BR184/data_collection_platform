@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.form;
 
+import com.data.collection.platform.service.DgmProjectOptionsSyncEvent;
 import com.data.collection.platform.service.sync.SyncRunCompletionEvent;
 import com.data.collection.platform.service.sync.SyncRunCompletionListenerOrder;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,19 @@ public class FormProjectCandidateRefreshListener {
           event.configId(),
           event.runId(),
           error);
+    }
+  }
+
+  /** DGM 项目目录同步终态：成功刷新候选，失败保留最后成功快照并记录可见错误。 */
+  @EventListener
+  public void onDgmProjectOptionsSynced(DgmProjectOptionsSyncEvent event) {
+    if (event == null) {
+      return;
+    }
+    if (event.success()) {
+      candidateService.refreshDgmSources();
+    } else {
+      candidateService.markDgmSourcesFailed(event.message());
     }
   }
 }

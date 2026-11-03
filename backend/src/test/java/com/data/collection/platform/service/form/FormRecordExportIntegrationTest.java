@@ -139,6 +139,24 @@ class FormRecordExportIntegrationTest {
   }
 
   @Test
+  void exportUsesFrozenVersionProjectsAfterScopeRebind() {
+    Fixture fixture = fixture("frozen-projects", PROJECT_A, PROJECT_B);
+    Fixture.Tables v1 = fixture.version("V1", PROJECT_A, 2, "u-alice", 10);
+    attachPublication(fixture.scopeId(), v1.versionId(), List.of(PROJECT_A));
+    jdbc.update(
+        "update form_template_scopes set project_ids = ?::jsonb where id = ?",
+        MAPPER.valueToTree(List.of(PROJECT_B)).toString(),
+        fixture.scopeId());
+
+    assertThat(exportService.export(v1.versionId(), List.of(), "tester").rowCount())
+        .as("导出项目取版本冻结绑定，而不是当前范围")
+        .isEqualTo(1);
+    assertThatThrownBy(() -> exportService.export(v1.versionId(), List.of(PROJECT_B), "tester"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("必须属于该版本所在范围");
+  }
+
+  @Test
   void exportRejectsForeignProjectAndUnreadableVersion() {
     Fixture fixture = fixture("guard", PROJECT_A);
     Fixture.Tables v1 = fixture.version("V1", PROJECT_A, 2, "u-alice", 10);
@@ -344,6 +362,50 @@ class FormRecordExportIntegrationTest {
         long recordId,
         FormTemplateSpec spec,
         FormV6TestSupport.FixtureTables fixture) {}
+  }
+
+  private void attachPublication(long scopeId, long versionId, List<Long> projectIds) {
+    long previewId =
+        jdbc.queryForObject(
+            """
+            insert into form_template_preview_evidence(
+                scope_id, draft_revision, field_spec_hash, binding_hash, preview_hash,
+                preview_json, blocking_errors, created_by, created_at)
+            values (?, 1, repeat('a', 64), repeat('b', 64), repeat('c', 64),
+                    '{}'::jsonb, '[]'::jsonb, 'tester', current_timestamp)
+            returning id
+            """,
+            Long.class,
+            scopeId);
+    String frozenBinding =
+        "{\"sourceConfigId\":1,\"sourceInstance\":\"default\","
+            + "\"canonicalGitlabBaseUrl\":\""
+            + URL
+            + "\",\"projectIds\":"
+            + projectIds
+            + "}";
+    jdbc.update(
+        """
+        insert into form_template_publications(
+            scope_id, request_key, request_hash, draft_revision, preview_id, publication_kind,
+            expected_current_version_id, from_version_id, to_version_id, frozen_field_spec,
+            frozen_binding, binding_hash, version_evidence, ddl_summary, ddl_hash,
+            selection_counts, stage, task_version, fencing_version, operator_id, created_at,
+            updated_at, published_at)
+        values (?, ?, repeat('d', 64), 1, ?, 'MIGRATION', ?, ?, ?,
+                (select field_spec from form_template_versions where id = ?), ?::jsonb,
+                repeat('e', 64), '{}'::jsonb, '[]'::jsonb, repeat('f', 64), '{}'::jsonb,
+                'PUBLISHED', 0, 0, 'tester', current_timestamp, current_timestamp,
+                current_timestamp)
+        """,
+        scopeId,
+        "frozen-" + versionId,
+        previewId,
+        versionId,
+        versionId,
+        versionId,
+        versionId,
+        frozenBinding);
   }
 
   private static void registerComparable(

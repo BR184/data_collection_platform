@@ -219,6 +219,46 @@ class FormTemplateAdminIntegrationTest {
   }
 
   @Test
+  void versionDetailExposesServerExportEligibilityAndBoundProjects() {
+    long scopeId = createScope("export-metadata");
+    boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
+    FormAdminViews.PublicationView published = publish(scopeId, "CC2026R1");
+
+    FormAdminViews.VersionView current =
+        adminService.scope(scopeId).versions().stream()
+            .filter(version -> version.id() == published.toVersionId())
+            .findFirst()
+            .orElseThrow();
+    assertThat(current.exportable()).isTrue();
+    assertThat(current.recordSourceRole()).isEqualTo("AUTHORITATIVE");
+    assertThat(current.sourceConfigId()).isEqualTo(sourceConfigId);
+    assertThat(current.sourceInstance()).isEqualTo("default");
+    assertThat(current.canonicalGitlabBaseUrl()).isEqualTo(GITLAB_URL);
+    assertThat(current.projectIds()).containsExactly(PROJECT_ID);
+
+    jdbcTemplate.update(
+        "update form_template_scopes set project_ids = '[9, 10]'::jsonb where id = ?", scopeId);
+    FormAdminViews.VersionView rebound =
+        adminService.scope(scopeId).versions().stream()
+            .filter(version -> version.id() == current.id())
+            .findFirst()
+            .orElseThrow();
+    assertThat(rebound.projectIds())
+        .as("版本项目来自发布冻结绑定，不跟随当前范围项目变化")
+        .containsExactly(PROJECT_ID);
+
+    jdbcTemplate.update(
+        "update form_template_versions set record_source_role = 'LEGACY_SNAPSHOT' where id = ?",
+        current.id());
+    FormAdminViews.VersionView snapshot =
+        adminService.scope(scopeId).versions().stream()
+            .filter(version -> version.id() == current.id())
+            .findFirst()
+            .orElseThrow();
+    assertThat(snapshot.exportable()).as("非权威快照不能显示导出").isFalse();
+  }
+
+  @Test
   void shouldCASDraftAndFreezeBindingAfterActivation() {
     long scopeId = createScope("cas-binding");
     boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");
