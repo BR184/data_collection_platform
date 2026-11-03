@@ -11,13 +11,10 @@ import com.data.collection.platform.entity.sync.SyncRunTableTaskStage;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
+import com.data.collection.platform.service.GitlabSourceTimestampNormalizer;
 import com.data.collection.platform.service.PrimaryKeySignatureSupport;
 import java.math.BigInteger;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -477,19 +474,7 @@ public class SyncRunTableTaskExecutor {
   }
 
   private LocalDateTime toLocalDateTime(Object value) {
-    if (value instanceof LocalDateTime localDateTime) {
-      return localDateTime;
-    }
-    if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
-    }
-    if (value instanceof OffsetDateTime offsetDateTime) {
-      return offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
-    }
-    if (value instanceof Instant instant) {
-      return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
-    }
-    return null;
+    return GitlabSourceTimestampNormalizer.normalizeSourceValue(value);
   }
 
   private record RowCursor(LocalDateTime updatedAt, String primaryKey) {

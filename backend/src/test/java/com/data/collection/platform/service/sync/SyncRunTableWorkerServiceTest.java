@@ -200,6 +200,72 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
+  void shouldParseDockerFormattedUpdatedAtForIncrementalContinuationCursor() {
+    LocalDateTime watermark = LocalDateTime.of(2026, 5, 17, 10, 0);
+    SyncRunTableTask task = task(watermark);
+    task.setBatchSize(2);
+    task.setScanUpperBoundAt(LocalDateTime.of(2026, 5, 17, 10, 3));
+    SyncRunTableState state = state(watermark);
+    state.setSourceTable("events");
+    state.setMirrorTable("ods_gitlab_alpha_events");
+    state.setRowStrategy("UPDATED_AT");
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_events",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp with time zone", true, 2)));
+    List<Map<String, Object>> rows =
+        List.of(
+            Map.of("id", 101L, "updated_at", "2026-05-17T18:01:00.123456+08:00"),
+            Map.of("id", 102L, "updated_at", "2026-05-17T18:02:00.654321+08:00"));
+    LocalDateTime expectedCursor = LocalDateTime.of(2026, 5, 17, 10, 2, 0, 654_321_000);
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"),
+            any(RowMapper.class),
+            startsWith("table-worker-77-"),
+            eq(30),
+            eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(
+            eq(config), argThat(option -> "events".equals(option.tableName()))))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                mirrorSchema, "ods_gitlab_alpha_events", true, null));
+    when(sourceTableReader.readIncrementalBatch(
+            eq(config),
+            argThat(option -> "events".equals(option.tableName())),
+            eq(mirrorSchema),
+            eq(watermark),
+            eq(task.getScanUpperBoundAt()),
+            isNull(),
+            isNull(),
+            eq(2)))
+        .thenReturn(rows);
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(mutation(2, 2, 0));
+
+    int processed = workerService.drainRunTasks(run(77L), 1).processedTasks();
+
+    assertThat(processed).isEqualTo(1);
+    verify(taskMapper)
+        .insert(
+            argThat(
+                (SyncRunTableTask nextTask) ->
+                    nextTask.getRunId().equals(77L)
+                        && expectedCursor.equals(nextTask.getCursorUpdatedAt())
+                        && "[\"102\"]".equals(nextTask.getCursorPk())));
+  }
+
+  @Test
   void shouldCancelClaimedTaskAfterSourceScanBeforeMirrorWrite() {
     LocalDateTime watermark = LocalDateTime.of(2026, 5, 17, 10, 0);
     SyncRunTableTask task = task(watermark);

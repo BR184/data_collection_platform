@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -17,6 +18,10 @@ import com.data.collection.platform.entity.MirrorRowChange;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,6 +150,156 @@ class GitlabMirrorTableStorageServiceTest {
   }
 
   @Test
+  void test_timestamptz_value_is_serialized_as_explicit_utc_instant() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, new JsonUtils(wallClockMapper()));
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_resource_label_events",
+            List.of("id"),
+            null,
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("created_at", "timestamp with time zone", false, 2),
+                new SourceTableColumn("note", "text", true, 3)));
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", 1L);
+    row.put("created_at", LocalDateTime.of(2026, 6, 25, 10, 53, 19, 403_496_000));
+    row.put("note", "source");
+    when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
+    when(jdbcTemplate.<Map<String, Object>>query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString()))
+        .thenReturn(List.of());
+
+    service.applyBatch(schema, List.of(row), 9L);
+
+    ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            jsonCaptor.capture());
+    assertThat(jsonCaptor.getValue())
+        .contains("\"created_at\":\"2026-06-25T10:53:19.403496Z\"")
+        .contains("\"note\":\"source\"");
+  }
+
+  @Test
+  void test_timestamp_without_time_zone_keeps_source_wall_clock_text() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, new JsonUtils(wallClockMapper()));
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", 1L);
+    row.put("updated_at", LocalDateTime.of(2026, 6, 25, 10, 53, 19, 403_496_000));
+    when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
+    when(jdbcTemplate.<Map<String, Object>>query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString()))
+        .thenReturn(List.of());
+
+    service.applyBatch(schema, List.of(row), 9L);
+
+    ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            jsonCaptor.capture());
+    assertThat(jsonCaptor.getValue()).contains("\"updated_at\":\"2026-06-25T10:53:19.403496\"");
+  }
+
+  @Test
+  void test_timestamptz_updated_at_preserves_utc_wall_source_metadata() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, new JsonUtils(wallClockMapper()));
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_events",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp with time zone", false, 2)));
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", 1L);
+    row.put("updated_at", LocalDateTime.of(2026, 6, 25, 10, 53, 19, 403_496_000));
+    when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
+    when(jdbcTemplate.<Map<String, Object>>query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString()))
+        .thenReturn(List.of());
+
+    service.applyBatch(schema, List.of(row), 9L);
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .query(
+            sqlCaptor.capture(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString());
+    assertThat(sqlCaptor.getValue()).contains("(p.\"updated_at\" at time zone 'UTC')");
+  }
+
+  @Test
+  void test_timestamp_updated_at_keeps_wall_source_metadata_without_utc_conversion() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabMirrorTableStorageService service =
+        new GitlabMirrorTableStorageService(jdbcTemplate, new JsonUtils(wallClockMapper()));
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("id", 1L);
+    row.put("updated_at", LocalDateTime.of(2026, 6, 25, 10, 53, 19, 403_496_000));
+    when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
+    when(jdbcTemplate.<Map<String, Object>>query(
+            anyString(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString()))
+        .thenReturn(List.of());
+
+    service.applyBatch(schema, List.of(row), 9L);
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate)
+        .query(
+            sqlCaptor.capture(),
+            ArgumentMatchers.<RowMapper<Map<String, Object>>>any(),
+            eq(9L),
+            anyString());
+    assertThat(sqlCaptor.getValue())
+        .contains("p.\"updated_at\"")
+        .doesNotContain("at time zone");
+  }
+
+  @Test
   void test_changed_row_with_nullable_column_preserves_null_without_failure() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     JsonUtils jsonUtils = mock(JsonUtils.class);
@@ -247,6 +402,15 @@ class GitlabMirrorTableStorageServiceTest {
     assertThat(sqlCaptor.getValue())
         .contains("\"target_id\" = ?::bigint")
         .contains("\"target_type\" = ?::character varying");
+  }
+
+  private ObjectMapper wallClockMapper() {
+    SimpleModule module = new SimpleModule();
+    module.addSerializer(LocalDateTime.class, ToStringSerializer.instance);
+    ObjectMapper mapper = new ObjectMapper();
+    mapper.registerModule(module);
+    mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    return mapper;
   }
 
   private SourceTableSchema issueSchema() {
