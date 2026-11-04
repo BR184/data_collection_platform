@@ -161,7 +161,7 @@ describe('SystemTestMultiBoardView mount smoke', () => {
 
   it('drills down from the accepted parent frame and forks its read context', async () => {
     const forkedId = '22222222-2222-4222-8222-222222222222';
-    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+    const fetchSpy = vi.fn((url: string, _init?: RequestInit) => {
       if (url.startsWith('/api/read-views/') && url.endsWith('/fork')) {
         return jsonResponse({ ...metadata, readContextId: forkedId, pageKey: 'system-test-issues' });
       }
@@ -228,7 +228,7 @@ describe('SystemTestMultiBoardView mount smoke', () => {
   });
 
   it('loads project options and renders the dashboard shell', async () => {
-    const fetchSpy = vi.fn((url: string) => {
+    const fetchSpy = vi.fn((url: string, _init?: RequestInit) => {
       if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
       if (url.includes('/api/question-metrics/multi-board')) {
         return jsonResponse(createMultiBoard());

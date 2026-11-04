@@ -161,6 +161,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private com.data.collection.platform.service.form.FormHeadCaptureService
       formHeadCaptureService;
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
+  @Autowired private com.data.collection.platform.config.GitlabMirrorProperties mirrorProperties;
   @Autowired private FormIssueLinkProperties linkProperties;
   @Autowired private FormIssueLinkService formIssueLinkService;
   @Autowired private com.data.collection.platform.service.GitlabConfigService gitlabConfigService;
@@ -235,6 +236,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     replyScopeId = createScope(FormTemplateSpecCatalog.ISSUE_REPLY, "issue-reply-scope");
     // 默认不启动后台轮次：多数用例同步重算并断言发布状态，只有显式验证轮次编排的用例才恢复调度。
     suppressDelayRounds();
+    previousSchedulerEnabled = mirrorProperties.isSchedulerEnabled();
+    mirrorProperties.setSchedulerEnabled(false);
   }
 
   @AfterEach
@@ -277,8 +280,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     resumeDelayRounds();
   }
 
+  private boolean previousSchedulerEnabled;
+
   @AfterEach
   void stopFakeGitlabAndDisableLinkDelivery() {
+    mirrorProperties.setSchedulerEnabled(previousSchedulerEnabled);
     if (fakeGitlab != null) {
       fakeGitlab.stop(0);
       fakeGitlab = null;
@@ -574,9 +580,9 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     for (int offset = 0; offset < 21; offset++) {
       insertSourceIssue(95300L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
     }
-    enableLinkDelivery();
     rebuildAllIssueFacts();
     awaitPlatformTasksSettled();
+    registerForDelivery(firstIid, firstIid + 20);
     jdbcTemplate.update(
         """
         update form_resource_authorities set authority = 'COMMENT'
@@ -585,6 +591,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         FormTemplateSpecCatalog.ISSUE_REPLY,
         firstIid,
         firstIid + 19);
+    enableLinkDelivery();
     pointSourceConfigAt(startFakeGitlab(201, 0L));
     FormIssueLinkService link = isolatedLinkService();
 
@@ -612,9 +619,10 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     for (int offset = 0; offset < 21; offset++) {
       insertSourceIssue(95400L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
     }
-    enableLinkDelivery();
     rebuildAllIssueFacts();
     awaitPlatformTasksSettled();
+    registerForDelivery(firstIid, firstIid + 20);
+    enableLinkDelivery();
     pointSourceConfigAt(startFakeGitlab(201, 0L));
     List<Long> orderedIids =
         jdbcTemplate.queryForList(
@@ -2428,6 +2436,21 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .filter(cell -> columnKey.equals(cell.columnKey()))
         .findFirst()
         .orElseThrow(() -> new AssertionError("看板缺少列 " + columnKey));
+  }
+
+  /**
+   * 直接登记本次用例的响应权威行：发布时投放未开启，避免异步补发与本轮同步调度交错。
+   */
+  private void registerForDelivery(long firstIid, long lastIid) {
+    jdbcTemplate.update(
+        """
+        update form_resource_authorities set entry_registered_at = current_timestamp
+         where template_key = ? and project_id = ? and resource_id between ? and ?
+        """,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        PROJECT_ID,
+        firstIid,
+        lastIid);
   }
 
   /** 独立服务实例：投放游标只存在于进程内，隔离后台调度对批次顺序的影响。 */

@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -603,22 +602,23 @@ class FormTemplateAdminIntegrationTest {
     FormAdminViews.PublicationView second = publish(scopeId, "R01-2");
     createRecord(templateKey, scopeId, second.toVersionId());
 
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("spring.datasource.url", environment.getProperty("spring.datasource.url"));
-    properties.put("spring.datasource.username", environment.getProperty("spring.datasource.username"));
-    properties.put("spring.datasource.password", environment.getProperty("spring.datasource.password"));
-    properties.put("spring.flyway.enabled", false);
-    properties.put("spring.main.web-application-type", "none");
-    properties.put("platform.background-jobs.enabled", false);
-    properties.put("platform.form-publication.worker-enabled", false);
-    properties.put("platform.form-directory-event.worker-enabled", false);
-    properties.put("platform.auth.provider", "local");
-    properties.put("platform.auth.secure-config-required", false);
+    // 命令行参数优先级高于测试配置，确保第二个上下文连接同一个隔离库。
     try (ConfigurableApplicationContext restarted =
         new SpringApplicationBuilder(DataCollectionPlatformApplication.class)
-            .web(WebApplicationType.NONE)
-            .properties(properties)
-            .run()) {
+            .web(WebApplicationType.SERVLET)
+            .run(
+                "--spring.datasource.url=" + environment.getProperty("spring.datasource.url"),
+                "--spring.datasource.username="
+                    + environment.getProperty("spring.datasource.username"),
+                "--spring.datasource.password="
+                    + environment.getProperty("spring.datasource.password"),
+                "--spring.flyway.enabled=false",
+                "--server.port=0",
+                "--platform.background-jobs.enabled=false",
+                "--platform.form-publication.worker-enabled=false",
+                "--platform.form-directory-event.worker-enabled=false",
+                "--platform.auth.provider=local",
+                "--platform.auth.secure-config-required=false")) {
       JdbcTemplate restartedJdbc = restarted.getBean(JdbcTemplate.class);
       assertThat(restartedJdbc.queryForObject(
               "select count(*) from " + recordTable(first.toVersionId()), Integer.class))
