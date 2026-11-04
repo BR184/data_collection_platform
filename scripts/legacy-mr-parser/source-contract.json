@@ -1,0 +1,7 @@
+{
+  "source_sha256": {
+    "src/main/java/com/huayun/service/impl/MergeRequestDAOImpl.java": "dd0022b1ca1c1c676079ec4d4c4b2749040ca59dd42464a28b49983bddf231c0",
+    "src/main/java/com/huayun/entity/mergeRequest/MergeRequest.java": "70d3ad0808a9d1337a995efa2265ebed626955f19b145e07da6858239661154c"
+  },
+  "baseline_jar_sha256": "65d01e0b3a498fca28d4a56c223c57a08ea0ab8e9532d3d9bb73df7ef99d7147"
+}

@@ -1,0 +1,196 @@
+--- a/src/main/java/com/huayun/service/impl/MergeRequestDAOImpl.java
++++ b/src/main/java/com/huayun/service/impl/MergeRequestDAOImpl.java
+@@ -10 +9,0 @@
+-import com.huayun.entity.bo.MergedInfoBo;
+@@ -991,7 +990,6 @@
+-        // 6.获取项目名（项目标签获取，暂时先默认填充为“项目：CrownCAD”）
+-        String projectName = parseProjectName(infoElement);
+-
+-        // 7.获取填充合并请求状态
+-        String status = parseStatus(infoElement);
+-        String mergedTime = "";
+-        String mergedUserName = "";
++        // 项目、状态及合并证据统一读取上方已取得的同一条MR API响应。
++        GitLabMergeRequestMetadata metadata = GitLabMergeRequestMetadata.from(mr);
++        String projectName = metadata.getProjectName();
++        String status = metadata.getStatus();
++        String mergedTime = metadata.getMergedTime();
++        String mergedUserName = metadata.getMergedBy();
+@@ -999,8 +996,0 @@
+-        if (status.equals("MERGED")) {
+-            //执行获取合并时间和合并人逻辑
+-            MergedInfoBo mergedInfoBo = parseMergedInfoBoByUrl(status, issuableReference, baseUrl);
+-            if (mergedInfoBo != null) {
+-                mergedTime = mergedInfoBo.getTime();
+-                mergedUserName = mergedInfoBo.getMergedBy();
+-            }
+-        }
+@@ -1008 +998 @@
+-        boolean sonarQubeCommented = parseSonarQubeCommented(infoElement);
++        boolean sonarQubeCommented = labels.contains(SONAR_QUBE_PROBLEM_COMMENTED);
+@@ -1357,10 +1346,0 @@
+-    }
+-
+-    public MergedInfoBo parseMergedInfoBoByUrl(String status, String issuableReference, String baseUrl) {
+-        // 1.初始化空MergeRequestDetail对象和MergeRequestDetail列表
+-        if ("MERGED".equals(status)) {
+-            // 1、获取当前合并请求页网页地址
+-            String currentDetailDocUrl = mergeRequestUrlService.getDetailByUrl(issuableReference, baseUrl);
+-            return mergeRequestDetailService.parseCachedMidget(currentDetailDocUrl);
+-        }
+-        return null;
+@@ -1534,57 +1513,0 @@
+-    private String parseModuleName(Element infoElement) {
+-        Elements labelElements = infoElement.getElementsByClass("label-link");
+-        // 默认为"未标注模块名"
+-        String result = "未标注模块名";
+-        for (Element labelElement : labelElements) {
+-            if (isModuleLabel(labelElement)) {
+-                result = parseLabelContent(labelElement);
+-                break;
+-            }
+-        }
+-        return result;
+-    }
+-
+-    private String parseProjectName(Element infoElement) {
+-        Elements labelElements = infoElement.getElementsByClass("label-link");
+-        // 默认为"未标注模块名"
+-        String result = "未标注项目名";
+-        for (Element labelElement : labelElements) {
+-            if (isProjectLabel(labelElement)) {
+-                result = parseLabelContent(labelElement);
+-                break;
+-            }
+-        }
+-        return result;
+-    }
+-
+-    /**
+-     * 判断此合并请求是否需要进行代码走查，如果打了标签，那么不需要进行代码走查
+-     * 需要代码走查：true
+-     * 无需代码走查：false
+-     *
+-     * @param infoElement
+-     * @return
+-     */
+-    private boolean parseNeedCodeScan(Element infoElement) {
+-        Elements labelElements = infoElement.getElementsByClass("label-link");
+-        boolean needScan = true;
+-        for (Element labelElement : labelElements) {
+-            if (!needCodeScan(labelElement)) {
+-                //发现了指定的标签，那么直接返回true，否则，继续进行循环知道循环结束
+-                return false;
+-            }
+-        }
+-        return needScan;
+-    }
+-
+-    private boolean parseSonarQubeCommented(Element infoElement) {
+-        Elements labelElements = infoElement.getElementsByClass("label-link");
+-        for (Element labelElement : labelElements) {
+-            String label = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-            if (SONAR_QUBE_PROBLEM_COMMENTED.equals(getLabelPrefix(label))) {
+-                return true; // 一旦发现匹配标签，立即返回 true
+-            }
+-        }
+-        return false; // 循环结束未找到，返回 false
+-    }
+-
+@@ -1608,65 +1531 @@
+-    /**
+-     * 解析合并请求状态信息
+-     *
+-     * @return "CLOSED"时为关闭状态，“OPEN”时为当前正开启但未合并状态，“MERGED”为已合并状态
+-     */
+-    private String parseStatus(Element infoElement) {
+-        Element statusElement = jsoupService.getFirstElementByClass(infoElement, "issuable-status");
+-        if (statusElement != null) {
+-            return statusElement.text();
+-        } else {
+-            return "OPEN";
+-        }
+-    }
+-
+-    private boolean isModuleLabel(Element labelElement) {
+-        String originLabel = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-        return "模块".equals(getLabelPrefix(originLabel));
+-    }
+-
+-    private boolean isProjectLabel(Element labelElement) {
+-        String originLabel = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-        return "项目".equals(getLabelPrefix(originLabel));
+-    }
+-
+-    /**
+-     * 判断是否打了“无需走查扫描”的标签，如果打了，那么返回false
+-     *
+-     * @param labelElement
+-     * @return
+-     */
+-    private Boolean needCodeScan(Element labelElement) {
+-        String originLabel = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-        return !"无需走查扫描".equals(getLabelPrefix(originLabel));
+-    }
+-
+-    /**
+-     * 判断是否打了"扫描问题已说明"这个标签，如果打了，那么就返回true,否则就返回false
+-     *
+-     * @return
+-     */
+-    private Boolean sonarQubeProblemCommented(Element labelElement) {
+-        String originLabel = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-        return SONAR_QUBE_PROBLEM_COMMENTED.equals(getLabelPrefix(originLabel));
+-    }
+-
+-    // 解析标签前缀
+-    private String getLabelPrefix(String originLabel) {
+-        // 使用split分割字符串
+-        String[] parts = originLabel.split("：");
+-        // 如果存在冒号，获取冒号前面的prefix
+-        return (parts.length > 0) ? parts[0] : originLabel;
+-    }
+-
+-    private String parseLabelContent(Element labelElement) {
+-        String originalLabel = jsoupService.getFirstElementByClass(labelElement, "badge").text();
+-        return getLabelContent(originalLabel);
+-    }
+-
+-    // 解析标签内容
+-    private String getLabelContent(String originLabel) {
+-        // 使用split分割字符串
+-        String[] parts = originLabel.split("：");
+-        // 如果存在冒号，获取冒号前面的prefix
+-        return (parts.length > 0) ? parts[1] : originLabel;
+-    }
++
+--- a/src/main/java/com/huayun/entity/mergeRequest/MergeRequest.java
++++ b/src/main/java/com/huayun/entity/mergeRequest/MergeRequest.java
+@@ -5 +4,0 @@
+-import lombok.AllArgsConstructor;
+@@ -12 +10,0 @@
+-@AllArgsConstructor
+@@ -39,0 +38,23 @@
++    @JsonProperty("merged_at")
++    private String mergedAt;
++
++    @JsonProperty("merged_by")
++    private MergedUser mergedBy;
++
++    /** 保留原有六参数构造入口，避免影响JAR内既有调用者。 */
++    public MergeRequest(String id, String issuableReference, String projectId, String state, List<String> labels, String targetBranch) {
++        this.id = id;
++        this.issuableReference = issuableReference;
++        this.projectId = projectId;
++        this.state = state;
++        this.labels = labels;
++        this.targetBranch = targetBranch;
++    }
++
++    /** API合并人；只读取既有业务字段所需的显示名。 */
++    @Data
++    @NoArgsConstructor
++    @JsonIgnoreProperties(ignoreUnknown = true)
++    public static class MergedUser {
++        private String name;
++    }
