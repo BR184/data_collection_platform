@@ -4,7 +4,8 @@
 
 - [审批] 审批回执`901614ea`通过技术验收，技术基线`aa62d219`；R01-a/b/c与R02关闭。BI继续按正数`productVersionId`解析，发布影响、端点登记与黄金拟变更见[平台进度](../progress.md)与活动计划；本阶段不打包、不部署。
 - [黄金首次比较] 按回执`767cf44c`执行一次非update严格比较：需求、设计`$.data.ruleVersion`由`bi-review-v3`到`v4`，编码由`bi-coding-v5`到`v6`，系统测试由`bi-system-test-v3`到`v4`，均参与比较；其余BI快照通过。未更新快照。
-- [快照生成] 按回执`066b0165`以update模式生成四份BI快照的`ruleVersion`更新；更新模式同时重写`sourceVersion`/`snapshotId`/`generatedAt`与对象键序，严格比较忽略这些字段。`205/0/0/0`，未执行严格复比，未打包。
+- [快照生成] 按回执`066b0165`以update模式生成四份BI快照的`ruleVersion`更新；更新模式同时重写`sourceVersion`/`snapshotId`/`generatedAt`与对象键序，严格比较忽略这些字段。
+- [严格复比] 按回执`5a6c7315`全量严格复比通过：**205/0/0/0 BUILD SUCCESS**，四份BI快照更新后的`ruleVersion`与预期一致；未打包、未部署。
 - [范围] 任务分支`看板合并版本范围-20261103`（基线`f74fdef7`）新增`dashboard-version-scopes.json`与平台共享`DashboardVersionScopeService`，BI六阶段页统一提供`CC2027R1&R2`入口，内部携带成员业务键和原轮次；不改共享测试阶段目录、不新增迁移、不改指标公式。独立系统测试、客户问题页及CAT保持原状。
 - [实现] `BiPlatformProductVersionAdapter`改用共享服务，组合入口复用锚点R1原目录ID（`id=14`）并隐藏R1/R2；评审与编码改用任一成员命中，提交/走查原有去重不变；系统测试按成员原轮次并集一次加载，同一议题只计一次；`BiScopeSourceVersions`按成员事实版本并集加配置指纹生成来源版本，规则版本升至`bi-review-v4`、`bi-coding-v6`、`bi-system-test-v4`。前端无代码改动。
 - [验证] 后端默认套件**1980/0/0/1 BUILD SUCCESS**；新增真实PostgreSQL覆盖BI系统测试5条并集与独立R1=2/R2=3负对照。隔离夹具浏览器核验：BI系统测试页显示组合名、累计缺陷5；`/api/bi/versions`默认`14`且候选无单独R1/R2；导出Excel含组合范围和`scope:`指纹。质量看板与独立系统测试同轮核验见[平台进度](../progress.md)同日条目。

@@ -2,7 +2,7 @@
 
 ## 进度与中间物
 
-- 阶段：2026-11-04按审批回执`066b0165`完成两处修复与限定范围快照生成：普通版本规则说明恢复原文案、组合版本列实际成员阶段；`isFixed`仅内部计算、不返回客户端。定向`QualityRdAnalyticsDashboardProviderTest`与`QualityRdAnalyticsDetailQueryServiceTest`共`23/0/0/0`，随后`golden.update=true`生成`5`份更新+`2`份新增快照、`205/0/0/0 BUILD SUCCESS`。**未执行严格复比**，等待审核方审批生成结果；未改夹具/掩码/EXCLUDED/比较器、未合main、未打包。技术验收基线`aa62d219`与R01/a/b/c结论保留。
+- 阶段：2026-11-04按审批回执`5a6c7315`在`b8ff5380`完成全量严格复比：**205项/0失败/0错误/0跳过，BUILD SUCCESS**，快照、夹具、掩码、比较器均未改变。此前按回执`066b0165`完成规则说明与`isFixed`边界修复（定向`23/0/0/0`）并生成`5`份更新+`2`份新增快照（`205/0/0/0`）。发布门禁测试已通过，等待经理审批；未合main、未打包、未部署。技术验收基线`aa62d219`与R01/a/b/c结论保留。
 - 审批记录：回执`901614ea`确认经理独立复跑58项（含5项真实PostgreSQL、0跳过）全部通过；回执`767cf44c`纠正“无2027夹具即BI快照不变”的推断，指出四份BI快照的`$.data.ruleVersion`参与严格比较。吸收范围仅审批回执与执行单，不整体合入含表单审核记录的审核分支。
 - 工作区：`D:/projects/dcp-dashboard-combined-20261103`，分支`看板合并版本范围-20261103`（从稳定main `f74fdef7`创建）。方案原定分支名`codex/dashboard-combined-version-20261103`，按AGENTS中文功能名称规则改名，基线提交与范围未变。
 - 已完成：新增`dashboard-version-scopes.json`、`DashboardVersionScopeConfig/Loader/Scope/Service`及测试；质量看板候选/默认/请求、评审密度、系统测试阶段、集成测试、明细与导出接入；BI平台产品版本/评审/编码/系统测试适配器与来源指纹接入；规则版本升级；前后端定向测试新增与更新；BI与平台权威文档更新。
@@ -164,7 +164,20 @@
 | `...__quality-rd-quality-review-records.json` | `total=18`，当前页18条、11列；均为`CC2026R3`需求说明书评审；`problemCount`合计212、`reviewScalePages`合计0；无内部key | `b07ec50d…5904ce`（9,416字节） |
 | `...__quality-rd-new-issue-defects.json` | `total=30`，当前页20条、13列；`fixState`为16条`已修复/未复现`、4条`未修复`；**响应不含`isFixed`** | `6d77cf02…f9cb9f`（18,147字节） |
 
-本轮生成结果交审核方审批；**未执行严格复比**，未合main、未打包、未部署。审核通过后再以相同入口改为`-Dgolden.update=false`执行全量严格比较。
+本轮生成结果已交审核方审批并通过，严格复比见第9节；未合main、未打包、未部署。
+
+### 9. 全量严格复比结果（2026-11-04，回执 5a6c7315）
+
+| 项目 | 记录 |
+| --- | --- |
+| 运行身份 | HEAD `b8ff53803812034f81937ee59ed220bd23c85186`；工作树干净，`git diff`为空；origin/gitlab25与本地一致 |
+| 命令 | `mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=false`（`backend/`，JDK21） |
+| 环境 | Testcontainers `postgres:16-alpine`双容器+随机端口；未连接或写入15432/15433、真实GitLab/CAT |
+| 结果 | **205项：0失败、0错误、0跳过，BUILD SUCCESS**，耗时06:15（`.tmp/golden-strict-final-20261104.log`） |
+| 资产完整性 | 运行后`git status`为空：快照、夹具、掩码、EXCLUDED、比较器与基线清单均未改变 |
+| 结论 | 5份更新与2份新增快照全部通过严格比较，无缺失快照；发布门禁测试通过，等待经理审批后进入打包准备 |
+
+本轮未合main、未打包、未部署。
 
 ## 1. 用户能看到什么
 
