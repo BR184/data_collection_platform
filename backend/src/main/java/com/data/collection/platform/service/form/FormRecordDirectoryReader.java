@@ -7,10 +7,12 @@ import com.data.collection.platform.domain.form.FormTemplateSpec;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -73,6 +75,44 @@ public class FormRecordDirectoryReader {
   public record VersionEntry(
       long versionId, String recordSourceRole, String fieldSpecHash, String instanceMode,
       String sourceTable, String recordTable, String versionStatus) {}
+
+  /**
+   * 批量回读计划：一次导出只读取一次版本元数据与冻结规格，后续按批联查目录/承载表/实例表。
+   *
+   * <p>计划只接受已核验的 {@code AUTHORITATIVE} 已发布/退役版本；调用方负责版本角色校验，
+   * 本记录只承载物理定位与冻结列，避免每行重复查询版本与模板键。
+   */
+  public record VersionReadPlan(
+      long scopeId,
+      long versionId,
+      String templateKey,
+      String instanceMode,
+      String instanceTable,
+      String recordTable,
+      String sourceTable,
+      List<String> columns) {
+
+    /** 从已解析的冻结规格构造回读计划；字段缺少物理绑定时拒绝。 */
+    public static VersionReadPlan of(
+        long scopeId,
+        long versionId,
+        String templateKey,
+        String instanceMode,
+        String instanceTable,
+        String recordTable,
+        String sourceTable,
+        FormTemplateSpec spec) {
+      return new VersionReadPlan(
+          scopeId,
+          versionId,
+          templateKey,
+          instanceMode,
+          instanceTable,
+          recordTable,
+          sourceTable,
+          columnsOf(spec));
+    }
+  }
 
   private final JdbcTemplate jdbcTemplate;
   private final FormRecordContextService contextService;
@@ -223,8 +263,184 @@ public class FormRecordDirectoryReader {
     return List.copyOf(resolved);
   }
 
-  /** 捕获当前源集合：修订、哈希与 AUTHORITATIVE 版本清单。 */
-  public SourceSet captureSourceSet(long scopeId) {
+  /**
+   * 按已验证版本计划批量回读记录：每批一次联查，复用与单条回读相同的实例、资源与创建人核验。
+   *
+   * <p>只供已经筛选出有效记录 ID 的批量读取（如导出）使用；返回顺序与目录创建时间一致。
+   * 任一记录缺失或证据不一致时拒绝整批，不返回部分载荷。
+   */
+  public List<LocatedRecord> readBatch(
+      VersionReadPlan plan, List<Long> recordIds, boolean activeOnly) {
+    if (recordIds.isEmpty()) {
+      return List.of();
+    }
+    List<LocatedRecord> rows =
+        "NONE".equals(plan.instanceMode())
+            ? readLegacyBatch(plan, recordIds)
+            : readMaterializedBatch(plan, recordIds);
+    Set<Long> found = new LinkedHashSet<>();
+    List<LocatedRecord> resolved = new ArrayList<>(rows.size());
+    for (LocatedRecord record : rows) {
+      found.add(record.recordId());
+      if (record.deleted() && activeOnly) {
+        continue;
+      }
+      resolved.add(record);
+    }
+    for (Long recordId : recordIds) {
+      if (!found.contains(recordId)) {
+        throw new FormConflictException("目录记录无法回表：record=" + recordId);
+      }
+    }
+    return List.copyOf(resolved);
+  }
+
+  private List<LocatedRecord> readMaterializedBatch(
+      VersionReadPlan plan, List<Long> recordIds) {
+    if (!"MATERIALIZED".equals(plan.instanceMode())) {
+      throw new FormConflictException("承载版本不含记录表与实例表，无法回表：version="
+          + plan.versionId());
+    }
+    String recordTable = requireReadableTable(plan.recordTable(), "记录表");
+    String instanceTable = requireReadableTable(plan.instanceTable(), "实例表");
+    String placeholders = String.join(", ", Collections.nCopies(recordIds.size(), "?"));
+    StringBuilder sql =
+        new StringBuilder("select l.*, v.record_source_role, v.version_status,")
+            .append(" r.deleted as record_deleted,")
+            .append(" r.record_version as record_version_value,")
+            .append(" r.created_by as record_created_by,")
+            .append(" r.instance_id as physical_instance_id,")
+            .append(" r.created_at as record_created_at,")
+            .append(" r.updated_at as record_updated_at,")
+            .append(" i.source_config_id as instance_source_config_id,")
+            .append(" i.source_instance as instance_source_instance,")
+            .append(" i.gitlab_base_url as instance_gitlab_base_url,")
+            .append(" i.project_id as instance_project_id,")
+            .append(" i.resource_type as instance_resource_type,")
+            .append(" i.resource_id as instance_resource_id,")
+            .append(" i.scope_id as instance_scope_id,")
+            .append(" i.template_key as instance_template_key");
+    for (String column : plan.columns()) {
+      sql.append(", r.").append(column);
+    }
+    sql.append(" from ").append(recordTable)
+        .append(" r join ").append(instanceTable).append(" i on i.id = r.instance_id")
+        .append(" join form_record_locations l on l.record_id = r.id")
+        .append(" join form_template_versions v on v.id = l.storage_version_id")
+        .append(" where l.record_id in (").append(placeholders).append(")")
+        .append(" and l.storage_version_id = ?")
+        .append(" order by l.created_at, l.record_id");
+    List<Object> args = new ArrayList<>(recordIds);
+    args.add(plan.versionId());
+    return jdbcTemplate.query(
+        sql.toString(),
+        (rs, rowNum) -> {
+          LocatedRecord record = baseRecord(rs);
+          Map<String, Object> instanceRow = new LinkedHashMap<>();
+          instanceRow.put("instance_id", rs.getObject("physical_instance_id", Long.class));
+          instanceRow.put("scope_id", rs.getObject("instance_scope_id"));
+          instanceRow.put("template_key", rs.getString("instance_template_key"));
+          instanceRow.put("source_config_id", rs.getObject("instance_source_config_id"));
+          instanceRow.put("source_instance", rs.getString("instance_source_instance"));
+          instanceRow.put("gitlab_base_url", rs.getString("instance_gitlab_base_url"));
+          instanceRow.put("project_id", rs.getObject("instance_project_id"));
+          instanceRow.put("resource_type", rs.getString("instance_resource_type"));
+          instanceRow.put("resource_id", rs.getString("instance_resource_id"));
+          requireSameInstanceIdentity(record, instanceRow, plan.templateKey());
+          requireSameResource(record, instanceRow);
+          requireSameCreator(record, rs.getObject("record_created_by"));
+          Map<String, Object> values = new LinkedHashMap<>();
+          for (String column : plan.columns()) {
+            values.put(column, rs.getObject(column));
+          }
+          return withPayload(
+              record,
+              nullableInt(rs.getObject("record_version_value")),
+              Boolean.TRUE.equals(rs.getObject("record_deleted")),
+              toLocalDateTime(rs.getObject("record_created_at")),
+              toLocalDateTime(rs.getObject("record_updated_at")),
+              Collections.unmodifiableMap(values));
+        },
+        args.toArray());
+  }
+
+  private List<LocatedRecord> readLegacyBatch(VersionReadPlan plan, List<Long> recordIds) {
+    if (!"NONE".equals(plan.instanceMode())) {
+      throw new FormConflictException("目录实例模式与承载版本不一致：version=" + plan.versionId());
+    }
+    String sourceTable = requireReadableTable(plan.sourceTable(), "旧源表");
+    if (jdbcTemplate.queryForObject("select to_regclass(?)", String.class, sourceTable) == null) {
+      throw new FormConflictException("旧源表不存在，无法回读原位记录：" + sourceTable);
+    }
+    String placeholders = String.join(", ", Collections.nCopies(recordIds.size(), "?"));
+    StringBuilder sql =
+        new StringBuilder("select l.*, v.record_source_role, v.version_status,")
+            .append(" s.deleted as record_deleted,")
+            .append(" s.created_at as record_created_at,")
+            .append(" s.updated_at as record_updated_at,")
+            .append(" s.gitlab_base_url as source_gitlab_base_url,")
+            .append(" s.project_id as source_project_id,")
+            .append(" s.resource_type as source_resource_type,")
+            .append(" s.resource_id as source_resource_id");
+    for (String column : plan.columns()) {
+      sql.append(", s.").append(column);
+    }
+    sql.append(" from ").append(sourceTable)
+        .append(" s join form_record_locations l on l.record_id = s.id")
+        .append(" join form_template_versions v on v.id = l.storage_version_id")
+        .append(" where l.record_id in (").append(placeholders).append(")")
+        .append(" and l.storage_version_id = ?")
+        .append(" order by l.created_at, l.record_id");
+    List<Object> args = new ArrayList<>(recordIds);
+    args.add(plan.versionId());
+    return jdbcTemplate.query(
+        sql.toString(),
+        (rs, rowNum) -> {
+          LocatedRecord record = baseRecord(rs);
+          if (record.createdBy() != null) {
+            throw new FormConflictException(
+                "原位记录没有创建人证据，目录创建人不一致：record=" + record.recordId());
+          }
+          String rowUrl;
+          try {
+            rowUrl =
+                FormSourceUrlSupport.canonicalize(rs.getString("source_gitlab_base_url"));
+          } catch (IllegalArgumentException error) {
+            throw new FormConflictException("原位记录来源地址非法：record=" + record.recordId());
+          }
+          Object projectId = rs.getObject("source_project_id");
+          if (!rowUrl.equals(record.gitlabBaseUrl())
+              || projectId == null
+              || ((Number) projectId).longValue() != record.projectId()
+              || !String.valueOf(rs.getString("source_resource_type"))
+                  .equals(record.resourceType())
+              || !String.valueOf(rs.getString("source_resource_id")).equals(record.resourceId())) {
+            throw new FormConflictException(
+                "原位记录完整资源与目录证据不一致：record=" + record.recordId());
+          }
+          Map<String, Object> values = new LinkedHashMap<>();
+          for (String column : plan.columns()) {
+            values.put(column, rs.getObject(column));
+          }
+          return withPayload(
+              record,
+              null,
+              Boolean.TRUE.equals(rs.getObject("record_deleted")),
+              toLocalDateTime(rs.getObject("record_created_at")),
+              toLocalDateTime(rs.getObject("record_updated_at")),
+              Collections.unmodifiableMap(values));
+        },
+        args.toArray());
+  }
+
+  private String requireReadableTable(String raw, String role) {
+    if (raw == null || !TABLE_NAME.matcher(raw).matches()) {
+      throw new FormConflictException(role + "名非法，无法批量回读：" + raw);
+    }
+    return raw;
+  }
+
+  /** 捕获当前源集合：修订、哈希与 AUTHORITATIVE 版本清单。 */  public SourceSet captureSourceSet(long scopeId) {
     List<Map<String, Object>> scopes = jdbcTemplate.queryForList(
         "select source_set_revision, source_set_hash from form_template_scopes where id = ?",
         scopeId);
@@ -423,6 +639,11 @@ public class FormRecordDirectoryReader {
   }
 
   private List<String> specColumns(FormTemplateSpec spec) {
+    return columnsOf(spec);
+  }
+
+  /** 冻结规格的物理列（含人员姓名列）；字段缺少物理绑定时拒绝。 */
+  private static List<String> columnsOf(FormTemplateSpec spec) {
     List<String> columns = new ArrayList<>();
     for (FormFieldSpec field : spec.fields()) {
       if (field.storage() == null) {
@@ -436,7 +657,7 @@ public class FormRecordDirectoryReader {
     if (columns.isEmpty()) {
       throw new FormConflictException("冻结规格没有可读业务列");
     }
-    return columns;
+    return List.copyOf(columns);
   }
 
   private List<String> prefixed(List<String> columns) {
@@ -455,6 +676,11 @@ public class FormRecordDirectoryReader {
    */
   private void requireSameInstanceIdentity(
       LocatedRecord record, Map<String, Object> instanceRow) {
+    requireSameInstanceIdentity(record, instanceRow, requireTemplateKey(record.scopeId()));
+  }
+
+  private void requireSameInstanceIdentity(
+      LocatedRecord record, Map<String, Object> instanceRow, String scopeTemplate) {
     Object rawInstanceId = instanceRow.get("instance_id");
     long physicalInstanceId = rawInstanceId == null ? -1L : ((Number) rawInstanceId).longValue();
     if (record.instanceId() == null || physicalInstanceId != record.instanceId()) {
@@ -468,7 +694,6 @@ public class FormRecordDirectoryReader {
           + "，实例范围=" + instanceScopeId + "，目录范围=" + record.scopeId());
     }
     String instanceTemplate = (String) instanceRow.get("template_key");
-    String scopeTemplate = requireTemplateKey(record.scopeId());
     if (!Objects.equals(instanceTemplate, scopeTemplate)) {
       throw new FormConflictException("承载实例模板与目录范围不一致：record=" + record.recordId()
           + "，实例模板=" + instanceTemplate + "，范围模板=" + scopeTemplate);

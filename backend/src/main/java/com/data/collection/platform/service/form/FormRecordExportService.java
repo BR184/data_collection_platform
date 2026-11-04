@@ -51,6 +51,7 @@ public class FormRecordExportService {
   static final long DEFAULT_MAX_BYTES = 64L * 1024L * 1024L;
   private static final int STREAMING_THRESHOLD = 5_000;
   private static final int STREAMING_WINDOW = 200;
+  private static final int READ_BATCH_SIZE = 500;
   private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final DateTimeFormatter DATE_TIME =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -107,9 +108,20 @@ public class FormRecordExportService {
   public ExportResult export(long versionId, List<Long> requestedProjects, String operatorId) {
     VersionRow version = loadVersion(versionId);
     List<Long> projects = resolveProjects(version.projectIds(), requestedProjects);
-    List<FormRecordDirectoryReader.LocatedRecord> records = loadRecords(version, projects);
+    List<Long> recordIds = candidateRecordIds(version, projects);
+    FormRecordDirectoryReader.VersionReadPlan plan =
+        FormRecordDirectoryReader.VersionReadPlan.of(
+            version.scopeId(),
+            version.versionId(),
+            version.templateKey(),
+            version.instanceMode(),
+            version.instanceTable(),
+            version.recordTable(),
+            version.sourceTable(),
+            version.spec());
     List<String> headers = headers(version.spec());
-    byte[] content = writeWorkbook(version, headers, records);
+    ExportPayload payload = writeWorkbook(version, plan, recordIds, projects, headers);
+    byte[] content = payload.content();
     if (content.length > maxBytes) {
       throw new FormPayloadTooLargeException(
           "表单记录导出文件超过上限：实际=" + content.length + "，上限=" + maxBytes);
@@ -124,12 +136,12 @@ public class FormRecordExportService {
         version.scopeId(),
         version.versionId(),
         writeJson(projects),
-        records.size(),
+        payload.rowCount(),
         content.length,
         sha256,
         operatorId);
     return new ExportResult(
-        content, filename(version), records.size(), content.length, sha256);
+        content, filename(version), payload.rowCount(), content.length, sha256);
   }
 
   private VersionRow loadVersion(long versionId) {
@@ -137,8 +149,9 @@ public class FormRecordExportService {
         jdbcTemplate.queryForList(
             """
             select v.id, v.scope_id, v.version_label, v.field_spec::text as field_spec,
-                   v.record_source_role, v.version_status, v.instance_mode, v.record_table,
-                   v.source_table, s.template_key, s.project_ids::text as project_ids,
+                   v.record_source_role, v.version_status, v.instance_mode, v.instance_table,
+                   v.record_table, v.source_table, s.template_key,
+                   s.project_ids::text as project_ids,
                    p.frozen_binding::text as frozen_binding
               from form_template_versions v
               join form_template_scopes s on s.id = v.scope_id
@@ -165,6 +178,7 @@ public class FormRecordExportService {
         templateKey,
         (String) row.get("version_label"),
         (String) row.get("instance_mode"),
+        (String) row.get("instance_table"),
         (String) row.get("record_table"),
         (String) row.get("source_table"),
         spec,
@@ -208,8 +222,7 @@ public class FormRecordExportService {
     return List.copyOf(distinct);
   }
 
-  private List<FormRecordDirectoryReader.LocatedRecord> loadRecords(
-      VersionRow version, List<Long> projects) {
+  private List<Long> candidateRecordIds(VersionRow version, List<Long> projects) {
     String placeholders = String.join(", ", java.util.Collections.nCopies(projects.size(), "?"));
     List<Object> args = new ArrayList<>(projects.size() + 3);
     args.add(version.scopeId());
@@ -237,19 +250,7 @@ public class FormRecordExportService {
       throw new FormPayloadTooLargeException(
           "表单记录导出行数超过上限：上限=" + maxRows);
     }
-    List<FormRecordDirectoryReader.LocatedRecord> records = new ArrayList<>(recordIds.size());
-    for (Long recordId : recordIds) {
-      FormRecordDirectoryReader.LocatedRecord record = reader.find(recordId).orElse(null);
-      if (record == null) {
-        continue;
-      }
-      if (record.storageVersionId() != version.versionId()
-          || !projects.contains(record.projectId())) {
-        throw new FormConflictException("导出记录目录 C 不在请求范围内：record=" + recordId);
-      }
-      records.add(record);
-    }
-    return List.copyOf(records);
+    return recordIds;
   }
 
   /** 只在目录候选阶段连接承载表排除作废行，读取预算最多探测超限一行。 */
@@ -277,11 +278,13 @@ public class FormRecordExportService {
     return List.copyOf(headers);
   }
 
-  private byte[] writeWorkbook(
+  private ExportPayload writeWorkbook(
       VersionRow version,
-      List<String> headers,
-      List<FormRecordDirectoryReader.LocatedRecord> records) {
-    boolean streaming = records.size() > STREAMING_THRESHOLD;
+      FormRecordDirectoryReader.VersionReadPlan plan,
+      List<Long> recordIds,
+      List<Long> projects,
+      List<String> headers) {
+    boolean streaming = recordIds.size() > STREAMING_THRESHOLD;
     Workbook workbook = null;
     try (ByteArrayOutputStream output = new ByteArrayOutputStream();
         BoundedOutputStream bounded = new BoundedOutputStream(output, maxBytes)) {
@@ -296,12 +299,21 @@ public class FormRecordExportService {
       writeRow(sheet.createRow(0), headers, headerStyle);
       Map<String, String> displayNames = new HashMap<>();
       int rowIndex = 1;
-      for (FormRecordDirectoryReader.LocatedRecord record : records) {
-        Row row = sheet.createRow(rowIndex++);
-        writeRow(row, systemRow(version, record, displayNames), bodyStyle);
-        int column = SYSTEM_HEADERS.size();
-        for (FormFieldSpec field : version.spec().fields()) {
-          writeCell(row, column++, value(record, field), bodyStyle);
+      for (int start = 0; start < recordIds.size(); start += READ_BATCH_SIZE) {
+        List<Long> chunk =
+            recordIds.subList(start, Math.min(recordIds.size(), start + READ_BATCH_SIZE));
+        for (FormRecordDirectoryReader.LocatedRecord record : reader.readBatch(plan, chunk, true)) {
+          if (record.storageVersionId() != version.versionId()
+              || !projects.contains(record.projectId())) {
+            throw new FormConflictException(
+                "导出记录目录 C 不在请求范围内：record=" + record.recordId());
+          }
+          Row row = sheet.createRow(rowIndex++);
+          writeRow(row, systemRow(version, record, displayNames), bodyStyle);
+          int column = SYSTEM_HEADERS.size();
+          for (FormFieldSpec field : version.spec().fields()) {
+            writeCell(row, column++, value(record, field), bodyStyle);
+          }
         }
       }
       for (int index = 0; index < headers.size(); index++) {
@@ -311,7 +323,7 @@ public class FormRecordExportService {
       ExcelExportStyles.applyHeaderRows(sheet, 1);
       workbook.write(bounded);
       bounded.flush();
-      return output.toByteArray();
+      return new ExportPayload(output.toByteArray(), rowIndex - 1);
     } catch (FormPayloadTooLargeException error) {
       throw error;
     } catch (Exception error) {
@@ -526,8 +538,11 @@ public class FormRecordExportService {
       String templateKey,
       String versionLabel,
       String instanceMode,
+      String instanceTable,
       String recordTable,
       String sourceTable,
       FormTemplateSpec spec,
       List<Long> projectIds) {}
+
+  private record ExportPayload(byte[] content, int rowCount) {}
 }

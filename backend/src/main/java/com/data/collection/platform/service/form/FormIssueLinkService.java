@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -55,6 +56,7 @@ public class FormIssueLinkService {
   private final Executor platformAsyncExecutor;
   private final TransactionTemplate transactionTemplate;
   private final HttpClient httpClient;
+  private final AtomicLong dispatchCursor = new AtomicLong(0L);
 
   public FormIssueLinkService(
       JdbcTemplate jdbcTemplate,
@@ -154,6 +156,9 @@ public class FormIssueLinkService {
   /**
    * 处理一批已登记且评论编号为空的记录。
    *
+   * <p>候选先过滤当前不就绪的权威行，避免少量长期不就绪或持续失败的行永久占据队首；批内按稳定
+   * 主键向后扫描，失败也推进游标，到尾回绕。发送仍在行锁内复核，游标只决定处理顺序。
+   *
    * @param limit 本次最多处理条数
    * @return 本次成功发出评论的数量
    */
@@ -161,22 +166,15 @@ public class FormIssueLinkService {
     if (!deliveryConfigured() || limit <= 0) {
       return 0;
     }
-    List<Long> ids =
-        jdbcTemplate.queryForList(
-            """
-            select id from form_resource_authorities
-             where resource_type = 'issue' and project_id = ? and template_key = ?
-               and entry_registered_at is not null and entry_comment_id is null
-               and authority = 'FORM'
-             order by entry_registered_at, id
-             limit ?
-            """,
-            Long.class,
-            TARGET_PROJECT_ID,
-            RESPONSE_TEMPLATE,
-            limit);
+    long cursor = dispatchCursor.get();
+    List<Long> ids = pendingCandidates(cursor, limit);
+    if (ids.isEmpty() && cursor > 0L) {
+      dispatchCursor.set(0L);
+      ids = pendingCandidates(0L, limit);
+    }
     int sent = 0;
     for (Long id : ids) {
+      dispatchCursor.set(id);
       try {
         if (sendOne(id)) {
           sent++;
@@ -186,6 +184,64 @@ public class FormIssueLinkService {
       }
     }
     return sent;
+  }
+
+  private List<Long> pendingCandidates(long afterId, int limit) {
+    return jdbcTemplate.queryForList(
+        """
+        select a.id from form_resource_authorities a
+         where a.resource_type = 'issue' and a.project_id = ? and a.template_key = ?
+           and a.entry_registered_at is not null and a.entry_comment_id is null
+           and a.authority = 'FORM'
+           and a.id > ?
+           and exists (
+             select 1
+               from issue_fact f
+              where f.source_system = ?
+                and f.source_instance = a.source_instance
+                and f.project_id = a.project_id
+                and f.issue_iid = a.resource_id
+                and f.deleted = false
+                and """
+            + FactReadVisibility.liveRevisionPredicate("f")
+            + """
+           )
+           and exists (
+             select 1
+               from form_resource_authorities b
+               join form_template_scopes bs on bs.id = b.scope_id
+               join form_template_versions bv on bv.id = bs.current_version_id
+              where b.source_config_id = a.source_config_id
+                and b.project_id = a.project_id
+                and b.resource_type = 'issue'
+                and b.resource_id = a.resource_id
+                and b.template_key = ?
+                and b.authority = 'FORM'
+                and bs.status = 'ACTIVE'
+                and bv.version_status = 'PUBLISHED'
+                and bv.storage_kind = 'RECORDS'
+                and bv.version_label is not null
+           )
+           and exists (
+             select 1
+               from form_template_scopes s
+               join form_template_versions v on v.id = s.current_version_id
+              where s.id = a.scope_id
+                and s.status = 'ACTIVE'
+                and v.version_status = 'PUBLISHED'
+                and v.storage_kind = 'RECORDS'
+                and v.version_label is not null
+           )
+         order by a.id
+         limit ?
+        """,
+        Long.class,
+        TARGET_PROJECT_ID,
+        RESPONSE_TEMPLATE,
+        afterId,
+        GitlabResourceRootResolver.DEFAULT_SOURCE_SYSTEM,
+        REPLY_TEMPLATE,
+        limit);
   }
 
   /**

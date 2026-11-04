@@ -49,6 +49,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -69,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -161,6 +163,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
   @Autowired private FormIssueLinkProperties linkProperties;
   @Autowired private FormIssueLinkService formIssueLinkService;
+  @Autowired private com.data.collection.platform.service.GitlabConfigService gitlabConfigService;
   @Autowired private FormRecordService formRecordService;
   @Autowired private CustomerIssueRecordService customerIssueRecordService;
   @Autowired private CustomerIssueDefectCauseBoardService defectCauseBoardService;
@@ -198,6 +201,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       java.util.Collections.synchronizedList(new ArrayList<>());
   private volatile int fakeGitlabStatus = 201;
   private volatile long fakeGitlabLatencyMillis;
+  private final Map<Long, Integer> fakeGitlabIssueStatus = new ConcurrentHashMap<>();
 
   private static final Set<String> FORM_RECORD_PERMISSIONS =
       Set.of(
@@ -561,6 +565,83 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
     assertThat(deliveryCommentId(iid)).isNotNull();
     assertThat(postedNoteBodies).hasSize(2);
+  }
+
+  /** R06：长期不就绪的登记不占据队首，后续就绪议题仍能在本批发出；恢复后就绪者可继续补发。 */
+  @Test
+  void notReadyRegistrationsDoNotStarveLaterReadyIssues() throws Exception {
+    long firstIid = 81300L;
+    for (int offset = 0; offset < 21; offset++) {
+      insertSourceIssue(95300L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
+    }
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    jdbcTemplate.update(
+        """
+        update form_resource_authorities set authority = 'COMMENT'
+         where template_key = ? and resource_id between ? and ?
+        """,
+        FormTemplateSpecCatalog.ISSUE_REPLY,
+        firstIid,
+        firstIid + 19);
+    pointSourceConfigAt(startFakeGitlab(201, 0L));
+    FormIssueLinkService link = isolatedLinkService();
+
+    assertThat(link.dispatchPending(5)).isEqualTo(1);
+    long readyIid = firstIid + 20;
+    assertThat(deliveryCommentId(readyIid)).isNotNull();
+    assertThat(postedNoteBodies).hasSize(1);
+
+    jdbcTemplate.update(
+        """
+        update form_resource_authorities set authority = 'FORM'
+         where template_key = ? and resource_id between ? and ?
+        """,
+        FormTemplateSpecCatalog.ISSUE_REPLY,
+        firstIid,
+        firstIid + 19);
+    assertThat(link.dispatchPending(20)).isEqualTo(20);
+    assertThat(postedNoteBodies).hasSize(21);
+  }
+
+  /** R06：持续失败的候选按稳定键推进游标，后续就绪议题在有界轮次内发出。 */
+  @Test
+  void persistedHttpFailuresAdvanceCursorAndLaterReadyIssueStillSends() throws Exception {
+    long firstIid = 81330L;
+    for (int offset = 0; offset < 21; offset++) {
+      insertSourceIssue(95400L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
+    }
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    pointSourceConfigAt(startFakeGitlab(201, 0L));
+    List<Long> orderedIids =
+        jdbcTemplate.queryForList(
+            """
+            select resource_id from form_resource_authorities
+             where template_key = ? and entry_registered_at is not null
+               and entry_comment_id is null
+             order by id
+            """,
+            Long.class,
+            FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    assertThat(orderedIids).hasSize(21);
+    long readyIid = orderedIids.getLast();
+    for (Long failingIid : orderedIids.subList(0, 20)) {
+      fakeGitlabIssueStatus.put(failingIid, 500);
+    }
+
+    FormIssueLinkService link = isolatedLinkService();
+    assertThat(link.dispatchPending(20)).isZero();
+    assertThat(postedNoteBodies).hasSize(20);
+    assertThat(link.dispatchPending(20)).isEqualTo(1);
+    assertThat(deliveryCommentId(readyIid)).isNotNull();
+    assertThat(postedNoteBodies).hasSize(21);
+
+    fakeGitlabIssueStatus.clear();
+    assertThat(link.dispatchPending(20)).isEqualTo(20);
+    assertThat(postedNoteBodies).hasSize(41);
   }
 
   /** L1/L2：响应与回复两侧都必须在登记和发送时保持范围与当前版本有效。 */
@@ -2349,6 +2430,17 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .orElseThrow(() -> new AssertionError("看板缺少列 " + columnKey));
   }
 
+  /** 独立服务实例：投放游标只存在于进程内，隔离后台调度对批次顺序的影响。 */
+  private FormIssueLinkService isolatedLinkService() {
+    return new FormIssueLinkService(
+        jdbcTemplate,
+        gitlabConfigService,
+        linkProperties,
+        objectMapper,
+        platformAsyncExecutor,
+        transactionManager);
+  }
+
   private void enableLinkDelivery() {
     linkProperties.setEnabled(true);
     linkProperties.setExternalBaseUrl("https://platform.test");
@@ -2366,6 +2458,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   private String startFakeGitlab(int status, long latencyMillis) throws IOException {
     fakeGitlabStatus = status;
     fakeGitlabLatencyMillis = latencyMillis;
+    fakeGitlabIssueStatus.clear();
     postedNoteBodies.clear();
     fakeGitlab = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
     fakeGitlab.createContext(
@@ -2381,7 +2474,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
               Thread.currentThread().interrupt();
             }
           }
-          int code = fakeGitlabStatus;
+          int code = fakeGitlabIssueStatus.getOrDefault(issueIidOf(exchange), fakeGitlabStatus);
           byte[] body =
               (code >= 200 && code < 300
                       ? "{\"id\":" + (100 + postedNoteBodies.size()) + "}"
@@ -2394,6 +2487,20 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         });
     fakeGitlab.start();
     return "http://127.0.0.1:" + fakeGitlab.getAddress().getPort();
+  }
+
+  private long issueIidOf(HttpExchange exchange) {
+    String[] segments = exchange.getRequestURI().getPath().split("/");
+    for (int index = 0; index < segments.length - 1; index++) {
+      if ("issues".equals(segments[index])) {
+        try {
+          return Long.parseLong(segments[index + 1]);
+        } catch (NumberFormatException error) {
+          return Long.MIN_VALUE;
+        }
+      }
+    }
+    return Long.MIN_VALUE;
   }
 
   private boolean deliveryRegistered(long iid, String templateKey) {
