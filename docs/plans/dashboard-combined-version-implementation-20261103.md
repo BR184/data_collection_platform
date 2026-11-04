@@ -2,11 +2,11 @@
 
 ## 进度与中间物
 
-- 阶段：2026-11-04技术验收通过（审批回执`901614ea`，技术基线`aa62d219`），R01-a/b/c与R02全部关闭，进入发布门禁资料准备。本阶段只整理候选、影响、黄金拟变更、升级恢复和现场核对材料；不运行/更新黄金、不合main、不打包、不部署，不扩功能或重做UI。
-- 审批记录：经理独立编译并复跑58项（含5项真实PostgreSQL、0跳过）全部通过；确认稳定key、内部明细、业务名称展示及原业务权限要求均已落实。吸收范围仅本次回执与计划，不整体合入含表单审核记录的审核分支。
+- 阶段：2026-11-04审批回执`767cf44c`批准候选身份并准入首次非update黄金严格比较。已修正黄金清单、登记两个内部明细用例并完成一次`-Dgolden.update=false`全量比较：`205`项中`8`失败`2`错误，除已确认的quality-rd动作、BI四份`ruleVersion`和两个缺失快照外，另发现quality-rd规则文案与两个既有明细新增`isFixed`字段，待差异审批。本轮未生成/更新快照、未改夹具/掩码/EXCLUDED、未合main、未打包。技术验收基线仍为`aa62d219`，R01-a/b/c与R02关闭。
+- 审批记录：回执`901614ea`确认经理独立复跑58项（含5项真实PostgreSQL、0跳过）全部通过；回执`767cf44c`纠正“无2027夹具即BI快照不变”的推断，指出四份BI快照的`$.data.ruleVersion`参与严格比较。吸收范围仅审批回执与执行单，不整体合入含表单审核记录的审核分支。
 - 工作区：`D:/projects/dcp-dashboard-combined-20261103`，分支`看板合并版本范围-20261103`（从稳定main `f74fdef7`创建）。方案原定分支名`codex/dashboard-combined-version-20261103`，按AGENTS中文功能名称规则改名，基线提交与范围未变。
 - 已完成：新增`dashboard-version-scopes.json`、`DashboardVersionScopeConfig/Loader/Scope/Service`及测试；质量看板候选/默认/请求、评审密度、系统测试阶段、集成测试、明细与导出接入；BI平台产品版本/评审/编码/系统测试适配器与来源指纹接入；规则版本升级；前后端定向测试新增与更新；BI与平台权威文档更新。
-- 测试状态：首轮后端默认套件`1980/0/0/1 BUILD SUCCESS`；上一轮R01/R02整改后受影响定向`53/0/0/0`（含5项真实PostgreSQL）；本轮R01残留整改后定向`58/0/0/0`（含5项真实PostgreSQL、权限与会话边界），前端`typecheck`通过、路由与明细组件定向`33/0/0/0`。未重复全量套件，未运行发布黄金、未更新快照、未打包、未部署。
+- 测试状态：首轮后端默认套件`1980/0/0/1 BUILD SUCCESS`；上一轮R01/R02整改后受影响定向`53/0/0/0`（含5项真实PostgreSQL）；本轮R01残留整改后定向`58/0/0/0`（含5项真实PostgreSQL、权限与会话边界），前端`typecheck`通过、路由与明细组件定向`33/0/0/0`。发布准备阶段首次黄金严格比较`205`项、`8`失败`2`错误、`0`跳过（第7节）；未重复默认套件，未更新快照、未打包、未部署。
 - 页面与导出：隔离容器+夹具下完成质量研发看板、质量其他看板、独立系统测试R1/R2、BI系统测试四处页面核验；质量走查Excel导出2条成员记录、BI系统测试Excel导出8行并含组合范围与`scope:`指纹。R01/R02整改后复核：质量看板与BI系统测试显示`CC2027R1&R2`（BI `productVersionId=12`），CAT设置列原R1/R2且无组合项，改名普通版本按稳定key查询成功并返回改后显示名。R01残留整改后桌面点验：需求评审明细3条（5/25=0.20）、设计评审明细1条（2/8=0.25）、新发缺陷明细4条其中2条已修复（50%）、其他看板功能缺陷数量明细“统计范围”为`CC2027R1&R2`；其他看板Excel文件名与工作表均为显示名，无内部key。权限拒绝由定向测试覆盖。隔离资源已清理。
 - 只读取证：本地15432与11-02数据副本无2027目录/系统测试事实，评审与走查仅有`CC2027R1`；目标内网不可达。因此生产目录、`2027R1&R2`评审别名和真实组合来源未核实，按方案登记但不写成现场事实。本地项目9目录`catalogs=1 groups=12 members=51`，只读指纹`aa551d49a5321891dc47dce404234f05`，本轮未写目录。
 - 恢复：先执行`git status --short --branch`、`git worktree list`，读取平台/BI进度与本文；在`backend/`用绝对路径Maven运行定向或默认套件。
@@ -21,8 +21,8 @@
 | 技术验收基线 | `aa62d21964761fd861f32a8f9b98f1e3136469c1`，经理独立复跑58/58通过 |
 | 实现范围 | `f74fdef7..aa62d219`，66个文件；无Flyway迁移、无Controller路径新增或删除、无新表/新权限码 |
 | main基线 | 本地、origin、gitlab25的main均为`f74fdef7`，开工后未漂移 |
-| 资料提交后HEAD | 仅文档差异；发布候选冻结前须满足`git diff aa62d219..HEAD -- backend frontend`为空，并以审批后的最终HEAD作为打包SHA |
-| 禁止项 | 未合main、未运行/更新黄金、未打包、未部署；不吸收审核分支中的表单记录 |
+| 资料提交后HEAD | 文档与黄金用例目录差异；发布候选冻结前须满足`git diff aa62d219..HEAD -- backend/src/main frontend/src`为空（测试资源不进入部署制品），并以审批后的最终HEAD作为打包SHA |
+| 本轮边界 | 运行一次非update严格比较；未更新快照、未改夹具/掩码/EXCLUDED、未合main、未打包、未部署；不吸收审核分支中的表单记录 |
 
 ### 2. 发布影响清单
 
@@ -41,21 +41,28 @@
 
 - 无新增HTTP端点：两个新明细复用已登记的`GET /api/analytics-dashboards/{dashboardKey}/details/{viewKey}`，默认套件端点覆盖护栏不需要新增路径条目。
 - 黄金目录现有质量看板明细用例为：`integration-test-results`、`quality-code-review-records`、`release-leakage-defects`、`fix-user-defects`、`other-function-defect-count`、`code-review-multi-statistics`；尚未包含本轮两个新`viewKey`。
-- 拟新增黄金用例（需批准后执行）：
+- 按回执`767cf44c`登记两个用例（沿用原冻结夹具，不添加2027行）：
   - `quality-rd-quality-review-records`：`dashboardKey=quality-rd&viewKey=quality-review-records&reviewType=需求说明书评审`
-  - `quality-rd-new-issue-defects`：`dashboardKey=quality-rd&viewKey=new-issue-defects`
+  - `quality-rd-new-issue-defects`：`dashboardKey=quality-rd&viewKey=new-issue-defects`（默认原目录范围）
+- 两用例只验证现有夹具下的接口通路与字段契约；2027合并行为沿用已通过的PG与页面证据，本轮不增加2027夹具。
 - 拟复核但不改登记：`GET /api/quality-board/other/overview`、质量看板明细与导出现有用例仍覆盖相邻入口。
 
-### 4. 黄金拟变更清单（本阶段不执行）
+### 4. 黄金拟变更清单（静态核对，以实际compare核定）
 
-| 快照 | 预期变化 | 原因 |
+| 快照 | 已确认的有意变化或待核定项 | 原因 |
 | --- | --- | --- |
-| `snapshots/analytics-dashboards/get___{dashboardKey}__quality-rd.json` | 必改 | 需求/设计指标`detail.viewKey`改为`quality-review-records`；新发指标改为`new-issue-defects`且参数由`testingPhase`改为`projectName` |
-| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-quality-review-records.json` | 建议新增 | 新内部明细场景，需覆盖成员项目名与组合来源展示 |
-| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-new-issue-defects.json` | 建议新增 | 新内部明细场景，需覆盖新发有效集合与修复状态 |
-| `snapshots/bi/*`、`snapshots/analytics-dashboards/get___{dashboardKey}__quality-board-other.json`、质量看板其他明细/导出、权限、CAT | 预期不变 | 黄金夹具的议题测试阶段目录无2027组合成员，`biProductVersionId`仍为CC2026R3；无新权限码；CAT仍为EXCLUDED |
+| `snapshots/bi/get___requirements__default.json`、`get___design__default.json` | `$.data.ruleVersion`从`bi-review-v3`到`bi-review-v4`，参与严格比较 | 规则版本升级；该字段未被掩码忽略。业务数据差异另按实际结果核定 |
+| `snapshots/bi/get___coding__day-all.json` | `$.data.ruleVersion`从`bi-coding-v5`到`bi-coding-v6`，参与严格比较 | 同上 |
+| `snapshots/bi/get___system-test__default.json` | `$.data.ruleVersion`从`bi-system-test-v3`到`bi-system-test-v4`，参与严格比较 | 同上 |
+| `snapshots/analytics-dashboards/get___{dashboardKey}__quality-rd.json` | 需求/设计及新发修复率动作的`viewKey`、参数改变；其他差异待实际核定 | 内部明细路由接线 |
+| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-quality-review-records.json` | 尚无快照，首次compare应报缺失；先提供实际响应 | 新内部明细场景 |
+| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-new-issue-defects.json` | 尚无快照，首次compare应报缺失；先提供实际响应 | 新内部明细场景 |
+| BI版本目录、其他质量看板、相邻明细/导出、权限 | 本单元无已知业务变化，但**不预先断言逐字不变**，由实际compare核定 | 版本升级可能影响相邻响应 |
+| CAT设置/映射 | 保持EXCLUDED原登记，无快照 | 本单元未接入CAT |
 
-执行顺序（获批后）：先展示上述差异并取得用户确认，再在停服窗口执行`mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=true`生成；审阅diff后去掉update严格compare，全绿才进入打包。不得手工编辑快照或放宽掩码。
+“无2027夹具”只说明两新用例覆盖现有范围，不代表BI快照不变：BI版本目录与四份BI阶段快照仍会因规则版本升级产生差异，必须由实际compare确认。
+
+本阶段只执行非update严格比较并提交差异；快照生成/更新须另行审批。获批后执行`mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=true`生成，审阅diff后去掉update严格复比，全绿才进入打包。不得手工编辑快照或放宽掩码。
 
 ### 5. 升级与恢复说明
 
@@ -80,6 +87,47 @@
 | 部署后缓存/导出 | 页面来源版本与下载 | 旧授权失效、新导出文件名带业务名且无内部key | 影响上线确认 |
 
 生产2027目录、真实评审别名与集成测试来源仍为现场前置，不以隔离夹具计数替代。
+
+### 7. 首次黄金严格比较结果（2026-11-04，非update）
+
+| 项目 | 记录 |
+| --- | --- |
+| 命令 | `D:/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin/mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=false`（`backend/`，JDK21） |
+| 提交与工作区 | HEAD `a2752fd2`；运行期工作区含本文、`endpoint-catalog.yml`（新增2个case）及`GoldenBaselineChainTest.java`（仅为两个新用例落盘响应正文的取证代码，不参与比较）；`git diff`指纹`c8703530bd64bedcd0775f974043e9ec19e80b73f03de1e7dfec0fe38914f938` |
+| 环境 | Testcontainers `postgres:16-alpine`双容器（平台库/源库）+随机端口应用；未连接或写入15432/15433、真实GitLab或CAT |
+| 结果 | **205项：8失败、2错误、0跳过，BUILD FAILURE**，耗时06:34 |
+| 证据 | `.tmp/golden-strict-20261104.log`；失败消息UTF-8摘录`.tmp/golden-failures-utf8.txt`；两个新用例响应`.tmp/golden-actual/` |
+| 资产完整性 | `snapshots/`、`fixtures/`、`baseline-manifest.json`、掩码与EXCLUDED均无改动（`git diff`为空）；未执行update |
+
+| 用例序号 | 快照 | 实际差异 | 性质 |
+| --- | --- | --- | --- |
+| [29] | `analytics-dashboards/get___{dashboardKey}__quality-rd.json` | `metrics[0]`、`metrics[1]`的`detail.viewKey`由`review-data-records`改为`quality-review-records`；`metrics[7]`的`viewKey`由`system-test-defect-summary`改为`new-issue-defects`，参数`testingPhase`改为`projectName` | 已确认有意（R01-b内部明细） |
+| [162][163] | `bi/get___requirements__default.json`、`bi/get___design__default.json` | `$.data.ruleVersion`由`bi-review-v3`改为`bi-review-v4` | 已确认有意（回执`767cf44c`） |
+| [164] | `bi/get___coding__day-all.json` | `$.data.ruleVersion`由`bi-coding-v5`改为`bi-coding-v6` | 已确认有意 |
+| [165] | `bi/get___system-test__default.json` | `$.data.ruleVersion`由`bi-system-test-v3`改为`bi-system-test-v4` | 已确认有意 |
+| [39] | 新用例`quality-rd-quality-review-records` | 快照缺失 | 预期（本轮不生成） |
+| [40] | 新用例`quality-rd-new-issue-defects` | 快照缺失 | 预期（本轮不生成） |
+| [33] | `analytics-dashboards/get___{dashboardKey}_rules__quality-rd.json` | `rules[6].scope`由`CC2026R3 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录`变为`CC2026R3集成测试 与系统测试阶段；系统测试有效缺陷排除已拒绝记录` | **新发现，待裁定** |
+| [37] | `...__quality-rd-release-leakage-defects.json` | 当前页20条记录（共55条）每条新增`isFixed` | **新发现，待裁定** |
+| [38] | `...__quality-rd-fix-user-defects.json` | 全部7条记录每条新增`isFixed` | **新发现，待裁定** |
+
+新发现差异的根因：
+
+- [33]：`QualityRdAnalyticsDashboardProvider`的`integrationScopeDescription`改为拼接目录中的实际阶段名（`CC2026R3集成测试`），再追加“ 与系统测试阶段”，因此丢失原有“ 的”与词序。属用户可见的规则说明文案变化，不是数据口径变化。
+- [37][38]：`QualityRdAnalyticsDetailQueryService.issueRows`为支撑新发明细的`fixState`，对所有议题明细统一放入了`isFixed`；现有`release-leakage-defects`与`fix-user-defects`因此新增该字段。属附加字段，不是行集合或取值变化。
+
+以上两项未列入已批准清单，本轮不据此宣称黄金通过；可选处置为“接受为有意变化并纳入快照更新”或“限制字段/修正文案后重新技术验收”，由审批方裁定。
+
+两个新用例的实际响应（冻结夹具，原目录范围）：
+
+| 用例 | 分页与规模 | 字段与取值 |
+| --- | --- | --- |
+| `quality-rd-quality-review-records`（`reviewType=需求说明书评审`） | `total=18`，第1页20条内18条 | 11列；18条均为`CC2026R3`需求说明书评审；`problemCount`合计212；`reviewScalePages`合计0，与快照中需求评审密度`0.0`一致 |
+| `quality-rd-new-issue-defects` | `total=30`，第1页20条 | 13列，含`fixState`；当前页`已修复/未复现`16条、`未修复`4条；与快照中新发修复率`86.67%`（26/30）一致 |
+
+响应正文完整JSON位于`.tmp/golden-actual/`：评审明细6,951字节，SHA-256 `f4b7af4bc2f48f27f224330e686022baf6fdbf59d44e45ce0a42143798597b72`；新发缺陷14,249字节，SHA-256 `d09ebff68446e4b541ef28df44e1fdae1d7c9dd5306217bd3bd95a4baefa215b`。未写入`snapshots/`。
+
+后续：先审批上述实际差异（尤其是[33][37][38]），再授权`-Dgolden.update=true`生成；预计更新8份既有快照并新增2份，随后去掉update严格复比。本轮不生成、不合main、不打包。
 
 ## 1. 用户能看到什么
 
