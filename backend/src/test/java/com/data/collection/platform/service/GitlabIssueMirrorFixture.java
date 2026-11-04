@@ -53,9 +53,12 @@ final class GitlabIssueMirrorFixture {
           closed_at timestamp,
           state_id integer,
           milestone_id bigint,
+          mirror_synced_at timestamp not null default current_timestamp,
           mirror_deleted boolean not null default false
         )
         """);
+    jdbcTemplate.execute(
+        "alter table ods_gitlab_issues add column if not exists mirror_synced_at timestamp not null default current_timestamp");
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_notes (

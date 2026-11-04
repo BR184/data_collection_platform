@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -193,6 +195,86 @@ class CustomerIssueDelayClosureProgressRepositoryIntegrationTest {
   }
 
   @Test
+  void settledIdleWithExpiredAuthorizationAndPendingWorkRequestsRecoveryOnce() {
+    long authorizationRevision = settleRoundAtVersion(42L);
+    insertPendingJob(91001L, authorizationRevision);
+
+    assertThat(repository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, configId, 42L))
+        .as("版本未推进时不得登记恢复请求")
+        .isFalse();
+    assertThat(repository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, configId, 43L))
+        .isTrue();
+
+    CustomerIssueDelayClosureProgress requested = repository.findBySource(SOURCE).orElseThrow();
+    assertThat(requested.stage()).isEqualTo(CustomerIssueDelayClosureStage.REQUESTED);
+    assertThat(requested.requestRevision()).isEqualTo(authorizationRevision + 1L);
+    assertThat(requested.authorizedFactVersion()).isEqualTo(42L);
+    assertThat(repository.claimBySource(SOURCE, "owner-b", "token-b", 60))
+        .as("登记后必须可被下一次短周期检查领取")
+        .isPresent();
+
+    assertThat(repository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, configId, 44L))
+        .as("同一来源重复发现只形成一个请求")
+        .isFalse();
+  }
+
+  @Test
+  void settledIdleWithoutPendingWorkDoesNotRequestRecovery() {
+    settleRoundAtVersion(42L);
+
+    assertThat(repository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, configId, 43L))
+        .isFalse();
+    assertThat(repository.findBySource(SOURCE).orElseThrow().stage())
+        .isEqualTo(CustomerIssueDelayClosureStage.IDLE);
+  }
+
+  @Test
+  void wakeAndRecoveryMustNotShortenFailureBackoff() {
+    long authorizationRevision = settleRoundAtVersion(42L);
+    insertPendingJob(91002L, authorizationRevision);
+    LocalDateTime deadline = LocalDateTime.now().plusMinutes(10);
+    setFailureBackoff(1, deadline);
+
+    repository.wake(SOURCE);
+    assertThat(nextCheckAt()).isAfterOrEqualTo(deadline.minusSeconds(1));
+
+    assertThat(repository.requestRecoveryIfIdleWithExpiredAuthorization(SOURCE, configId, 43L))
+        .isTrue();
+    CustomerIssueDelayClosureProgress recovered = repository.findBySource(SOURCE).orElseThrow();
+    assertThat(recovered.stage()).isEqualTo(CustomerIssueDelayClosureStage.REQUESTED);
+    assertThat(recovered.failureCount()).as("恢复请求不得清零失败计数").isEqualTo(1);
+    assertThat(nextCheckAt())
+        .as("失败退避截止不得被恢复请求提前")
+        .isAfterOrEqualTo(deadline.minusSeconds(1));
+    assertThat(repository.claimBySource(SOURCE, "owner-b", "token-b", 60)).isEmpty();
+
+    jdbcTemplate.update(
+        """
+        update customer_issue_delay_closure_requests
+           set next_check_at = current_timestamp - interval '1 second'
+         where source_instance = ?
+        """,
+        SOURCE);
+    assertThat(repository.claimBySource(SOURCE, "owner-b", "token-b", 60))
+        .as("退避到期后必须可以继续")
+        .isPresent();
+  }
+
+  @Test
+  void periodicRequestMustNotShortenFailureBackoff() {
+    settleRoundAtVersion(42L);
+    LocalDateTime deadline = LocalDateTime.now().plusMinutes(10);
+    setFailureBackoff(1, deadline);
+
+    repository.requestRound(config, "periodic");
+
+    assertThat(nextCheckAt())
+        .as("周期请求不得提前失败退避截止")
+        .isAfterOrEqualTo(deadline.minusSeconds(1));
+    assertThat(repository.findBySource(SOURCE).orElseThrow().failureCount()).isEqualTo(1);
+  }
+
+  @Test
   void configSaveClosesAuthorizationAndReopenRequiresNewRound() {
     repository.requestRound(config, "test");
     CustomerIssueDelayClosureProgressClaim claim =
@@ -347,6 +429,50 @@ class CustomerIssueDelayClosureProgressRepositoryIntegrationTest {
     assertThat(current.authorized()).isFalse();
   }
 
+  private long settleRoundAtVersion(long factVersion) {
+    repository.requestRound(config, "test");
+    CustomerIssueDelayClosureProgressClaim claim =
+        repository.claimBySource(SOURCE, "owner-a", "token-a", 60).orElseThrow();
+    repository.moveToFactWait(claim, "wait").orElseThrow();
+    repository.authorizeEnqueue(claim, factVersion).orElseThrow();
+    CustomerIssueDelayClosureProgress completed = repository.completeRound(claim).orElseThrow();
+    assertThat(completed.stage()).isEqualTo(CustomerIssueDelayClosureStage.IDLE);
+    return completed.authorizationRevision();
+  }
+
+  private void insertPendingJob(long issueIid, long authorizationRevision) {
+    jdbcTemplate.update(
+        """
+        insert into customer_issue_delay_label_writeback_jobs(
+            source_instance, project_id, issue_iid, status, authorization_revision,
+            required_fact_version, next_run_at, created_at, updated_at)
+        values (?, 325, ?, 'PENDING', ?, 42, current_timestamp, current_timestamp,
+                current_timestamp)
+        """,
+        SOURCE,
+        issueIid,
+        authorizationRevision);
+  }
+
+  private void setFailureBackoff(int failureCount, LocalDateTime nextCheckAt) {
+    jdbcTemplate.update(
+        """
+        update customer_issue_delay_closure_requests
+           set failure_count = ?, next_check_at = ?
+         where source_instance = ?
+        """,
+        failureCount,
+        Timestamp.valueOf(nextCheckAt),
+        SOURCE);
+  }
+
+  private LocalDateTime nextCheckAt() {
+    return jdbcTemplate.queryForObject(
+        "select next_check_at from customer_issue_delay_closure_requests where source_instance = ?",
+        LocalDateTime.class,
+        SOURCE);
+  }
+
   private GitlabSyncConfig config(boolean writebackEnabled) {
     GitlabSyncConfig result = new GitlabSyncConfig();
     result.setId(configId);
@@ -359,6 +485,8 @@ class CustomerIssueDelayClosureProgressRepositoryIntegrationTest {
   }
 
   private void cleanUp() {
+    jdbcTemplate.update(
+        "delete from customer_issue_delay_label_writeback_jobs where source_instance = ?", SOURCE);
     jdbcTemplate.update(
         "delete from customer_issue_delay_closure_requests where source_instance = ?", SOURCE);
     jdbcTemplate.update(

@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -13,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
@@ -59,6 +62,52 @@ class PlatformAsyncConfigurationTest {
     assertPinnedAsync(
         RealtimeWorkspaceService.class.getMethod(
             "executeRefreshWithResultAsync", String.class, Supplier.class));
+  }
+
+  @Test
+  void writebackExecutorIsSingleThreadedWithNoWaitingQueue() {
+    ThreadPoolTaskExecutor executor =
+        new PlatformAsyncConfiguration().customerIssueDelayWritebackExecutor();
+    try {
+      executor.initialize();
+
+      assertThat(executor.getCorePoolSize()).isEqualTo(1);
+      assertThat(executor.getMaxPoolSize()).isEqualTo(1);
+      assertThat(executor.getThreadPoolExecutor().getQueue().remainingCapacity()).isZero();
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  @Test
+  void blockedWritebackSendMustNotDelayPlatformAsyncTasks() throws Exception {
+    PlatformAsyncConfiguration configuration = new PlatformAsyncConfiguration();
+    ThreadPoolTaskExecutor writeback = configuration.customerIssueDelayWritebackExecutor();
+    ThreadPoolTaskExecutor platform = configuration.platformAsyncExecutor();
+    writeback.initialize();
+    platform.initialize();
+    CountDownLatch sendStarted = new CountDownLatch(1);
+    CountDownLatch releaseSend = new CountDownLatch(1);
+    try {
+      writeback.execute(
+          () -> {
+            sendStarted.countDown();
+            try {
+              releaseSend.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException error) {
+              Thread.currentThread().interrupt();
+            }
+          });
+      assertThat(sendStarted.await(10, TimeUnit.SECONDS)).isTrue();
+
+      CompletableFuture.runAsync(() -> {}, platform).get(10, TimeUnit.SECONDS);
+
+      assertThat(writeback.getActiveCount()).isEqualTo(1);
+    } finally {
+      releaseSend.countDown();
+      writeback.shutdown();
+      platform.shutdown();
+    }
   }
 
   private void assertPinnedAsync(java.lang.reflect.Method method) {
