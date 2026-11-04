@@ -679,12 +679,12 @@ export function applyConditionRows(
   rows: ConditionRow[],
 ): FormTemplateSpecView {
   const fieldNames = new Set(spec.fields.map((field) => field.name));
-  const fieldRows = new Map<number, ConditionRow>();
-  rows.forEach((row) => {
-    if (row.supported && row.kind === 'required' && row.origin === 'field' && row.originIndex >= 0) {
-      fieldRows.set(row.originIndex, row);
-    }
-  });
+  // 用原规格确定实际显示过的规则；相同必填条件被折叠时，隐藏的独立清空规则仍归原规格所有。
+  const representedRoots = new Set(
+    conditionRowsFromSpec(spec, fieldRowsFromSpec(spec))
+      .filter((row) => row.origin === 'root')
+      .map((row) => row.originIndex),
+  );
   const fields = spec.fields.map((field, index) => {
     const shape = triggerShape(field.requiredWhen);
     const requiredRepresentable = Boolean(shape && fieldNames.has(field.name));
@@ -712,16 +712,23 @@ export function applyConditionRows(
       const derivedRepresentable = Boolean(
         derived && sameConditionNode(derived, field.clearWhen),
       );
-      if (derivedRepresentable || (fieldRows.get(index)?.clearWhenOff ?? false)) {
+      if (derivedRepresentable) {
         delete next.clearWhen;
       }
     }
     return next;
   });
   const preservedClearWhen = new Map<ConditionRow, Record<string, unknown>>();
+  const originalOrder = new Map<FormSpecConditionView, number>(
+    (spec.conditions ?? []).map((condition, index) => [condition, index]),
+  );
   const kept: FormSpecConditionView[] = [];
   (spec.conditions ?? []).forEach((condition, index) => {
     if (!condition || !condition.type) {
+      return;
+    }
+    if (!representedRoots.has(index)) {
+      kept.push(condition);
       return;
     }
     if (condition.type === 'conditionalRequired') {
@@ -768,12 +775,14 @@ export function applyConditionRows(
       return;
     }
     if (row.kind === 'mutual') {
-      built.push({
+      const condition: FormSpecConditionView = {
         type: 'mutuallyExclusive',
         field: row.triggerField,
         whenContains: row.values[0] ?? '',
         withAnyOf: [...row.conflictValues],
-      });
+      };
+      if (row.origin === 'root') { originalOrder.set(condition, row.originIndex); }
+      built.push(condition);
       return;
     }
     const condition: FormSpecConditionView = {
@@ -790,9 +799,14 @@ export function applyConditionRows(
     if (row.snapshotColumn) {
       condition.snapshotColumn = row.snapshotColumn;
     }
+    if (row.origin === 'root') { originalOrder.set(condition, row.originIndex); }
     built.push(condition);
   });
-  return { ...spec, fields, conditions: [...kept, ...built] };
+  const conditions = [...kept, ...built].sort(
+    (left, right) => (originalOrder.get(left) ?? Number.MAX_SAFE_INTEGER)
+      - (originalOrder.get(right) ?? Number.MAX_SAFE_INTEGER),
+  );
+  return { ...spec, fields, conditions };
 }
 
 /** 条件编辑器的字段选项（业务名称）。 */

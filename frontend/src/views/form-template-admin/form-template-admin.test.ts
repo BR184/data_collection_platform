@@ -603,6 +603,40 @@ describe('form condition business model', () => {
     ]);
   });
 
+  it('preserves independent clear rules sharing the same required trigger', () => {
+    const source = issueReplySpec();
+    source.conditions = [false, true].map((value) => ({
+      type: 'conditionalRequired',
+      target: 'residual_impact_detail',
+      requiredWhen: { field: 'affected_kinds', contains: 'KNOWN' },
+      clearWhen: { field: 'has_residual_impact', equals: value },
+    }));
+    source.fields = source.fields.map((field) => ({
+      ...field, requiredWhen: undefined, clearWhen: undefined,
+    }));
+    const applied = applyConditionRows(source, conditionRowsFromSpec(source, fieldRowsFromSpec(source)));
+    expect(applied.conditions?.map((rule) => rule.clearWhen)).toEqual(
+      expect.arrayContaining(source.conditions.map((rule) => rule.clearWhen)),
+    );
+    const again = applyConditionRows(applied, conditionRowsFromSpec(applied, fieldRowsFromSpec(applied)));
+    expect(again.conditions).toEqual(applied.conditions);
+  });
+
+  it('keeps independent field clearing when adding clearing for the required trigger', () => {
+    const source = issueReplySpec();
+    source.conditions = [];
+    source.fields = source.fields.map((field) => field.name === 'residual_impact_detail'
+      ? { ...field, requiredWhen: { field: 'affected_kinds', contains: 'KNOWN' },
+        clearWhen: { field: 'has_residual_impact', equals: false } }
+      : { ...field, requiredWhen: undefined, clearWhen: undefined });
+    const rows = conditionRowsFromSpec(source, fieldRowsFromSpec(source));
+    rows[0].clearWhenOff = true;
+    const applied = applyConditionRows(source, rows);
+    expect(applied.fields.find((field) => field.name === 'residual_impact_detail')?.clearWhen)
+      .toEqual({ field: 'has_residual_impact', equals: false });
+    expect(applied.conditions?.[0].clearWhen).toEqual({ field: 'affected_kinds', notContains: 'KNOWN' });
+  });
+
   it('keeps derived clear rules stable across a rename round-trip', () => {
     const source = issueReplySpec();
     const renamed: FormTemplateSpecView = {
