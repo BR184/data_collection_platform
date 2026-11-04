@@ -14,6 +14,7 @@ import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
 import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -278,8 +279,18 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   public AnalyticsDashboardRulesResponse loadRules(AnalyticsDashboardQueryContext context) {
     String projectName = rdService.displayProjectName(
         context.parameter("projectName").orElse(null));
-    String integrationScope = integrationScopeDescription(
-        rdService.normalizeProjectName(context.parameter("projectName").orElse(null)));
+    String projectKey = rdService.normalizeProjectName(
+        context.parameter("projectName").orElse(null));
+    DashboardVersionScope versionScope = versionScopeService.resolve(
+        IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+        IssueScopeDimension.TESTING_PHASE,
+        projectKey);
+    String integrationScope = versionScope.combined()
+        ? String.join("、", versionScope.integrationTestPhases())
+        : projectKey + "集成测试";
+    String leakageScope = versionScope.combined()
+        ? integrationScope + " 与系统测试阶段"
+        : projectKey + " 的集成测试与系统测试阶段";
     String source = canonicalCodeReviewSource(context);
     String codeReviewScope = projectName + "，" + sourceLabel(source) + " 代码走查数据";
     return new AnalyticsDashboardRulesResponse(
@@ -331,7 +342,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "development-leakage-rate",
                 "开发缺陷遗留率",
                 "集成测试未通过用例数 /（集成测试未通过用例数 + 系统测试有效缺陷数）× 100%",
-                integrationScope + " 与系统测试阶段；系统测试有效缺陷排除已拒绝记录",
+                leakageScope + "；系统测试有效缺陷排除已拒绝记录",
                 "不低于 90.00%",
                 null),
             rule(
@@ -671,16 +682,6 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
     if (detailQueryService == null || analyticsWorkbookService == null) {
       throw new IllegalStateException("研发质量看板详情服务未初始化");
     }
-  }
-
-  private String integrationScopeDescription(String projectName) {
-    return String.join(
-        "、",
-        versionScopeService.resolve(
-                IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
-                IssueScopeDimension.TESTING_PHASE,
-                projectName)
-            .integrationTestPhases());
   }
 
   private String sourceLabel(String source) {

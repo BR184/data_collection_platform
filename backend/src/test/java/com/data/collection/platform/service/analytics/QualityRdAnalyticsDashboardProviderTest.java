@@ -14,6 +14,7 @@ import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
+import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.QualityBoardRdService;
@@ -76,6 +77,10 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(rules.rules())
         .allSatisfy(rule -> assertThat(String.valueOf(rule.description()))
             .doesNotContain("兼容模式", "Match mode", "老平台"));
+    assertThat(scopeOf(rules, "quality-rd.integration-pass-rate"))
+        .isEqualTo("CC2026R4集成测试；逐条通过率先保留两位小数后再取算术平均");
+    assertThat(scopeOf(rules, "quality-rd.development-leakage-rate"))
+        .isEqualTo("CC2026R4 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录");
 
     var demandMetric = dashboard.metrics().stream()
         .filter(metric -> metric.key().equals("demand-review-density"))
@@ -184,6 +189,49 @@ class QualityRdAnalyticsDashboardProviderTest {
         List.of(),
         List.of(),
         List.of());
+  }
+
+  @Test
+  void combinedVersionRulesDescribeActualMemberIntegrationPhases() {
+    var combinedService = DashboardVersionScopeTestSupport.service(
+        List.of(
+            DashboardVersionScopeTestSupport.group(
+                10L,
+                "CC2027R1",
+                2,
+                DashboardVersionScopeTestSupport.member(101L, "CC2027R1第一轮系统测试", 1)),
+            DashboardVersionScopeTestSupport.group(
+                20L,
+                "CC2027R2",
+                3,
+                DashboardVersionScopeTestSupport.member(201L, "CC2027R2第一轮系统测试", 1))),
+        List.of(DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "CC2027R1&R2",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of("2027R1&R2"),
+            List.of("CC2027R1集成测试", "CC2027R2集成测试"))));
+    var combinedProvider = new QualityRdAnalyticsDashboardProvider(
+        rdService, workbookExportService, combinedService);
+    when(rdService.normalizeProjectName("cc-2027-r1-r2")).thenReturn("cc-2027-r1-r2");
+    when(rdService.displayProjectName("cc-2027-r1-r2")).thenReturn("CC2027R1&R2");
+
+    var rules = combinedProvider.loadRules(
+        AnalyticsDashboardQueryContext.of(Map.of("projectName", "cc-2027-r1-r2")));
+
+    assertThat(scopeOf(rules, "quality-rd.integration-pass-rate"))
+        .isEqualTo("CC2027R1集成测试、CC2027R2集成测试；逐条通过率先保留两位小数后再取算术平均");
+    assertThat(scopeOf(rules, "quality-rd.development-leakage-rate"))
+        .isEqualTo("CC2027R1集成测试、CC2027R2集成测试 与系统测试阶段；系统测试有效缺陷排除已拒绝记录");
+  }
+
+  private static String scopeOf(AnalyticsDashboardRulesResponse rules, String key) {
+    return rules.rules().stream()
+        .filter(rule -> rule.key().equals(key))
+        .findFirst()
+        .orElseThrow()
+        .scope();
   }
 
   private String statusOf(AnalyticsDashboardResponse dashboard, String key) {

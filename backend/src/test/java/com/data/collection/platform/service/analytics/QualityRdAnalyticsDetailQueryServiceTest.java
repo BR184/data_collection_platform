@@ -242,17 +242,44 @@ class QualityRdAnalyticsDetailQueryServiceTest {
             "module_name", "模块A",
             "assignee_name", "李四",
             "fix_user", "张三",
+            "category", "功能缺陷"),
+        Map.of(
+            "issue_iid_column", "33",
+            "issue_state", "CLOSED",
+            "severity_level", "LEVEL3",
+            "bug_status", "未修复",
+            "is_fixed", "true",
+            "module_name", "模块A",
+            "assignee_name", "李四",
+            "fix_user", "张三",
             "category", "功能缺陷")));
 
     QualityRdAnalyticsDetailQueryService.DetailPage page = service.load(
         "new-issue-defects", context(Map.of("projectName", "CC2026R4")));
 
-    assertThat(page.total()).isEqualTo(2);
+    assertThat(page.total()).isEqualTo(3);
     assertThat(page.records()).extracting(row -> row.get("fixState"))
-        .containsExactly("已修复/未复现", "未修复");
+        .containsExactly("已修复/未复现", "未修复", "已修复/未复现");
+    assertThat(page.records()).allSatisfy(row -> assertThat(row)
+        .doesNotContainKey("isFixed")
+        .containsKey("fixState"));
     assertThat(jdbcTemplate.sqlStatements.getFirst())
         .contains("is_fixed")
         .contains("coalesce(category, '') not like '%功能屏蔽%'");
+  }
+
+  @Test
+  void existingIssueDetailsDoNotExposeTheInternalFixedFlag() {
+    jdbcTemplate.rows.addAll(List.of(
+        issue("41", "CLOSED", "LEVEL1"),
+        issue("42", "OPENED", "LEVEL2")));
+
+    for (String viewKey : List.of("release-leakage-defects", "fix-user-defects")) {
+      List<Map<String, Object>> records = service.load(
+          viewKey, context(Map.of("projectName", "CC2026R4"))).records();
+      assertThat(records).isNotEmpty()
+          .allSatisfy(row -> assertThat(row).doesNotContainKey("isFixed"));
+    }
   }
 
   private static AnalyticsDashboardQueryContext context(Map<String, String> parameters) {
@@ -320,6 +347,10 @@ class QualityRdAnalyticsDetailQueryServiceTest {
               source.get(invocation.getArgument(0, String.class)));
           when(resultSet.getObject("issue_iid")).thenAnswer(invocation ->
               source.get("issue_iid_column"));
+          when(resultSet.getObject("is_fixed")).thenAnswer(invocation -> {
+            String fixed = source.get("is_fixed");
+            return fixed == null ? null : Boolean.valueOf(fixed);
+          });
           mapped.add(rowMapper.mapRow(resultSet, index));
         } catch (SQLException error) {
           throw new AssertionError(error);

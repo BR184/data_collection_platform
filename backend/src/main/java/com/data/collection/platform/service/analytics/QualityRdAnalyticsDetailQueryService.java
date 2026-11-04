@@ -503,6 +503,8 @@ public class QualityRdAnalyticsDetailQueryService {
           row.put("createdAt", rs.getObject("created_at_source"));
           row.put("updatedAt", rs.getObject("updated_at_source"));
           enricher.enrich(row);
+          // isFixed 仅供内部计算，不进入客户端字段集合。
+          row.remove("isFixed");
           return row;
         },
         args.toArray());
