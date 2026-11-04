@@ -6,12 +6,13 @@
 
 | 阶段 | 状态 | 恢复入口 |
 | --- | --- | --- |
-| R1 字段与条件 | 已实施并验证（含桌面四动作） | `issue_reply.json` 的 `deferral_reason`＋`notEquals`/`visibleWhen` |
-| R2 四标签写回 | 已实施，复核两项修正已复验 | `FormIssueBuildInputService`/`FormIssueInputResolver`/Planner/Queue/Worker |
+| R1 字段与条件 | 已实施并验证（桌面四动作通过，复核结论R1通过） | `issue_reply.json` 的 `deferral_reason`＋`notEquals`/`visibleWhen` |
+| R2 四标签写回 | 已实施；复核两项修正与H2完整重读复验通过 | `FormIssueBuildInputService`/`FormIssueInputResolver`/Planner/Queue/Worker |
 | R3 真实六步 | 待外部前置 | 需专属本地325样本、写回开关与 ci_robot |
 
 - 自动验证：复核修正后受影响范围 115/115（`FormIssueBuildInputServiceTest` 2、`FormIssueInputResolverAndSlaTest` 21、Planner 4、Worker 21、Service 14、`CustomerIssueDelayLabelWritebackEnqueueIntegrationTest` 6、`FormIssueAdoptionFactPipelineIntegrationTest` 37、`FormConditionContractTest` 4、`FormTemplateSpecCatalogTest` 6）。含真实PG：保存拒绝缺失/残留/未知、改原因与取消、旧版缺字段、全部作废空目标、技术→资源作业目标变化与旧修订拒绝。
-- 复核修正一（签名与业务值一致）：`FormIssueBuildInputService.current` 改为读证据H1→读回复→重读证据H2，H1/H2缺失或不一致返回PENDING，由worker转入延期等待；未加锁或新队列，事务合同不变。`FormIssueBuildInputServiceTest` 用两次head读取分别覆盖一致与漂移。
+- 复核再验（回执`e8382fe3`）：H2完整重读后 `FormIssueBuildInputServiceTest` 4/4、`FormIssueInputResolverAndSlaTest` 21/21、原因编辑真实PG用例1/1；未重跑全量。
+- 复核修正一（签名与业务值一致）：`FormIssueBuildInputService.current` 的H1/H2均完整读取“范围集合→权威→head”，H2重新加载全部证据；H1/H2缺失、无权覆盖或签名不一致返回PENDING，由worker转入延期等待；未加锁或新队列，事务合同不变。`FormIssueBuildInputServiceTest` 4项覆盖新增回复侧权威、集合变化、head推进与稳定输入；以“H2复用H1证据”的临时突变复跑，新增两项均失败，恢复后全绿。
 - 复核修正二（新版选择）：`FormIssueInputResolver` 对SLA/其他业务列仍取全部版本最新回复，延期目标改为从最新版本向前找“定义延期字段”的有效新版回复；新增新旧混合单测，证明旧版排序更晚也不影响延期目标。
 - 真实业务链用例：`realWriteDuringSendCheckRejectsOldJobThenNewFactReplacesOnlyReason` 用真实PG+HTTP替身，A在`resolveAll`读H1后暂停，B经正式`updateReplyRecord`只改技术→资源并提交；A恢复后旧任务发送前被拒（HTTP 0）；随后真实重建并发布新事实生成新作业，仅摘`技术卡点`、加`资源卡点`。
 - 顺带修正（真实链暴露）：写回队列候选SQL缺少活动修订谓词，多修订下入队与发送前复核可能取到不同事实行；`CustomerIssueDelayLabelWritebackQueueService.candidateSql` 增加 `FactReadVisibility.liveRevisionPredicate`，真实链入队数回到1。

@@ -156,9 +156,9 @@ class FormIssueBuildInputService {
   /**
    * 计算议题当前输入签名与业务快照。
    *
-   * <p>先读取已提交证据 H1，再读取回复业务值，最后重新读取证据 H2；H1 与 H2 不一致说明读取期间
-   * 来源、权威、集合或 head 已推进，返回 {@code PENDING} 等待原事实链收敛，绝不返回旧签名搭配
-   * 新原因的组合。只读权威/集合/head 修订，不读取业务值以外的写状态。
+   * <p>先完整读取已提交证据 H1（范围集合→权威→head），再读取回复业务值，最后重新完整读取证据 H2；
+   * H1 与 H2 不一致说明读取期间来源、权威、集合或 head 已推进，返回 {@code PENDING} 等待原事实链收敛，
+   * 绝不返回旧签名搭配新原因的组合。只读权威/集合/head 修订，不读取业务值以外的写状态。
    *
    * @param sourceInstance 来源实例
    * @param projectId 项目
@@ -169,38 +169,52 @@ class FormIssueBuildInputService {
     FormIssueInputResolver.IssueRef ref =
         new FormIssueInputResolver.IssueRef(projectId, issueIid);
     try {
-      List<FormIssueInputResolver.ScopeRow> scopes = resolver.loadScopes(sourceInstance);
-      Map<FormIssueInputResolver.IssueRef, Map<String, FormIssueInputResolver.AuthorityRow>>
-          authorities = resolver.loadAuthorities(sourceInstance, List.of(ref), scopes);
-      Map<String, FormIssueInputResolver.AuthorityRow> byTemplate =
-          authorities.getOrDefault(ref, Map.of());
-      if (byTemplate.isEmpty()) {
+      EvidenceRead before = readEvidence(sourceInstance, ref);
+      if (!before.adopted()) {
         return new Snapshot(
-            resolver.hasCoveringScope(scopes, ref) ? Snapshot.Status.PENDING : Snapshot.Status.NONE,
-            null,
-            null);
+            before.coveringScope() ? Snapshot.Status.PENDING : Snapshot.Status.NONE, null, null);
       }
-      Map<Long, FormIssueInputResolver.ScopeRow> scopesById = new HashMap<>();
-      for (FormIssueInputResolver.ScopeRow scope : scopes) {
-        scopesById.put(scope.scopeId(), scope);
-      }
-      String before = evidenceHash(sourceInstance, ref, byTemplate, scopesById);
-      if (before == null) {
+      if (before.hash() == null) {
         return new Snapshot(Snapshot.Status.PENDING, null, null);
       }
       IssueBusinessInput input =
           resolver.resolveAll(sourceInstance, List.of(ref)).inputs().get(ref);
-      String after = evidenceHash(sourceInstance, ref, byTemplate, scopesById);
-      if (after == null || !before.equals(after)) {
+      EvidenceRead after = readEvidence(sourceInstance, ref);
+      if (!after.adopted() || after.hash() == null || !before.hash().equals(after.hash())) {
         return new Snapshot(Snapshot.Status.PENDING, null, null);
       }
       IssueBusinessInput.ReplySnapshot reply =
           input == null ? IssueBusinessInput.ReplySnapshot.absent() : input.reply();
-      return new Snapshot(Snapshot.Status.OK, before, reply);
+      return new Snapshot(Snapshot.Status.OK, before.hash(), reply);
     } catch (FormConflictException error) {
       return new Snapshot(Snapshot.Status.PENDING, null, null);
     }
   }
+
+  /**
+   * 完整读取一次已提交证据：范围集合→权威→head，并计算输入签名。
+   *
+   * <p>每次调用都重新加载全部证据，不能复用上一次读取的范围或权威；权威为空时签名缺失，
+   * 由调用方区分“无覆盖范围”和“读取期间权威消失”。
+   */
+  private EvidenceRead readEvidence(String sourceInstance, FormIssueInputResolver.IssueRef ref) {
+    List<FormIssueInputResolver.ScopeRow> scopes = resolver.loadScopes(sourceInstance);
+    Map<FormIssueInputResolver.IssueRef, Map<String, FormIssueInputResolver.AuthorityRow>>
+        authorities = resolver.loadAuthorities(sourceInstance, List.of(ref), scopes);
+    Map<String, FormIssueInputResolver.AuthorityRow> byTemplate =
+        authorities.getOrDefault(ref, Map.of());
+    if (byTemplate.isEmpty()) {
+      return new EvidenceRead(false, null, resolver.hasCoveringScope(scopes, ref));
+    }
+    Map<Long, FormIssueInputResolver.ScopeRow> scopesById = new HashMap<>();
+    for (FormIssueInputResolver.ScopeRow scope : scopes) {
+      scopesById.put(scope.scopeId(), scope);
+    }
+    return new EvidenceRead(
+        true, evidenceHash(sourceInstance, ref, byTemplate, scopesById), true);
+  }
+
+  private record EvidenceRead(boolean adopted, String hash, boolean coveringScope) {}
 
   /**
    * 读取一次已提交证据并计算输入签名。
