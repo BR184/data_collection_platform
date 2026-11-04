@@ -2,7 +2,8 @@
 
 ## 进度与中间物
 
-- 阶段：2026-11-03完成审核回执`70169b2d`的R01残留整改并送复审。R01-a删除组合显示名查询别名，只按稳定key/ID解析；R01-b将需求/设计评审与新发缺陷修复率下钻接入看板内部通用明细，保留原评审`review.data.view`、系统测试汇总`system_test.summary.view`权限；R01-c将其他质量单范围主题的明细“统计范围”统一投影为业务显示名。CAT隔离、合并统计、独立系统测试目录及UI布局保留。
+- 阶段：2026-11-04技术验收通过（审批回执`901614ea`，技术基线`aa62d219`），R01-a/b/c与R02全部关闭，进入发布门禁资料准备。本阶段只整理候选、影响、黄金拟变更、升级恢复和现场核对材料；不运行/更新黄金、不合main、不打包、不部署，不扩功能或重做UI。
+- 审批记录：经理独立编译并复跑58项（含5项真实PostgreSQL、0跳过）全部通过；确认稳定key、内部明细、业务名称展示及原业务权限要求均已落实。吸收范围仅本次回执与计划，不整体合入含表单审核记录的审核分支。
 - 工作区：`D:/projects/dcp-dashboard-combined-20261103`，分支`看板合并版本范围-20261103`（从稳定main `f74fdef7`创建）。方案原定分支名`codex/dashboard-combined-version-20261103`，按AGENTS中文功能名称规则改名，基线提交与范围未变。
 - 已完成：新增`dashboard-version-scopes.json`、`DashboardVersionScopeConfig/Loader/Scope/Service`及测试；质量看板候选/默认/请求、评审密度、系统测试阶段、集成测试、明细与导出接入；BI平台产品版本/评审/编码/系统测试适配器与来源指纹接入；规则版本升级；前后端定向测试新增与更新；BI与平台权威文档更新。
 - 测试状态：首轮后端默认套件`1980/0/0/1 BUILD SUCCESS`；上一轮R01/R02整改后受影响定向`53/0/0/0`（含5项真实PostgreSQL）；本轮R01残留整改后定向`58/0/0/0`（含5项真实PostgreSQL、权限与会话边界），前端`typecheck`通过、路由与明细组件定向`33/0/0/0`。未重复全量套件，未运行发布黄金、未更新快照、未打包、未部署。
@@ -10,6 +11,75 @@
 - 只读取证：本地15432与11-02数据副本无2027目录/系统测试事实，评审与走查仅有`CC2027R1`；目标内网不可达。因此生产目录、`2027R1&R2`评审别名和真实组合来源未核实，按方案登记但不写成现场事实。本地项目9目录`catalogs=1 groups=12 members=51`，只读指纹`aa551d49a5321891dc47dce404234f05`，本轮未写目录。
 - 恢复：先执行`git status --short --branch`、`git worktree list`，读取平台/BI进度与本文；在`backend/`用绝对路径Maven运行定向或默认套件。
 - 环境：未使用生产配置、真实GitLab、CAT或客户问题数据；临时日志与证据只在任务`.tmp/`及隔离临时库，完成后清理。
+
+## 发布门禁资料（技术基线 aa62d219）
+
+### 1. 候选冻结与基线
+
+| 项目 | 结论 |
+| --- | --- |
+| 技术验收基线 | `aa62d21964761fd861f32a8f9b98f1e3136469c1`，经理独立复跑58/58通过 |
+| 实现范围 | `f74fdef7..aa62d219`，66个文件；无Flyway迁移、无Controller路径新增或删除、无新表/新权限码 |
+| main基线 | 本地、origin、gitlab25的main均为`f74fdef7`，开工后未漂移 |
+| 资料提交后HEAD | 仅文档差异；发布候选冻结前须满足`git diff aa62d219..HEAD -- backend frontend`为空，并以审批后的最终HEAD作为打包SHA |
+| 禁止项 | 未合main、未运行/更新黄金、未打包、未部署；不吸收审核分支中的表单记录 |
+
+### 2. 发布影响清单
+
+| 类别 | 有意变化 | 影响与处理 |
+| --- | --- | --- |
+| 版本身份 | 看板候选`value`为稳定key（组合为`cc-2027-r1-r2`），`label`为显示名；解析只接受稳定key/原目录ID | 已发布的显示名URL不再解析为组合；本分组尚未生产发布，无兼容对象。普通版本业务键不受影响 |
+| 新明细场景 | `quality-review-records`：按`reviewType`展示成员项目名与组合评审来源，按记录ID去重，正式与兼容读源共用；`new-issue-defects`：与概览共用新发有效缺陷条件，标注“修复状态” | 仅质量看板内部路由；不改独立系统测试与客户问题页面规则 |
+| 权限 | 两个新明细除看板查看权限外，分别要求`review.data.view`、`system_test.summary.view` | 无新增权限码、无目录/角色授予迁移；未获授权的用户应得到403，属预期 |
+| 规则版本 | `bi-review-v4`、`bi-coding-v6`、`bi-system-test-v4`、`quality-rd-rules@3`、`legacy-personal-quality-v4` | 旧缓存按版本失效并重建；不改变指标公式 |
+| 来源指纹 | BI来源版本含成员事实版本并集与分组配置指纹；质量看板来源版本含范围指纹与读模式 | 首次部署形成新指纹，旧下载授权/缓存失效；黄金比对对BI端点忽略`sourceVersion` |
+| 导出 | 无新增导出端点；其他质量看板Excel文件名/工作表使用业务显示名；BI导出范围与形状不变 | 明细行集合与页面一致；评审/新发明细本身不提供导出，原评审页导出仍按原权限使用 |
+| 前端 | 新增两个内部明细路由；明细路由允许`reviewType`；布局、筛选按钮与交互不变 | 不改权限要求，不扩数据访问范围 |
+| 数据库与配置 | 无迁移、无数据回填；仅随包发布`dashboard-version-scopes.json` | 升级不需要执行SQL；回滚不需要恢复数据库结构 |
+
+### 3. 端点登记核对
+
+- 无新增HTTP端点：两个新明细复用已登记的`GET /api/analytics-dashboards/{dashboardKey}/details/{viewKey}`，默认套件端点覆盖护栏不需要新增路径条目。
+- 黄金目录现有质量看板明细用例为：`integration-test-results`、`quality-code-review-records`、`release-leakage-defects`、`fix-user-defects`、`other-function-defect-count`、`code-review-multi-statistics`；尚未包含本轮两个新`viewKey`。
+- 拟新增黄金用例（需批准后执行）：
+  - `quality-rd-quality-review-records`：`dashboardKey=quality-rd&viewKey=quality-review-records&reviewType=需求说明书评审`
+  - `quality-rd-new-issue-defects`：`dashboardKey=quality-rd&viewKey=new-issue-defects`
+- 拟复核但不改登记：`GET /api/quality-board/other/overview`、质量看板明细与导出现有用例仍覆盖相邻入口。
+
+### 4. 黄金拟变更清单（本阶段不执行）
+
+| 快照 | 预期变化 | 原因 |
+| --- | --- | --- |
+| `snapshots/analytics-dashboards/get___{dashboardKey}__quality-rd.json` | 必改 | 需求/设计指标`detail.viewKey`改为`quality-review-records`；新发指标改为`new-issue-defects`且参数由`testingPhase`改为`projectName` |
+| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-quality-review-records.json` | 建议新增 | 新内部明细场景，需覆盖成员项目名与组合来源展示 |
+| `snapshots/analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-new-issue-defects.json` | 建议新增 | 新内部明细场景，需覆盖新发有效集合与修复状态 |
+| `snapshots/bi/*`、`snapshots/analytics-dashboards/get___{dashboardKey}__quality-board-other.json`、质量看板其他明细/导出、权限、CAT | 预期不变 | 黄金夹具的议题测试阶段目录无2027组合成员，`biProductVersionId`仍为CC2026R3；无新权限码；CAT仍为EXCLUDED |
+
+执行顺序（获批后）：先展示上述差异并取得用户确认，再在停服窗口执行`mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=true`生成；审阅diff后去掉update严格compare，全绿才进入打包。不得手工编辑快照或放宽掩码。
+
+### 5. 升级与恢复说明
+
+- 前置：按发布runbook停止应用服务并完成数据库备份；确认目标环境无未完成同步任务。
+- 升级：替换后端与前端制品为该候选；后端首次启动加载分组资源，Flyway无新迁移；无需执行SQL、重建事实或导入目录。
+- 首次访问：新规则版本与来源指纹使旧缓存/下载授权失效，页面会重新读取当前已发布数据；读取失败按既有读链规则处理，不降级为空范围。
+- 验证：健康检查、两看板组合项与显示名、评审/新发明细权限正反例、其他质量明细与导出文件名、独立系统测试R1/R2保持、CAT设置仍为原目录。
+- 回滚：同时回退后端与前端到上一发布包；本单元不改数据库结构或数据，回滚不需要恢复库；旧前端不认识新明细路由，禁止只回退一侧。
+- 兼容提示：如现场保留过组合显示名URL，升级后将提示“版本不存在或已停用”，需改选稳定key；不影响原目录或其他版本。
+
+### 6. 现场核对项（上线前）
+
+| 核对项 | 只读方法 | 通过标准 | 阻塞性 |
+| --- | --- | --- | --- |
+| 项目9目录 | 查询启用catalog/group/member | 存在`CC2027R1`锚点，R1/R2业务键与成员阶段符合配置；无重复或跨组冲突 | 阻塞组合入口 |
+| 评审来源 | 查询`review_records.project_name`去重值 | 确认真实成员名称及是否存在`2027R1&R2`；与登记值一致 | 影响评审密度与明细 |
+| 集成测试阶段 | 查询`integration_test_fact.testing_phase` | 存在成员各自的`<版本>集成测试`；不构造组合阶段 | 影响集成通过率 |
+| 事实完整性 | 按成员阶段统计有效议题 | 与页面概览/明细一致；已拒绝记录排除 | 阻塞验收 |
+| 角色权限 | 查询角色授予 | 需要下钻的用户同时具备看板查看与`review.data.view`/`system_test.summary.view` | 未授权返回403属预期 |
+| 目录缺失分支 | 确认R2或锚点缺失时的候选 | 组合不可用或按锚点降级，不私自换锚点 | 影响候选显示 |
+| CAT与独立系统测试 | 设置页与系统测试入口 | CAT仍为原R1/R2且未接入；独立系统测试仍分R1/R2 | 不通过即阻断 |
+| 部署后缓存/导出 | 页面来源版本与下载 | 旧授权失效、新导出文件名带业务名且无内部key | 影响上线确认 |
+
+生产2027目录、真实评审别名与集成测试来源仍为现场前置，不以隔离夹具计数替代。
 
 ## 1. 用户能看到什么
 
