@@ -326,6 +326,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 template_package_dir=None,
                 require_fact_rebuild=True,
                 fact_rebuild_scope="all",
+                require_ods_correction=False,
                 frontend_port=18181,
                 backend_port=18080,
                 postgres_port=15432,
@@ -370,6 +371,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 template_package_dir=None,
                 require_fact_rebuild=True,
                 fact_rebuild_scope="all",
+                require_ods_correction=False,
                 frontend_port=18181,
                 backend_port=18080,
                 postgres_port=15432,
@@ -393,6 +395,183 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual("20260721T120000Z-aabbccddeeff", context.frontend_tag)
             self.assertEqual("qaflex-update-20260721T120000Z-aabbccddeeff", context.package_name)
             self.assertEqual(f"{context.package_name}.tar.gz", context.archive_path.name)
+
+    ACCEPTANCE_COMPOSE = (
+        "name: ${COMPOSE_PROJECT_NAME:?}\n"
+        "services:\n"
+        "  postgres:\n"
+        "    image: postgres:16-alpine\n"
+        "    volumes:\n"
+        "      - platform_db:/var/lib/postgresql/data\n"
+        "  backend:\n"
+        "    image: ${BACKEND_IMAGE:?}\n"
+        "    environment:\n"
+        "      PLATFORM_BACKGROUND_JOBS_ENABLED: ${BACKGROUND_JOBS_ENABLED:-false}\n"
+        "    volumes:\n"
+        "      - platform_logs:/app/logs\n"
+        "  frontend:\n"
+        "    image: qa-flex-platform-frontend:20261021T011723Z-d52affe66b4f\n"
+        "  gitlab:\n"
+        "    image: gitlab/gitlab-ce:16.11.10-ce.0\n"
+        "    volumes:\n"
+        "      - gitlab_config:/etc/gitlab\n"
+        "      - gitlab_logs:/var/log/gitlab\n"
+        "      - gitlab_data:/var/opt/gitlab\n"
+        "volumes:\n"
+        "  platform_db:\n"
+        "  platform_logs:\n"
+        "  gitlab_config:\n"
+        "  gitlab_logs:\n"
+        "  gitlab_data:\n"
+    )
+
+    def _resolve_args(self, deploy_root: Path, baseline: Path) -> argparse.Namespace:
+        return argparse.Namespace(
+            mode="incremental-update",
+            working=False,
+            deploy_root=deploy_root,
+            baseline_dir=baseline,
+            template_package_dir=None,
+            require_fact_rebuild=True,
+            fact_rebuild_scope="issue",
+            require_ods_correction=False,
+            frontend_port=18181,
+            backend_port=18080,
+            postgres_port=15432,
+            ldap_base_url="http://172.22.10.116:80",
+            include_offline_docker_debs=False,
+        )
+
+    def _resolve_acceptance_context(self, root: Path):
+        baseline = root / "baseline"
+        baseline.mkdir()
+        (baseline / "docker-compose.yml").write_text(self.ACCEPTANCE_COMPOSE, encoding="utf-8", newline="\n")
+        (baseline / ".env").write_text(
+            "COMPOSE_PROJECT_NAME=kit-test\n"
+            "BACKEND_IMAGE=qa-flex-platform-backend:20261026-d52-delay-candidate\n"
+            "BACKGROUND_JOBS_ENABLED=false\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        with mock.patch.object(
+            MODULE, "new_release_id", return_value="20261102T120000Z-aabbccddeeff"
+        ), mock.patch.object(MODULE, "git_value", side_effect=lambda *parts: {
+                ("rev-parse", "--abbrev-ref", "HEAD"): "main",
+                ("rev-parse", "HEAD"): "full-commit",
+                ("status", "--short"): "",
+            }.get(parts, "")
+        ):
+            return MODULE.resolve_context(self._resolve_args(root, baseline))
+
+    def test_variable_baseline_images_resolve_from_site_env_and_preserve_four_services(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            context = self._resolve_acceptance_context(Path(deploy_root))
+
+            self.assertEqual("20261026-d52-delay-candidate", context.baseline_backend_tag)
+            self.assertEqual("20261021T011723Z-d52affe66b4f", context.baseline_frontend_tag)
+            self.assertEqual(("gitlab",), context.extra_services)
+            self.assertTrue(context.preserve_baseline_topology)
+            self.assertEqual(context.baseline_env_path, (Path(deploy_root) / "baseline" / ".env").resolve())
+
+            compose = MODULE.preserved_compose_content(context)
+            self.assertIn(f"image: {MODULE.BACKEND_IMAGE}:{context.backend_tag}", compose)
+            self.assertIn(f"image: {MODULE.FRONTEND_IMAGE}:{context.frontend_tag}", compose)
+            self.assertIn("image: gitlab/gitlab-ce:16.11.10-ce.0", compose)
+            self.assertIn("gitlab_data:", compose)
+            self.assertIn("platform_db:", compose)
+            self.assertIn("platform_logs:", compose)
+            self.assertNotIn("qaflex_pgdata", compose)
+            self.assertIn('PLATFORM_RUN_MODE: "${PLATFORM_RUN_MODE:-service}"', compose)
+            self.assertIn(
+                'PLATFORM_BACKGROUND_JOBS_ENABLED: "${PLATFORM_BACKGROUND_JOBS_ENABLED:-${BACKGROUND_JOBS_ENABLED:-false}}"',
+                compose,
+            )
+            readme = MODULE.incremental_readme(context)
+            self.assertIn("完整服务拓扑", readme)
+            self.assertIn("gitlab", readme)
+            self.assertIn("不要删除任何平台 PostgreSQL volume", readme)
+
+    def test_preserved_baseline_compose_validation_uses_site_env_file(self):
+        context = self.build_context()
+        preserved = MODULE.BuildContext(
+            **{
+                **context.__dict__,
+                "preserve_baseline_topology": True,
+                "baseline_env_path": Path("baseline/.env"),
+            }
+        )
+        args = MODULE.package_compose_validation_args(preserved)
+        self.assertEqual(args[:3], ("docker", "compose", "--env-file"))
+        self.assertEqual(args[3], Path("baseline/.env"))
+        self.assertIn("config", args)
+
+        standard_args = MODULE.package_compose_validation_args(context)
+        self.assertNotIn("--env-file", standard_args)
+
+    def test_preserved_compose_rejects_baseline_topology_drift(self):
+        context = self.build_context()
+        drift = self.ACCEPTANCE_COMPOSE.replace(
+            "  gitlab:\n"
+            "    image: gitlab/gitlab-ce:16.11.10-ce.0\n"
+            "    volumes:\n"
+            "      - gitlab_config:/etc/gitlab\n"
+            "      - gitlab_logs:/var/log/gitlab\n"
+            "      - gitlab_data:/var/opt/gitlab\n",
+            "",
+        )
+        drifted = MODULE.BuildContext(
+            **{
+                **context.__dict__,
+                "baseline_compose_text": drift,
+                "extra_services": ("gitlab",),
+                "preserve_baseline_topology": True,
+            }
+        )
+        with self.assertRaisesRegex(MODULE.PackageError, "service topology changed"):
+            MODULE.preserved_compose_content(drifted)
+
+    def test_standard_three_service_baseline_keeps_standard_compose(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            baseline = Path(deploy_root) / "baseline"
+            baseline.mkdir()
+            (baseline / "docker-compose.yml").write_text(
+                "services:\n"
+                "  postgres:\n"
+                "    image: postgres:16-alpine\n"
+                "  backend:\n"
+                "    image: qa-flex-platform-backend:old-backend\n"
+                "  frontend:\n"
+                "    image: qa-flex-platform-frontend:old-frontend\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                MODULE, "new_release_id", return_value="20261102T120000Z-aabbccddeeff"
+            ), mock.patch.object(MODULE, "git_value", side_effect=lambda *parts: {
+                    ("rev-parse", "--abbrev-ref", "HEAD"): "main",
+                    ("rev-parse", "HEAD"): "full-commit",
+                    ("status", "--short"): "",
+                }.get(parts, "")
+            ):
+                context = MODULE.resolve_context(self._resolve_args(Path(deploy_root), baseline))
+            self.assertFalse(context.preserve_baseline_topology)
+            self.assertEqual((), context.extra_services)
+            compose = MODULE.compose_content(context, external_postgres_volume=True)
+            self.assertNotIn("gitlab:", compose)
+            self.assertIn("qaflex_pgdata", compose)
+
+    def test_generated_scripts_resolve_volumes_from_mounts_and_probe_without_healthcheck(self):
+        context = self.build_context()
+        scripts = {
+            name: getattr(MODULE, f"{name}_helper")(context)
+            for name in ("backup", "upgrade", "rollback")
+        }
+        for name, text in scripts.items():
+            self.assertNotIn('["volumes"]["qaflex_pgdata"]', text, name)
+            self.assertNotIn('["volumes"]["qaflex_backend_logs"]', text, name)
+            self.assertIn("resolve_volume_for_mount", text, name)
+        for name in ("upgrade", "rollback"):
+            self.assertIn("probe_application_endpoint", scripts[name], name)
+            self.assertIn("resolve_health_addresses", scripts[name], name)
 
     def test_package_identity_does_not_encode_working_state_or_fact_rebuild(self):
         with tempfile.TemporaryDirectory() as deploy_root:
@@ -579,7 +758,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
         self.assertIn("one-shot Flyway migration", content)
         self.assertIn("recreating backend with normal background scheduling", content)
-        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up", content)
+        self.assertIn("export PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
         self.assertIn("normal background scheduling mode was not restored", content)
         self.assertLess(content.index("run --rm --no-deps -T"), content.index("counts-after-migration.txt"))
         self.assertNotIn("background scheduling disabled mode was not applied", content)
@@ -588,8 +767,12 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         backend_position = content.index("--force-recreate backend")
         frontend_position = content.index("--force-recreate frontend")
         self.assertLess(backend_position, frontend_position)
-        self.assertIn("BACKEND_HEALTH_PORT", content)
-        self.assertIn("FRONTEND_HEALTH_PORT", content)
+        self.assertIn("compose config --format json", content)
+        self.assertIn('address("backend", 18080)', content)
+        self.assertIn('address("frontend", 80)', content)
+        self.assertNotIn("compose port backend 18080", content)
+        self.assertIn('http://${BACKEND_HEALTH_ADDR}/actuator/health', content)
+        self.assertNotIn("127.0.0.1:${BACKEND_HEALTH_PORT}", content)
         self.assertNotIn("upsert_env", content)
         self.assertNotIn("ensure_env", content)
         self.assertIn("refusing layered Compose configuration", backup)
@@ -611,6 +794,28 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         ):
             with self.subTest(script=name):
                 self.assertIn('sh "$sql" </dev/null', content)
+
+    def test_rollback_pauses_sync_with_existing_switches_without_new_database_objects(self):
+        context = self.build_context()
+        rollback = MODULE.rollback_helper(context)
+
+        # The rollback protection uses the existing sync switches and scheduling flag.
+        # No temporary table, function, trigger or packaged sync-hold script may be added.
+        self.assertNotIn("platform_sync_hold", rollback)
+        self.assertNotIn("sync-hold.sh", rollback)
+        self.assertNotIn("sync-hold", rollback)
+        self.assertIn('source_enabled or auto_sync_enabled', rollback)
+        self.assertIn('one or more sync configs are still enabled', rollback)
+        self.assertIn('active sync runs remain', rollback)
+        self.assertIn('active fact build tasks remain', rollback)
+        self.assertIn('PLATFORM_BACKGROUND_JOBS_ENABLED', rollback)
+        self.assertIn('export PLATFORM_BACKGROUND_JOBS_ENABLED=false', rollback)
+        self.assertIn('[[ "$backend_flag" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]]', rollback)
+        self.assertIn('baseline backend did not start with PLATFORM_BACKGROUND_JOBS_ENABLED=false', rollback)
+        self.assertIn('old backend started with background scheduling disabled', rollback)
+        self.assertIn('sync run baseline recorded', rollback)
+        self.assertIn('no new sync run was created after rollback', rollback)
+        self.assertIn('closing the maintenance window: stopping current backend/frontend', rollback)
 
     def test_rollback_allows_an_advanced_schema(self):
         context = self.build_context()
@@ -691,8 +896,42 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=true", content)
         self.assertIn("select version from flyway_schema_history", content)
         self.assertIn("打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）", content)
-        self.assertIn("## 6. 事实层重建", content)
+        self.assertIn("## 6. 事实层重建与完成判据", content)
+        self.assertIn("只基于平台库现有 ODS 行重算事实和统计快照", content)
+        self.assertNotIn("### 6.1", content)
+        self.assertNotIn("点击“全量补偿对账”", content)
+        self.assertNotIn("全量补偿同步", content)
+        self.assertIn("应用回滚只恢复升级前的 `docker-compose.yml` 和基线前后端镜像", content)
+        self.assertIn("正常升级并继续运行目标版本不需要本节流程", content)
+        self.assertIn("维护窗口", content)
+        self.assertIn("source_enabled = false", content)
+        self.assertIn("auto_sync_enabled = false", content)
+        self.assertIn("PLATFORM_BACKGROUND_JOBS_ENABLED=false", content)
+        self.assertIn("rollback.sh", content)
+        self.assertIn("本包不要求 ODS 时刻纠正，也不要求全量补偿对账", content)
+        self.assertIn("本包不要求全量补偿对账，也不要临时启用来源", content)
+        self.assertNotIn("sync-hold.sh", content)
+        self.assertNotIn("platform_sync_hold", content)
+        # 暂停前保存每个 config 的原值，验收后逐项还原，禁止全局启用。
+        self.assertIn("sync-config-flags.before.tsv", content)
+        self.assertIn("sync-config-flags.after.tsv", content)
+        self.assertIn("while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled", content)
+        self.assertIn("done < sync-config-flags.before.tsv", content)
+        self.assertIn("diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv", content)
+        self.assertNotIn("where id = <target_config_id>;", content)
+        self.assertNotIn("set auto_sync_enabled = true", content)
+        self.assertNotIn("set source_enabled = true,\n       updated_at = current_timestamp;\nselect id", content)
+        # psql 必须用 heredoc 提供 SQL，避免 sh -c 单引号剥离状态字符串引号。
+        self.assertNotIn("''SUBMITTED''", content)
+        self.assertIn("<<'SQL'", content)
+        self.assertIn("status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING')", content)
         self.assertNotIn(f"cd {context.baseline_name}", content)
+
+    def test_incremental_readme_forbids_reinitializing_or_reimporting_kit_data(self):
+        content = MODULE.incremental_readme(self.build_context())
+
+        self.assertIn("不要执行 `init-env.py`、`transfer.sh target --init-target/--package` 或任何样本导入", content)
+        self.assertIn("现场 `.env` 在升级和回滚中保持原样", content)
 
     def test_incremental_readme_does_not_claim_application_outputs_are_unchanged(self):
         context = MODULE.BuildContext(
@@ -703,6 +942,133 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
         self.assertIn("未声明事实重建不等于所有 API、图表或统计展示数值必须不变", content)
         self.assertNotIn("不改变事实表、统计口径或历史聚合结果", content)
+
+    def test_incremental_readme_fact_rebuild_scope_is_explicit_and_never_implies_ods_correction(self):
+        cases = {
+            "issue": "议题事实（issue）",
+            "merge-request": "MR 事实（merge-request）",
+            "all": "议题事实与 MR 事实（all）",
+        }
+        for scope, label in cases.items():
+            with self.subTest(scope=scope):
+                context = MODULE.BuildContext(
+                    **{
+                        **self.build_context().__dict__,
+                        "require_fact_rebuild": True,
+                        "fact_rebuild_scope": scope,
+                        "require_ods_correction": False,
+                    }
+                )
+
+                content = MODULE.incremental_readme(context)
+
+                self.assertIn("## 6. 事实层重建与完成判据", content)
+                self.assertIn(label, content)
+                self.assertIn("只基于平台库现有 ODS 行重算事实和统计快照", content)
+                self.assertIn("不代表需要 ODS 时刻纠正，也不要求全量补偿对账", content)
+                self.assertNotIn("### 6.1", content)
+                self.assertNotIn("点击“全量补偿对账”", content)
+                self.assertEqual(
+                    {"rebuildRequired": True, "scope": scope, "odsCorrectionRequired": False},
+                    MODULE.fact_manifest(context),
+                )
+
+    def test_incremental_readme_ods_correction_requires_the_explicit_flag(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": True,
+                "fact_rebuild_scope": "issue",
+                "require_ods_correction": True,
+            }
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("## 6. 事实层重建与完成判据", content)
+        self.assertIn("### 6.1 ODS 时刻纠正与全量补偿（本包显式声明）", content)
+        self.assertIn("本包显式声明需要纠正历史 ODS 时刻", content)
+        self.assertIn("点击“全量补偿对账”", content)
+        self.assertIn("按 6.1 完成判据验收", content)
+        self.assertIn("回滚后再次升级必须按 6.1 执行一次全量补偿对账", content)
+        self.assertIn("where id = <target_config_id>;", content)
+        self.assertIn("6. 验收全部通过后", content)
+        self.assertIn("7. 第 3 步至第 5 步失败或中断时", content)
+        self.assertEqual(
+            {"rebuildRequired": True, "scope": "issue", "odsCorrectionRequired": True},
+            MODULE.fact_manifest(context),
+        )
+
+    def test_incremental_readme_without_rebuild_requires_no_data_action(self):
+        context = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": False,
+                "require_ods_correction": False,
+            }
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("## 6. 不执行事实层重建", content)
+        self.assertIn("不执行事实层重建、ODS 时刻纠正或 GitLab 全量同步", content)
+        self.assertIn("本包不要求事实重建，不执行全量补偿对账，也不要临时启用来源", content)
+        self.assertIn("回滚后再次升级不需要事实重建或数据动作", content)
+        self.assertIn("4. 验收全部通过后", content)
+        self.assertIn("5. 第 3 步失败或中断时", content)
+        self.assertNotIn("### 6.1", content)
+        self.assertEqual(
+            {"rebuildRequired": False, "scope": None, "odsCorrectionRequired": False},
+            MODULE.fact_manifest(context),
+        )
+
+    def test_upgrade_script_completion_message_matches_fact_and_ods_flags(self):
+        facts_only = MODULE.BuildContext(
+            **{
+                **self.build_context().__dict__,
+                "require_fact_rebuild": True,
+                "fact_rebuild_scope": "issue",
+                "require_ods_correction": False,
+            }
+        )
+        facts_content = MODULE.upgrade_helper(facts_only)
+        self.assertIn("rebuild fact scope 'issue' from existing ODS", facts_content)
+        self.assertIn("full compensation is not required", facts_content)
+        self.assertNotIn("run the declared ODS correction", facts_content)
+
+        with_ods = MODULE.BuildContext(
+            **{**facts_only.__dict__, "require_ods_correction": True}
+        )
+        ods_content = MODULE.upgrade_helper(with_ods)
+        self.assertIn("run the declared ODS correction (full compensation)", ods_content)
+
+        no_rebuild = MODULE.BuildContext(
+            **{**facts_only.__dict__, "require_fact_rebuild": False}
+        )
+        self.assertIn(
+            "fact rebuild is not required for this release",
+            MODULE.upgrade_helper(no_rebuild),
+        )
+
+    def test_resolve_context_rejects_ods_correction_without_fact_rebuild(self):
+        with tempfile.TemporaryDirectory() as deploy_root:
+            args = MODULE.parse_args(
+                [
+                    "--mode",
+                    "incremental-update",
+                    "--baseline-dir",
+                    deploy_root,
+                    "--require-ods-correction",
+                ]
+            )
+            with self.assertRaisesRegex(
+                MODULE.PackageError, "--require-ods-correction requires --require-fact-rebuild"
+            ):
+                MODULE.resolve_context(args)
+
+        fresh = MODULE.parse_args(["--mode", "fresh-empty", "--require-ods-correction"])
+        with self.assertRaisesRegex(MODULE.PackageError, "fresh-empty cannot require ODS correction"):
+            MODULE.resolve_context(fresh)
 
     def test_incremental_readme_requires_checking_fixed_container_name_ownership(self):
         content = MODULE.incremental_readme(self.build_context())
@@ -721,6 +1087,26 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         self.assertIn("升级前确认 Compose project 是目标实例", content)
         self.assertNotIn("升级前确认固定容器名属于本实例", content)
         self.assertIn("COMPOSE_PROJECT_NAME", content)
+
+    def test_incremental_readme_resolves_health_addresses_from_the_effective_compose(self):
+        context = MODULE.BuildContext(
+            **{**self.build_context().__dict__, "frontend_port": 20001, "backend_port": 20002}
+        )
+
+        content = MODULE.incremental_readme(context)
+
+        self.assertIn("docker compose --env-file .env port backend 18080", content)
+        self.assertIn("docker compose --env-file .env port frontend 80", content)
+        self.assertIn('curl -fsS "http://${BACKEND_HEALTH_ADDR}/actuator/health"', content)
+        self.assertIn('curl -fsS "http://${FRONTEND_HEALTH_ADDR}/"', content)
+        self.assertIn('case "$BACKEND_HEALTH_ADDR" in \\[::\\]*)', content)
+        self.assertIn('case "$FRONTEND_HEALTH_ADDR" in \\[::\\]*)', content)
+        self.assertNotIn("${BACKEND_HEALTH_ADDR/[::]/127.0.0.1}", content)
+        # 各实例端口不同，交付文档不得把开发端口当成本实例检查地址。
+        self.assertNotIn("127.0.0.1:20001", content)
+        self.assertNotIn("127.0.0.1:20002", content)
+        self.assertNotIn("127.0.0.1:18080", content)
+        self.assertNotIn("127.0.0.1:18181", content)
 
     def test_upgrade_script_does_not_request_fact_rebuild_when_release_does_not_require_it(self):
         context = MODULE.BuildContext(**{**self.build_context().__dict__, "require_fact_rebuild": False})
@@ -788,9 +1174,16 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
     ROLLBACK_BACKUP_FILES = (
         ".env", "docker-compose.yml", "postgres.container-id", "postgres.inspect.json",
-        "compose-images.txt", "flyway-before.txt", "counts-before.txt", "database.dump",
+        "compose-images.txt", "flyway-before.txt", "flyway-history.txt", "counts-before.txt", "database.dump",
         "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
         "backup-manifest.env",
+    )
+    ROLLBACK_BASELINE_COMPOSE = (
+        "services:\n"
+        "  backend:\n"
+        "    image: baseline\n"
+        "    environment:\n"
+        "      PLATFORM_BACKGROUND_JOBS_ENABLED: \"${PLATFORM_BACKGROUND_JOBS_ENABLED:-true}\"\n"
     )
 
     def _write_rollback_backup(self, backup: Path, context, *, manifest_extra: str = "", tamper_dump: bool = False) -> None:
@@ -801,11 +1194,12 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "POSTGRES_PASSWORD=private-test-value\n"
         )
         (backup / ".env").write_text(env_content, encoding="utf-8", newline="\n")
-        (backup / "docker-compose.yml").write_text("services:\n  backend:\n    image: baseline\n", encoding="utf-8", newline="\n")
+        (backup / "docker-compose.yml").write_text(self.ROLLBACK_BASELINE_COMPOSE, encoding="utf-8", newline="\n")
         (backup / "postgres.container-id").write_text("abcdef012345\n", encoding="utf-8", newline="\n")
         (backup / "postgres.inspect.json").write_text("{}\n", encoding="utf-8", newline="\n")
         (backup / "compose-images.txt").write_text("images\n", encoding="utf-8", newline="\n")
         (backup / "flyway-before.txt").write_text("20260714.01|true\n", encoding="utf-8", newline="\n")
+        (backup / "flyway-history.txt").write_text("20260714.01|1234567890\n", encoding="utf-8", newline="\n")
         (backup / "counts-before.txt").write_text("example_table=1\n", encoding="utf-8", newline="\n")
         (backup / "database.dump").write_bytes(b"database dump")
         (backup / "critical-tables.dump").write_bytes(b"critical table dump")
@@ -858,7 +1252,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "set -euo pipefail\n"
             "if [[ \"${1:-}\" == info ]]; then exit 0; fi\n"
             "case \"$*\" in\n"
-            "  *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *)\n"
+            "  *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*)\n"
             "    printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";;\n"
             "esac\n"
             "exit 99\n",
@@ -1066,12 +1460,18 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                     "fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then echo abcdef012345; exit 0; fi\n"
                     "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then echo backend123456; exit 0; fi\n"
+                    "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
+                    "  sql=\"${@: -1}\"\n"
+                    "  if [[ \"$sql\" == *flyway_schema_history* ]]; then echo 20260714.01; exit 0; fi\n"
+                    "  if [[ \"$sql\" == *string_agg* ]]; then printf '\\n'; exit 0; fi\n"
+                    "  echo 0; exit 0\n"
+                    "fi\n"
                     "if [[ \"${1:-}\" == inspect && \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
                     "if [[ \"${1:-}\" == inspect && \"$*\" == *'.Config.Labels'* ]]; then\n"
                     "  if [[ \"${@: -1}\" == abcdef012345 ]]; then echo qaflex-test/postgres; else echo qaflex-test/backend; fi\n"
                     "  exit 0\n"
                     "fi\n"
-                    "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|* load -i *|*' volume rm '*|* rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+                    "case \"$*\" in *' compose up '*|*' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
                     "exit 99\n",
                     encoding="utf-8",
                     newline="\n",
@@ -1195,7 +1595,16 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q postgres'* ]]; then printf '%s\\n' \"$(cat \"$state/postgres.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q backend'* ]]; then [[ -f \"$state/backend.running\" ]] && printf '%s\\n' \"$(cat \"$state/backend.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q frontend'* ]]; then [[ -f \"$state/frontend.running\" ]] && printf '%s\\n' \"$(cat \"$state/frontend.id\")\"; exit 0; fi\n"
-            "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\"; exit 0; fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
+            "  sql=\"${@: -1}\"\n"
+            "  if [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
+            "  if [[ \"$sql\" == *flyway_schema_history* && \"$sql\" == *checksum* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_HISTORY\";\n"
+            "  elif [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
+            "  elif [[ \"$sql\" == *string_agg* ]]; then printf '\\n';\n"
+            "  elif [[ \"$sql\" == *'max(id)'* ]]; then printf '0\\n';\n"
+            "  else printf '0\\n'; fi\n"
+            "  exit 0;\n"
+            "fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' up '* ]]; then\n"
             "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
             "  count=0; [[ -f \"$state/up.count\" ]] && count=\"$(cat \"$state/up.count\")\"\n"
@@ -1208,6 +1617,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == inspect ]]; then\n"
             "  target=\"${@: -1}\"\n"
             "  if [[ \"$*\" == *'State.Health.Status'* ]]; then echo healthy; exit 0; fi\n"
+            "  if [[ \"$*\" == *'.Config.Env'* ]]; then echo 'PLATFORM_BACKGROUND_JOBS_ENABLED=false'; exit 0; fi\n"
             "  if [[ \"$*\" == *'.Config.Labels'* ]]; then\n"
             "    if [[ \"$target\" == \"$(cat \"$state/postgres.id\")\" ]]; then echo 'qaflex-test/postgres'; else echo \"${FAKE_BACKEND_LABEL:-qaflex-test/backend}\"; fi\n"
             "    exit 0\n"
@@ -1225,7 +1635,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "fi\n"
             "if [[ \"${1:-}\" == volume && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
             "if [[ \"${1:-}\" == image && \"$*\" == *' inspect '* ]]; then exit 0; fi\n"
-            "case \"$*\" in *' compose stop '*|*' compose down '*|*' load -i *|*' volume rm '*|*' rm *) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
+            "case \"$*\" in *' compose stop '*|*' compose down '*|*' load -i '*|*' volume rm '*|*' rm '*) printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\";; esac\n"
             "exit 99\n",
             encoding="utf-8",
             newline="\n",
@@ -1244,6 +1654,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "FAKE_CURRENT_JSON": self._msys_path(current_path),
                 "FAKE_CANDIDATE_JSON": self._msys_path(candidate_path),
                 "FAKE_FLYWAY_VERSION": "20260714.01",
+                "FAKE_FLYWAY_HISTORY": "20260714.01|1234567890",
                 "FAKE_BACKEND_LABEL": backend_label,
                 "FAKE_BACKEND_MOUNTS": backend_mounts,
                 "FAKE_UP_FAILURES": str(up_failures),
@@ -1299,7 +1710,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(deployment))
             self.assertNotEqual(current_compose_before, (deployment / "docker-compose.yml").read_bytes())
-            self.assertEqual("services:\n  backend:\n    image: baseline\n", (deployment / "docker-compose.yml").read_text(encoding="utf-8"))
+            self.assertEqual(self.ROLLBACK_BASELINE_COMPOSE, (deployment / "docker-compose.yml").read_text(encoding="utf-8"))
             mutations = fixture["mutation_log"].read_text(encoding="utf-8")
             self.assertIn("force-recreate backend", mutations)
             self.assertIn("force-recreate frontend", mutations)
@@ -1314,6 +1725,38 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 result.stdout + result.stderr,
             )
             self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(fixture["deployment"]))
+
+    def test_generated_rollback_refuses_old_application_when_migration_set_differs(self):
+        with self._rollback_execution_case(backend_state="stopped") as (_, fixture):
+            deployment = fixture["deployment"]
+            compose_before = (deployment / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(
+                deployment.parent,
+                fixture,
+                extra_env={"FAKE_FLYWAY_HISTORY": "20260714.01|1234567890\n20261104.01|999"},
+            )
+
+            self.assertEqual(3, result.returncode, result.stdout + result.stderr)
+            self.assertIn("ROLLBACK_REQUIRES_DATABASE_RESTORE", self._recovery_state(deployment))
+            self.assertIn("old application will not be started", result.stdout + result.stderr)
+            self.assertEqual(compose_before, (deployment / "docker-compose.yml").read_bytes())
+            mutations = fixture["mutation_log"].read_text(encoding="utf-8")
+            self.assertIn("compose stop backend frontend", mutations)
+            self.assertNotIn("compose up", mutations)
+
+    def test_upgrade_records_attempt_backup_and_readme_uses_it_for_failure_recovery(self):
+        context = self.build_context()
+        backup = MODULE.backup_helper(context)
+        upgrade = MODULE.upgrade_helper(context)
+        readme = MODULE.incremental_readme(context)
+
+        self.assertIn("flyway-history.txt", backup)
+        self.assertIn("checksum", backup)
+        self.assertIn("current-attempt-backup.txt", upgrade)
+        self.assertIn("cat upgrade-backups/current-attempt-backup.txt", readme)
+        self.assertIn("latest-backup.txt", readme)
+        self.assertIn("ROLLBACK_REQUIRES_DATABASE_RESTORE", readme)
+        self.assertIn("flyway-history.txt", readme)
 
     def test_generated_rollback_rejects_a_backend_container_from_another_project(self):
         with self._rollback_execution_case(backend_state="running", backend_label="qaflex-other/backend") as (_, fixture):

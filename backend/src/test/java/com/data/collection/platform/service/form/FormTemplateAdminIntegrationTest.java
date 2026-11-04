@@ -3,6 +3,7 @@ package com.data.collection.platform.service.form;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.DataCollectionPlatformApplication;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.FormConflictException;
 import com.data.collection.platform.domain.form.FormScopeBinding;
@@ -29,6 +30,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +41,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -104,6 +110,7 @@ class FormTemplateAdminIntegrationTest {
   @Autowired private FormRecordService formRecordService;
   @Autowired private FormTemplateSpecCatalog specCatalog;
   @Autowired private GitlabResourceLinkService resourceLinkService;
+  @Autowired private Environment environment;
 
   private final FormActorContext admin =
       new FormActorContext("w4-admin", "管理员", ALL_PERMISSIONS);
@@ -581,6 +588,68 @@ class FormTemplateAdminIntegrationTest {
     assertThat(secondRecord.outcome()).isEqualTo("CREATED");
     assertThat(recordLocation(Long.parseLong(secondRecord.record().id())))
         .containsEntry("storage_version_id", second.toVersionId());
+  }
+
+  /** R01：两版发布并写入记录后，以新 Spring 上下文冷启动同库，启动校验必须按实际发布协议通过。 */
+  @Test
+  void coldStartAcceptsBothPublishedVersionsAndKeepsThemWritable() {
+    String templateKey = FormTemplateSpecCatalog.ISSUE_REPLY;
+    long scopeId = createScope(templateKey, "r01-cold-start");
+    boundDraft(scopeId, seedSpec(templateKey), "R01-1");
+    FormAdminViews.PublicationView first = publish(scopeId, "R01-1");
+    FormCreateResponse firstRecord = createRecord(templateKey, scopeId, first.toVersionId());
+
+    boundDraft(scopeId, relabeledSpec(templateKey, "R01 新版"), "R01-2");
+    FormAdminViews.PublicationView second = publish(scopeId, "R01-2");
+    createRecord(templateKey, scopeId, second.toVersionId());
+
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("spring.datasource.url", environment.getProperty("spring.datasource.url"));
+    properties.put("spring.datasource.username", environment.getProperty("spring.datasource.username"));
+    properties.put("spring.datasource.password", environment.getProperty("spring.datasource.password"));
+    properties.put("spring.flyway.enabled", false);
+    properties.put("spring.main.web-application-type", "none");
+    properties.put("platform.background-jobs.enabled", false);
+    properties.put("platform.form-publication.worker-enabled", false);
+    properties.put("platform.form-directory-event.worker-enabled", false);
+    properties.put("platform.auth.provider", "local");
+    properties.put("platform.auth.secure-config-required", false);
+    try (ConfigurableApplicationContext restarted =
+        new SpringApplicationBuilder(DataCollectionPlatformApplication.class)
+            .web(WebApplicationType.NONE)
+            .properties(properties)
+            .run()) {
+      JdbcTemplate restartedJdbc = restarted.getBean(JdbcTemplate.class);
+      assertThat(restartedJdbc.queryForObject(
+              "select count(*) from " + recordTable(first.toVersionId()), Integer.class))
+          .as("旧版记录在冷启动后仍可读")
+          .isEqualTo(1);
+      assertThat(restartedJdbc.queryForObject(
+              "select count(*) from " + recordTable(second.toVersionId()), Integer.class))
+          .as("当前版记录在冷启动后仍可读")
+          .isEqualTo(1);
+    }
+
+    FormRecordView edited =
+        formRecordService.update(
+            firstRecord.record().id(),
+            new com.data.collection.platform.entity.form.FormUpdateRequest(
+                GITLAB_URL,
+                PROJECT_ID,
+                "issue",
+                Long.toString(ISSUE_IID),
+                templateKey,
+                Long.toString(scopeId),
+                Long.toString(first.toVersionId()),
+                Long.toString(first.toVersionId()),
+                firstRecord.record().recordVersion(),
+                toFields(issueReplyFields())),
+            admin,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(edited.recordVersion()).isEqualTo(firstRecord.record().recordVersion() + 1);
+    assertThat(createRecord(templateKey, scopeId, second.toVersionId()).outcome())
+        .isEqualTo("CREATED");
   }
 
   @Test

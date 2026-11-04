@@ -76,6 +76,11 @@ class BuildContext:
     ldap_base_url: str
     include_offline_docker_debs: bool
     container_names: dict[str, str] = field(default_factory=dict)
+    require_ods_correction: bool = False
+    baseline_compose_text: str = ""
+    baseline_env_path: Path | None = None
+    extra_services: tuple[str, ...] = ()
+    preserve_baseline_topology: bool = False
 
 
 def log(message: str) -> None:
@@ -117,6 +122,8 @@ def git_value(*args: str) -> str:
         result = subprocess.run(
             ("git", "-C", str(REPO_ROOT), *args),
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
@@ -223,14 +230,150 @@ def latest_full_template(deploy_root: Path) -> Path:
 
 
 def read_deployment_image_tag(deployment_dir: Path, image: str) -> str:
-    """Read an application tag from the deployment's authoritative Compose file."""
+    """Read an application tag from the deployment's authoritative Compose file.
+
+    镜像值可能直接写死 tag，也可能通过现场 .env 变量引用；两种形式都必须还原为
+    实际运行的完整镜像引用后再取 tag，不能只用正则匹配写死的 ``image: repo:tag``。
+    """
+    reference = read_deployment_image(deployment_dir, image)
+    return reference.rsplit(":", 1)[1]
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    """读取 Compose 使用的朴素 KEY=VALUE 环境文件。"""
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            fail(f"invalid environment entry in {path.name}: {line}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            fail(f"invalid environment key in {path.name}: {key}")
+        values[key] = value
+    return values
+
+
+_COMPOSE_REFERENCE = re.compile(
+    r"\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-+?])([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*)"
+)
+
+
+def expand_compose_value(value: str, environment: dict[str, str], source: str) -> str:
+    """按 Compose 变量语义展开镜像引用，缺失必需变量时明确失败。"""
+    unresolved = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal unresolved
+        if match.group(0) == "$$":
+            return "$"
+        name = match.group(1) or match.group(4)
+        operator = match.group(2) or ""
+        argument = match.group(3) or ""
+        defined = name in environment
+        current = environment.get(name, "")
+        if operator in (":?", "?"):
+            if not defined or (operator == ":?" and current == ""):
+                fail(f"baseline {source} requires environment variable {name}: {argument or 'missing'}")
+            return current
+        if operator in (":-", "-"):
+            if not defined or (operator == ":-" and current == ""):
+                return argument
+            return current
+        if operator in (":+", "+"):
+            if not defined or (operator == ":+" and current == ""):
+                return ""
+            return argument
+        if not defined:
+            unresolved = True
+            return ""
+        return current
+
+    expanded = _COMPOSE_REFERENCE.sub(replace, value)
+    if unresolved:
+        fail(f"baseline {source} references an undefined environment variable: {value}")
+    return expanded
+
+
+def compose_service_names(text: str) -> list[str]:
+    """读取顶层 services 下的服务名，保持 Compose 中的声明顺序。"""
+    names: list[str] = []
+    inside_services = False
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")):
+            inside_services = line.rstrip() == "services:"
+            continue
+        if not inside_services:
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 2 and stripped.endswith(":") and stripped.count(":") == 1:
+            names.append(stripped[:-1])
+    return names
+
+
+def read_compose_service_image(text: str, service: str) -> str:
+    lines = text.splitlines()
+    start = _service_start(lines, service)
+    for line in lines[start + 1 :]:
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            break
+        stripped = line.strip()
+        if indent == 4 and stripped.startswith("image:"):
+            return stripped.split(":", 1)[1].strip().strip("\"'")
+    fail(f"baseline Compose service {service} does not declare an image")
+
+
+def _service_start(lines: list[str], service: str) -> int:
+    inside_services = False
+    for index, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")):
+            inside_services = line.rstrip() == "services:"
+            continue
+        if not inside_services:
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 2 and stripped == f"{service}:":
+            return index
+    fail(f"baseline Compose does not declare service {service}")
+
+
+def read_deployment_image(deployment_dir: Path, repository: str) -> str:
     compose_path = deployment_dir / "docker-compose.yml"
     require_path(compose_path, "baseline docker-compose.yml")
     text = compose_path.read_text(encoding="utf-8")
-    match = re.search(re.escape(image) + r":(?P<tag>[A-Za-z0-9_.-]+)", text)
-    if match:
-        return match.group("tag")
-    fail(f"cannot find image tag for {image} in deployment Compose files under {deployment_dir}")
+    environment = read_env_file(deployment_dir / ".env")
+    environment.update({key: value for key, value in os.environ.items() if key not in environment})
+    service = _application_service(repository)
+    raw = read_compose_service_image(text, service)
+    reference = expand_compose_value(raw, environment, f"service {service}")
+    if not reference.startswith(repository + ":"):
+        fail(f"baseline {service} image does not match repository identity: {reference}")
+    return reference
+
+
+def _application_service(repository: str) -> str:
+    mapping = {BACKEND_IMAGE: "backend", FRONTEND_IMAGE: "frontend"}
+    service = mapping.get(repository)
+    if service is None:
+        fail(f"unsupported application image repository: {repository}")
+    return service
+
 
 
 def read_baseline_container_names(deployment_dir: Path) -> dict[str, str]:
@@ -329,7 +472,11 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
             fail("fresh-empty does not accept --baseline-dir")
         if args.require_fact_rebuild:
             fail("fresh-empty cannot require fact rebuild because it contains no business data")
+        if args.require_ods_correction:
+            fail("fresh-empty cannot require ODS correction because it contains no historical ODS data")
     else:
+        if args.require_ods_correction and not args.require_fact_rebuild:
+            fail("--require-ods-correction requires --require-fact-rebuild; ODS correction changes fact inputs")
         if args.include_offline_docker_debs:
             fail("incremental-update cannot include offline Docker debs")
         if args.template_package_dir is not None:
@@ -351,6 +498,10 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
     baseline_backend_tag = ""
     baseline_frontend_tag = ""
     container_names: dict[str, str] = {}
+    baseline_compose_text = ""
+    baseline_env_path: Path | None = None
+    extra_services: tuple[str, ...] = ()
+    preserve_baseline_topology = False
     if args.mode == "fresh-empty":
         package_name = f"{PACKAGE_PREFIX}-full-{release_id}"
         backend_tag = image_tag
@@ -366,6 +517,16 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         baseline_backend_tag = read_deployment_image_tag(baseline_dir, BACKEND_IMAGE)
         baseline_frontend_tag = read_deployment_image_tag(baseline_dir, FRONTEND_IMAGE)
         container_names = read_baseline_container_names(baseline_dir)
+        baseline_compose_path = baseline_dir / "docker-compose.yml"
+        baseline_compose_text = baseline_compose_path.read_text(encoding="utf-8")
+        site_env_path = baseline_dir / ".env"
+        if site_env_path.is_file():
+            baseline_env_path = site_env_path
+        services = compose_service_names(baseline_compose_text)
+        extra_services = tuple(
+            name for name in services if name not in ("postgres", "backend", "frontend")
+        )
+        preserve_baseline_topology = bool(extra_services)
         backend_tag = image_tag
         frontend_tag = image_tag
         baseline_name = baseline_dir.name
@@ -396,11 +557,16 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
+        require_ods_correction=args.require_ods_correction,
         frontend_port=args.frontend_port,
         backend_port=args.backend_port,
         postgres_port=args.postgres_port,
         ldap_base_url=args.ldap_base_url,
         include_offline_docker_debs=args.include_offline_docker_debs,
+        baseline_compose_text=baseline_compose_text,
+        baseline_env_path=baseline_env_path,
+        extra_services=extra_services,
+        preserve_baseline_topology=preserve_baseline_topology,
     )
 
 
@@ -599,6 +765,7 @@ BACKUP_CHECKSUM_FILES=(
   postgres.inspect.json
   compose-images.txt
   flyway-before.txt
+  flyway-history.txt
   counts-before.txt
   database.dump
   critical-tables.dump
@@ -682,10 +849,10 @@ normalized_networks = {
     for key, spec in networks.items()
 }
 services = {}
-for service_name in ("postgres", "backend", "frontend"):
+for service_name in sorted(config.get("services", {})):
     service = config.get("services", {}).get(service_name)
     if service is None:
-        raise SystemExit(f"missing service: {service_name}")
+        continue
     mounts = []
     for mount in service.get("volumes", []):
         source = mount.get("source", "")
@@ -729,16 +896,85 @@ import json, sys
 current, candidate = map(json.loads, sys.argv[1:3])
 if current["project"] != candidate["project"]:
     raise SystemExit("Compose project identity changed")
-for key in ("qaflex_pgdata", "qaflex_backend_logs"):
-    if current["volumes"].get(key) != candidate["volumes"].get(key):
-        raise SystemExit(f"persistent volume identity changed: {key}")
+if current["volumes"] != candidate["volumes"]:
+    raise SystemExit("persistent volume identity changed")
 if current["networks"] != candidate["networks"]:
     raise SystemExit("Compose network identity changed")
 if current["services"] != candidate["services"]:
-    raise SystemExit("Compose ports or mount identity changed")
-' "$current_identity" "$candidate_identity" || fail "candidate Compose changes project, volume, network, port, or mount identity"
-  CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$current_identity")" || fail "PostgreSQL volume is not declared"
-  CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$current_identity")" || fail "backend log volume is not declared"
+    raise SystemExit("Compose service, ports or mount identity changed")
+' "$current_identity" "$candidate_identity" || fail "candidate Compose changes project, volume, network, service, port, or mount identity"
+  CURRENT_POSTGRES_VOLUME="$(resolve_volume_for_mount "$current_json" postgres /var/lib/postgresql/data)" || fail "PostgreSQL volume is not declared"
+  CURRENT_BACKEND_LOG_VOLUME="$(resolve_volume_for_mount "$current_json" backend /app/logs)" || fail "backend log volume is not declared"
+}
+
+resolve_volume_for_mount() {
+  # Resolve the named volume behind a service mount from the effective Compose
+  # model. 不同基线的卷键与 `.env` 变量名不同（验收套件为 platform_db/platform_logs，
+  # 标准包为 qaflex_pgdata/qaflex_backend_logs），不能按固定键读取。
+  local config_json="$1" service="$2" target="$3"
+  python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+service_name, target = sys.argv[1:3]
+service = config.get("services", {}).get(service_name)
+if service is None:
+    raise SystemExit(f"missing service: {service_name}")
+volumes = config.get("volumes", {})
+project = config.get("name")
+for mount in service.get("volumes", []):
+    if mount.get("type") == "volume" and mount.get("target") == target:
+        source = mount.get("source", "")
+        spec = volumes.get(source, {})
+        name = spec.get("name") or (f"{project}_{source}" if project else source)
+        if not name:
+            raise SystemExit(f"{service_name} mount {target} has no persistent volume name")
+        print(name)
+        raise SystemExit(0)
+raise SystemExit(f"{service_name} has no named volume mounted at {target}")
+' "$service" "$target" <<< "$config_json" || fail "cannot resolve persistent volume for $service mount $target"
+}
+
+resolve_health_addresses() {
+  # 回滚会在应用停止后再启动，`compose port` 此时没有容器可查；
+  # 健康地址必须来自生效 Compose 的发布端口，而不是运行中容器的临时映射。
+  local config_json
+  config_json="$(compose config --format json)" || fail "cannot resolve effective Compose configuration"
+  {
+    read -r BACKEND_HEALTH_ADDR
+    read -r FRONTEND_HEALTH_ADDR
+  } < <(python3 -c '
+import json, sys
+
+config = json.load(sys.stdin)
+
+def address(service_name, target_port):
+    service = config.get("services", {}).get(service_name)
+    if service is None:
+        raise SystemExit(f"missing service: {service_name}")
+    for port in service.get("ports", []):
+        if int(port.get("target", 0)) == target_port:
+            published = str(port.get("published") or "")
+            if not published:
+                raise SystemExit(f"{service_name} port {target_port} has no published host port")
+            host = str(port.get("host_ip") or "127.0.0.1")
+            if host in ("0.0.0.0", "::", "[::]"):
+                host = "127.0.0.1"
+            return f"{host}:{published.split(chr(45))[0]}"
+    raise SystemExit(f"{service_name} has no published port {target_port}")
+
+print(address("backend", 18080))
+print(address("frontend", 80))
+' <<< "$config_json") || fail "cannot resolve published host ports from the effective Compose model"
+  [[ -n "$BACKEND_HEALTH_ADDR" && -n "$FRONTEND_HEALTH_ADDR" ]] || fail "cannot resolve published host ports from the effective Compose model"
+}
+
+probe_application_endpoint() {
+  local service="$1"
+  case "$service" in
+    backend) curl -fsS "http://$BACKEND_HEALTH_ADDR/actuator/health" >/dev/null ;;
+    frontend) curl -fsS "http://$FRONTEND_HEALTH_ADDR/" >/dev/null ;;
+    *) return 1 ;;
+  esac
 }
 
 verify_container_volume_mount() {
@@ -918,6 +1154,107 @@ volumes:
 """
 
 
+def preserved_compose_content(ctx: BuildContext) -> str:
+    """在基线完整 Compose 上只替换应用镜像并补运行模式开关。
+
+    验收套件等实例的 Compose 除 postgres/backend/frontend 外还包含 gitlab 等服务和
+    变量镜像引用；重新生成标准三服务模型会删除这些服务、卷和端口。这里保留基线全文，
+    只变更平台应用镜像和迁移/调度开关，其它服务、卷、网络、挂载、端口与变量约定不变。
+    """
+    text = ctx.baseline_compose_text
+    if not text.strip():
+        fail("baseline Compose content is unavailable for a topology-preserving package")
+    lines = text.splitlines()
+    lines = _replace_service_image(lines, "backend", f"{BACKEND_IMAGE}:{ctx.backend_tag}")
+    lines = _replace_service_image(lines, "frontend", f"{FRONTEND_IMAGE}:{ctx.frontend_tag}")
+    lines = _ensure_service_setting(
+        lines, "backend", "PLATFORM_RUN_MODE", "${PLATFORM_RUN_MODE:-service}"
+    )
+    lines = _ensure_service_setting(
+        lines,
+        "backend",
+        "PLATFORM_BACKGROUND_JOBS_ENABLED",
+        "${PLATFORM_BACKGROUND_JOBS_ENABLED:-${BACKGROUND_JOBS_ENABLED:-false}}",
+    )
+    result = "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+    services = compose_service_names(result)
+    expected = {"postgres", "backend", "frontend", *ctx.extra_services}
+    if set(services) != expected:
+        fail(
+            "baseline service topology changed while preparing the release Compose: "
+            f"{services} -> {sorted(expected)}"
+        )
+    return result
+
+
+def _replace_service_image(lines: list[str], service: str, reference: str) -> list[str]:
+    start = _service_start(lines, service)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            break
+        if indent == 4 and line.strip().startswith("image:"):
+            lines[index] = f"    image: {reference}"
+            return lines
+    fail(f"baseline Compose service {service} does not declare an image")
+
+
+def _ensure_service_setting(
+    lines: list[str], service: str, key: str, value: str
+) -> list[str]:
+    start = _service_start(lines, service)
+    block_end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.strip() and not line.startswith((" ", "\t")):
+            block_end = index
+            break
+        indent = len(line) - len(line.lstrip())
+        if indent == 2 and line.strip().endswith(":"):
+            block_end = index
+            break
+    environment_index: int | None = None
+    environment_end = block_end
+    for index in range(start + 1, block_end):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        stripped = line.strip()
+        if indent == 4 and stripped == "environment:":
+            environment_index = index
+            for candidate in range(index + 1, block_end):
+                candidate_line = lines[candidate]
+                candidate_indent = len(candidate_line) - len(candidate_line.lstrip())
+                if candidate_line.strip() and candidate_indent <= 4:
+                    environment_end = candidate
+                    break
+            break
+    entry = f"      {key}: \"{value}\""
+    if environment_index is not None:
+        for index in range(environment_index + 1, environment_end):
+            line = lines[index]
+            indent = len(line) - len(line.lstrip())
+            if indent == 6 and line.strip().startswith(f"{key}:"):
+                lines[index] = entry
+                return lines
+    else:
+        image_index = next(
+            index
+            for index in range(start + 1, block_end)
+            if (len(lines[index]) - len(lines[index].lstrip())) == 4
+            and lines[index].strip().startswith("image:")
+        )
+        lines.insert(image_index + 1, "    environment:")
+        environment_index = image_index + 1
+        environment_end = environment_index + 1
+    lines.insert(environment_end, entry)
+    return lines
+
+
 def initialize_layout(ctx: BuildContext) -> None:
     if ctx.archive_path.exists():
         fail(f"archive already exists: {ctx.archive_path}")
@@ -1060,27 +1397,224 @@ sudo docker compose --env-file .env config
 
 
 def incremental_readme(ctx: BuildContext) -> str:
+    scope_labels = {
+        "issue": "议题事实（issue）",
+        "merge-request": "MR 事实（merge-request）",
+        "all": "议题事实与 MR 事实（all）",
+    }
+    scope_label = scope_labels[ctx.fact_rebuild_scope] if ctx.require_fact_rebuild else "无"
+    if ctx.preserve_baseline_topology:
+        extra_services = "、".join(ctx.extra_services)
+        container_inventory = (
+            f"列出的容器必须包含本实例的 postgres、backend、frontend 三个平台服务；"
+            f"基线中的其它服务（{extra_services}）必须保留，升级和回滚不得停止或重建它们。"
+        )
+        volume_warning = "- 不要删除任何平台 PostgreSQL volume，也不要删除或重建基线中的其它数据卷（包括 GitLab 数据卷）。"
+        running_inventory = (
+            f"检查当前平台三个服务均在运行（postgres 必须为 healthy），"
+            f"基线中的其它服务（{extra_services}）保持原状："
+        )
+        topology_note = (
+            f"本包沿用直接基线的完整服务拓扑（postgres、backend、frontend、{extra_services}），"
+            "只替换 backend/frontend 应用镜像；GitLab 等其它服务、网络、卷、挂载、端口与现场 `.env` 均保持不变。"
+        )
+    else:
+        container_inventory = "列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。"
+        volume_warning = "- 不要删除 `qaflex_pgdata` 或任何 PostgreSQL volume。"
+        running_inventory = "检查当前三个服务均在运行，postgres 必须为 healthy："
+        topology_note = ""
     if ctx.require_fact_rebuild:
         fact_section = f"""\
-## 6. 历史 ODS 时刻纠正与事实层重建
+## 6. 事实层重建与完成判据
 
-本更新包标记为需要事实层重建，并且包含 ODS 时刻写入修复。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次全量补偿，不能只重建事实层，也不能用普通全量同步替代。
+本更新包标记为需要事实层重建，重建范围：{scope_label}。重建只基于平台库现有 ODS 行重算事实和统计快照，不重新拉取 GitLab，不执行 GitLab 全量同步，也不要求历史 ODS 时刻纠正或全量补偿对账。
 
-执行顺序：
+升级脚本恢复后台调度后，先观察自动事实刷新是否完成本次范围的重建。若自动刷新没有覆盖本次变更，或发布要求立即完成，使用具备数据同步权限的 LDAP 账号登录，在“系统设置/数据镜像设置”中提交一次对应范围的手动事实重建；不要触发 GitLab 全量同步、全量补偿对账或清空快照。
 
-1. 确认当前没有运行中的镜像同步或事实任务，且 `sync_runs`、`fact_build_tasks` 无 `QUEUED/RUNNING`。
-2. 使用具备数据同步权限的 LDAP 账号登录平台，在“系统设置/数据镜像设置”中对目标数据源触发一次“全量补偿同步”。该操作按主键重新读取全部白名单来源行并强制覆盖 ODS，不清库、不重置水位、不截断表；完成后自动触发全量事实刷新。
-3. 等待全量补偿运行成功，并等待其自动全量事实刷新完成。完成标志：同步状态不再显示运行中，`sync_runs` 最近一条 `FULL_COMPENSATION_SCAN` 为 `SUCCESS`，`fact_build_tasks` 无待处理/运行中任务，事实发布版本已追平（`fact_change_heads.published_version >= latest_change_version`）。浏览器中客户问题页的解决周期不得出现负值。
-4. 只有在全量补偿成功且自动事实刷新完成后，才进行页面验收。`{ctx.fact_rebuild_scope}` 范围的手动事实层重建仅作为自动刷新失败后的恢复手段，不要与补偿并行执行。
+执行前确认没有活动同步、补偿或事实任务：
 
-失败边界：补偿中断时，已重读的行已按来源纠正，未处理行保持旧值；重新执行全量补偿会继续收敛，重复执行不产生额外数据漂移。补偿运行失败或未完成前，不得宣称历史数据已纠正，也不得用 `UPDATE` 加减小时、clamp 负值或删除样本绕过。普通全量同步不会强制覆盖未变化行，不能替代本步骤。
+```sql
+select count(*) as active_sync_runs
+  from sync_runs
+ where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+select count(*) as active_fact_tasks
+  from fact_build_tasks
+ where status in ('QUEUED','RUNNING','RETRY_WAITING');
+```
+
+两个计数必须都为 `0`。完成判据必须同时满足：
+
+- 本次提交的最近一次 `FACT_REFRESH` 为 `SUCCESS`，且其关联的 `fact_build_tasks` 全部为 `SUCCESS`，没有 `QUEUED/RUNNING/RETRY_WAITING/FAILED`；
+- `fact_change_heads` 中本来源 `published_version >= latest_change_version`；
+- `source_fact_publication_states` 中本来源没有待发布或非 `READY` 状态；
+- `sync_runs`、`fact_build_tasks` 没有活动任务；
+- 页面/Excel 验收通过。页面数值只是验收信号，不能替代事实任务终态与版本收敛。
+
+可直接执行的检查（在目标平台库）：
+
+```sql
+-- 最近一次事实刷新及其任务终态
+select id, status, run_type, finished_at
+  from sync_runs
+ where run_type = 'FACT_REFRESH'
+ order by id desc limit 1;
+
+select task.run_id, task.status, count(*)
+  from fact_build_tasks task
+ where task.run_id = (select id::text from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+ group by task.run_id, task.status
+ order by task.run_id, task.status;
+
+-- 未发布事实头与待发布状态，两个计数都必须为 0
+select count(*) as unpublished_heads
+  from fact_change_heads
+ where source_instance = (select source_instance from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+   and published_version < latest_change_version;
+select count(*) as pending_publication
+  from source_fact_publication_states
+ where source_instance = (select source_instance from sync_runs where run_type = 'FACT_REFRESH' order by id desc limit 1)
+   and (full_publication_requested or readiness_status <> 'READY');
+```
+
+失败边界：手动事实重建失败或中断时，按错误原因处理并重试；不得通过清空事实表、删除快照或直接 `UPDATE` 事实结果绕过。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，也不要求全量补偿对账。
 """
     else:
         fact_section = """\
 ## 6. 不执行事实层重建
 
-本更新包只替换后端和前端业务镜像，不执行事实层重建或 GitLab 全量同步。未声明事实重建不等于所有 API、图表或统计展示数值必须不变；本包仍可能包含已审阅的应用层页面、接口或统计展示修复，部署后应以发布清单和本版本验收结果为准。不要主动触发事实重建、全量同步或清空快照。
+本更新包只替换后端和前端业务镜像，不执行事实层重建、ODS 时刻纠正或 GitLab 全量同步。未声明事实重建不等于所有 API、图表或统计展示数值必须不变；本包仍可能包含已审阅的应用层页面、接口或统计展示修复，部署后应以发布清单和本版本验收结果为准。不要主动触发事实重建、全量同步、全量补偿对账或清空快照。
 """
+
+    if ctx.require_ods_correction:
+        ods_section = """\
+
+### 6.1 ODS 时刻纠正与全量补偿（本包显式声明）
+
+本包显式声明需要纠正历史 ODS 时刻。升级前由旧版本同步的 GitLab `timestamp with time zone` 镜像列可能整体偏移（典型为 -8 小时），必须在升级后执行一次“全量补偿对账”，不能只重建事实层，也不能用普通全量同步替代。
+
+全量补偿对账的正常副作用：扫描阶段按主键重读全部白名单来源行并强制覆盖 ODS；随后的删除对账阶段会把“来源已不存在”的活跃镜像行标记为 `mirror_deleted = true`（tombstone，不物理删除）。这是既有删除契约，不是清库；但要求 GitLab 来源连接指向完整、权威的当前来源库，不能是缺表、缺行或部分复制的来源。来源不完整时，对账可能把仍然存在的行误判为已删除；不要通过关闭对账、修改删除契约或手工删除 tombstone 绕过。
+
+执行顺序：
+
+1. 排除仍活跃的旧任务：确认 `sync_runs` 没有 `SUBMITTED/QUEUED/RUNNING/RETRYING/PAUSED/CANCELLING`，且 `fact_build_tasks` 没有 `QUEUED/RUNNING/RETRY_WAITING`。若从回滚恢复，先按第 7 节返回目标版本并保持自动同步关闭，不要把旧版本遗留任务与本次纠正并行。
+2. 使用具备数据同步权限的 LDAP 账号登录，在“系统设置/数据镜像设置”中对目标数据源点击“全量补偿对账”。确认来源指向完整权威库；补偿期间不要再触发普通全量同步、自动增量、手动全量事实重建或第二次补偿。
+3. 等待补偿运行和它自动提交的事实刷新显式成功。完成判据必须同时满足：
+   - 最近一条 `FULL_COMPENSATION_SCAN` 为 `SUCCESS`，且其结束后为同一配置提交的 `FACT_REFRESH` 运行为 `SUCCESS`；该事实运行关联的 `fact_build_tasks` 全部为 `SUCCESS`，没有 `QUEUED/RUNNING/RETRY_WAITING/FAILED`；
+   - `source_fact_publication_states` 中本来源没有 `full_publication_requested` 或非 `READY` 的待发布状态；本次补偿的 `source_fact_dependency_states` 没有非 `READY` 依赖；
+   - `fact_change_heads` 中本来源 `published_version >= latest_change_version`；
+   - 完整源/ODS 时刻核对完成：在 GitLab 来源库和目标 ODS 分别按主键对全部白名单表的 timestamptz 列做同一规范化哈希（或等价逐行核对），来源与 ODS 活跃行一致；来源已删除的行在 ODS 应为 tombstone 且不计入活跃比对；
+   - ODS 内部不变量：所有启用表的 timestamptz `updated_at` 必须等于 `source_updated_at at time zone 'UTC'`；
+   - `sync_runs`、`fact_build_tasks` 无活动任务，页面客户问题解决周期无负值（页面无负值只是补充信号，不能单独作为完成依据）。
+4. 补偿完成后，再按第 6 节核对本包声明的事实重建判据，然后进行页面/Excel 验收。
+
+可直接执行的检查（在目标平台库）：
+
+```sql
+-- 最近补偿与它之后提交的事实刷新
+with comp as (
+  select id, config_id, source_instance, finished_at
+    from sync_runs
+   where run_type = 'FULL_COMPENSATION_SCAN'
+   order by id desc limit 1
+)
+select comp.id as compensation_id, comp.finished_at,
+       fact.id as fact_run_id, fact.status as fact_status
+  from comp
+  left join sync_runs fact
+    on fact.run_type = 'FACT_REFRESH'
+   and fact.config_id = comp.config_id
+   and fact.id > comp.id
+ order by fact.id;
+
+-- 关联事实构建任务（要求全部 SUCCESS）
+select task.run_id, task.status, count(*)
+  from fact_build_tasks task
+ where task.run_id in (
+   select id::text
+     from sync_runs
+    where run_type = 'FACT_REFRESH'
+      and config_id = (select config_id from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+      and id > (select id from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+ )
+ group by task.run_id, task.status
+ order by task.run_id, task.status;
+
+-- 未发布事实头与待发布状态，两个计数都必须为 0
+select count(*) as unpublished_heads
+  from fact_change_heads
+ where source_instance = (select source_instance from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+   and published_version < latest_change_version;
+select count(*) as pending_publication
+  from source_fact_publication_states
+ where source_instance = (select source_instance from sync_runs where run_type = 'FULL_COMPENSATION_SCAN' order by id desc limit 1)
+   and (full_publication_requested or readiness_status <> 'READY');
+
+-- ODS 时刻不变量：timestamptz updated_at 必须等于 source_updated_at 的 UTC 投影
+do $$
+declare item record; mismatched bigint;
+begin
+  for item in
+    select state.mirror_table, state.updated_at_column
+      from sync_run_table_states state
+      join information_schema.columns column_info
+        on column_info.table_schema = current_schema()
+       and column_info.table_name = state.mirror_table
+       and column_info.column_name = state.updated_at_column
+       and column_info.data_type = 'timestamp with time zone'
+     where state.sync_enabled
+       and state.updated_at_column is not null
+       and state.updated_at_column <> ''
+  loop
+    execute format(
+      'select count(*) from %I where mirror_deleted = false and source_updated_at is not null and %I <> (source_updated_at at time zone ''UTC'')',
+      item.mirror_table, item.updated_at_column) into mismatched;
+    if mismatched > 0 then
+      raise exception 'ODS time invariant failed: %.% rows=%', item.mirror_table, item.updated_at_column, mismatched;
+    end if;
+  end loop;
+end $$;
+```
+
+完整源/ODS 时刻核对示例（每个白名单表/列重复；哈希必须一致）：
+
+```sql
+-- 在 GitLab 来源库执行
+select md5(string_agg(row_to_json(t)::text, '|' order by t.id))
+  from (
+    select id,
+           extract(epoch from updated_at) as updated_at_epoch,
+           extract(epoch from created_at) as created_at_epoch,
+           extract(epoch from closed_at) as closed_at_epoch
+      from public.issues
+  ) t;
+
+-- 在平台 ODS 库执行（活跃行；来源已删除的 tombstone 不参与）
+select md5(string_agg(row_to_json(t)::text, '|' order by t.id))
+  from (
+    select id,
+           extract(epoch from updated_at) as updated_at_epoch,
+           extract(epoch from created_at) as created_at_epoch,
+           extract(epoch from closed_at) as closed_at_epoch
+      from public.ods_gitlab_issues
+     where mirror_deleted = false
+  ) t;
+```
+
+列出需要核对的 ODS timestamptz 列：
+
+```sql
+select table_name, column_name
+  from information_schema.columns
+ where table_schema = 'public'
+   and table_name like 'ods_gitlab_%'
+   and data_type = 'timestamp with time zone'
+ order by table_name, column_name;
+```
+
+失败边界：补偿中断时，已重读的行已按来源纠正，未处理行保持旧值；重新执行全量补偿会继续收敛，重复执行不产生额外数据漂移。补偿运行失败或未完成前，不得宣称历史数据已纠正，也不得用 `UPDATE` 加减小时、clamp 负值或删除样本绕过。普通全量同步不会强制覆盖未变化行，不能替代本步骤。
+"""
+    else:
+        ods_section = ""
 
     if ctx.container_names:
         declared_names = ", ".join(f"{service}={name}" for service, name in sorted(ctx.container_names.items()))
@@ -1118,13 +1652,68 @@ sudo docker ps --format '{{{{.Names}}}} project={{{{.Label "com.docker.compose.p
   | grep -F "$(grep '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2)"
 ```
 
-列出的容器必须正好是本实例的 postgres、backend、frontend 三个服务。
+{container_inventory}
 """
+
+    restore_step_no = 6 if ctx.require_ods_correction else 4
+    failure_step_no = restore_step_no + 1
+    if ctx.require_ods_correction:
+        rollback_ods_note = (
+            "本包显式声明需要纠正历史 ODS 时刻：回滚后再次升级必须按 6.1 执行一次全量补偿对账并完成验收。"
+        )
+        rollback_action_steps = f"""\
+3. 只临时启用本次补偿的目标来源，不要启用其它来源，所有自动同步仍保持关闭。`<target_config_id>` 换成“系统设置/数据镜像设置”中本次补偿的数据源 id；若该来源原快照为停用，验收结束后由第 {restore_step_no} 步按快照还原：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+update gitlab_sync_configs
+   set source_enabled = true,
+       updated_at = current_timestamp
+ where id = <target_config_id>;
+select id, source_enabled, auto_sync_enabled from gitlab_sync_configs order by id;
+SQL
+```
+
+确认目标来源 `source_enabled = true`，其余来源保持原状且所有 `auto_sync_enabled = false`。
+
+4. 使用具备数据同步权限的 LDAP 账号，在“系统设置/数据镜像设置”中点击“全量补偿对账”。它会完整重读权威来源，纠正 ODS（包括回滚期错误时刻），并触发事实刷新；不要用 restore 旧 dump 代替。
+
+5. 按 6.1 完成判据验收：本次补偿关联的 `FACT_REFRESH`/构建任务显式成功、无失败/待处理依赖、完整源/ODS 时刻核对、事实版本收敛、无活动任务。页面/Excel 结果只是验收信号，不能单独作为完成依据。"""
+        failure_scope_text = "第 3 步至第 5 步"
+        manual_rebuild_note = (
+            f"`{ctx.fact_rebuild_scope}` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，"
+            "且不得与补偿或自动刷新并行。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，"
+            "也不能把页面/Excel 结果当作唯一完成依据。"
+        )
+    else:
+        rollback_ods_note = (
+            "本包不要求 ODS 时刻纠正，也不要求全量补偿对账；"
+            + ("回滚后再次升级只按第 6 节处理事实重建。" if ctx.require_fact_rebuild else "回滚后再次升级不需要事实重建或数据动作。")
+        )
+        if ctx.require_fact_rebuild:
+            rollback_action_steps = (
+                f"3. 本包不要求全量补偿对账，也不要临时启用来源。按第 6 节完成 `{ctx.fact_rebuild_scope}` 范围的事实重建并核对完成判据；"
+                "事实重建只基于现有 ODS，不重新拉取 GitLab，不需要全量同步。"
+            )
+            manual_rebuild_note = (
+                f"`{ctx.fact_rebuild_scope}` 范围的手动事实重建只用于自动事实刷新失败后的恢复；执行前必须确认没有活动同步、补偿或事实任务，"
+                "且不得与补偿或自动刷新并行。`all` 范围表示同时重建议题与 MR 事实，不代表需要 ODS 时刻纠正，"
+                "也不能把页面/Excel 结果当作唯一完成依据。"
+            )
+        else:
+            rollback_action_steps = "3. 本包不要求事实重建，不执行全量补偿对账，也不要临时启用来源；直接核对升级结果即可。"
+            manual_rebuild_note = (
+                "本包不要求事实重建，不要主动提交事实重建或全量补偿对账。若后续另行决定重建，再按平台常规流程执行。"
+            )
+        failure_scope_text = "第 3 步"
 
     return f"""\
 # QA Flex Platform 保数据更新包
 
 本包用于既有内网实例的受控升级。它保留现有 PostgreSQL 容器、volume、镜像表、事实表、同步状态、平台配置和业务数据，只重新创建后端与前端应用容器。
+
+{topology_note}
 
 打包基线交付物（用于识别现场升级前镜像，不是现场部署目录）：
 
@@ -1147,7 +1736,8 @@ sudo docker ps --format '{{{{.Names}}}} project={{{{.Label "com.docker.compose.p
 ## 禁止操作
 
 - 不要执行 `docker compose down -v`。
-- 不要删除 `qaflex_pgdata` 或任何 PostgreSQL volume。
+{volume_warning}
+- 不要执行 `init-env.py`、`transfer.sh target --init-target/--package` 或任何样本导入；本包不含 `.env`，现场 `.env` 在升级和回滚中保持原样。
 - 不要重建、替换或删除 postgres 容器。
 - 不要清空镜像表、事实表、同步状态、用户、页面设置或平台配置。
 - 不要在内网服务器执行 `docker build`。
@@ -1198,7 +1788,7 @@ pwd
 ls -la .env docker-compose.yml
 ```
 
-检查当前三个服务均在运行，postgres 必须为 healthy：
+{running_inventory}
 
 ```bash
 sudo docker compose --env-file .env ps
@@ -1236,7 +1826,7 @@ echo "$FAILED_BACKUP_DIR"
 ls -lh "$FAILED_BACKUP_DIR/.env" "$FAILED_BACKUP_DIR/docker-compose.yml" "$FAILED_BACKUP_DIR/database.dump"
 ```
 
-使用**本包**的回滚脚本只恢复应用配置和基线前后端；它不会执行数据库恢复，ODS 在失败期间正常新增的数据会保留：
+使用**本包**的回滚脚本只恢复应用配置和基线前后端；它不会执行数据库恢复，失败期间平台库正常新增的数据会保留：
 
 ```bash
 bash ../{ctx.package_name}/rollback.sh "$PWD" "$FAILED_BACKUP_DIR"
@@ -1270,7 +1860,7 @@ sha256sum -c SHA256SUMS.txt
 cd -
 ```
 
-备份内容包括完整数据库 `database.dump`、关键表 `critical-tables.dump`、两份可恢复内容清单、关键表行数、Flyway 版本、Compose 配置和 PostgreSQL 容器证据。完整数据库备份是灾备恢复权威；关键表备份用于快速核验和经审批的定向恢复。
+备份内容包括完整数据库 `database.dump`、关键表 `critical-tables.dump`、两份可恢复内容清单、关键表行数、Flyway 最新版本与完整已应用集合 `flyway-history.txt`、Compose 配置和 PostgreSQL 容器证据。完整数据库备份是灾备恢复权威；关键表备份用于快速核验和经审批的定向恢复。升级脚本在校验备份后把本次目录写入 `upgrade-backups/current-attempt-backup.txt`，失败恢复以该指针为准；`latest-backup.txt` 只记录最近一次成功升级。
 
 ## 4. 执行受控升级
 
@@ -1298,15 +1888,22 @@ bash ../{ctx.package_name}/upgrade.sh "$PWD" "$BACKUP_DIR"
 sudo docker compose --env-file .env ps
 ```
 
-再分别检查后端和前端：
+再分别检查后端和前端。检查地址必须取自已生效 Compose 的端口映射，**不要假设 18080/18181**（各实例端口不同，例如同一主机上还可能存在其它实例）：
 
 ```bash
-curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+BACKEND_HEALTH_ADDR="$(sudo docker compose --env-file .env port backend 18080 | tail -n 1)"
+FRONTEND_HEALTH_ADDR="$(sudo docker compose --env-file .env port frontend 80 | tail -n 1)"
+if [ -z "$BACKEND_HEALTH_ADDR" ] || [ -z "$FRONTEND_HEALTH_ADDR" ]; then echo "无法从有效 Compose 解析发布端口"; exit 1; fi
+BACKEND_HEALTH_ADDR="${{BACKEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
+FRONTEND_HEALTH_ADDR="${{FRONTEND_HEALTH_ADDR/0.0.0.0/127.0.0.1}}"
+case "$BACKEND_HEALTH_ADDR" in \\[::\\]*) BACKEND_HEALTH_ADDR="127.0.0.1${{BACKEND_HEALTH_ADDR#\\[::\\]}}" ;; esac
+case "$FRONTEND_HEALTH_ADDR" in \\[::\\]*) FRONTEND_HEALTH_ADDR="127.0.0.1${{FRONTEND_HEALTH_ADDR#\\[::\\]}}" ;; esac
+echo "backend=$BACKEND_HEALTH_ADDR frontend=$FRONTEND_HEALTH_ADDR"
+curl -fsS "http://${{BACKEND_HEALTH_ADDR}}/actuator/health"
+curl -fsS "http://${{FRONTEND_HEALTH_ADDR}}/"
 ```
 
-```bash
-curl -fsS http://127.0.0.1:{ctx.frontend_port}/
-```
+两条命令都要成功：后端必须输出 `{{"status":"UP"}}`，前端返回 200。浏览器入口使用上面打印的 `frontend=` 地址（不要沿用其它实例的端口）。
 
 查看脚本记录的本次备份目录，保留输出供回滚使用：
 
@@ -1328,27 +1925,152 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 
 使用 LDAP v0.3 账号登录；旧本地 `admin/admin123` 必须被拒绝。LDAP 不可用时，新登录失败，已有 Session 可继续使用到退出或过期。
 
-{fact_section}
+{fact_section}{ods_section}
+## 7. 升级失败或必须回滚：应用回滚与数据恢复边界
 
-## 7. 仅在升级失败时回滚应用
+### 7.1 回滚边界
 
-应用回滚命令会原子恢复升级前完整 `docker-compose.yml` 并重新创建旧后端/前端容器；现场 `.env` 在升级和回滚中均不修改。它不会自动执行 `pg_restore`，避免误覆盖现场数据：
+- 应用回滚只恢复升级前的 `docker-compose.yml` 和基线前后端镜像；不回退数据库、ODS、事实、统计或 Flyway 迁移，也不执行 `pg_restore`。
+- 回滚期旧应用可能继续写入数据，回滚前必须暂停同步和后台任务（7.2）。
+- 正常升级并继续运行目标版本不需要本节流程；只有回滚到旧应用时才需要。
+- `rollback.sh` 先比较当前库已应用迁移集合（版本+checksum）与本次备份的 `flyway-history.txt`：完全一致才安装旧 Compose 并启动旧应用；不一致时停止 backend/frontend、写入 `ROLLBACK_REQUIRES_DATABASE_RESTORE` 并以退出码 3 结束，先按 7.5 恢复配套数据库后再用同一备份目录重跑。
+- {rollback_ods_note}
 
-先读取上一步保存的备份目录，并检查其中确实存在配置和数据库备份：
+回滚流程只使用平台已有的后台调度开关、同步配置开关、活跃任务处理和现场维护窗口，不新增数据库表、函数或触发器。
 
-```bash
-BACKUP_DIR="$(cat upgrade-backups/latest-backup.txt)"
-echo "$BACKUP_DIR"
-ls -lh "$BACKUP_DIR"
+### 7.2 回滚前：在旧应用启动前暂停同步
+
+1. 进入维护窗口：通知用户停止操作并关闭外部访问；恢复验证完成前不要重新开放。以下步骤只允许运维执行。
+2. 处理活跃任务。先在当前版本的同步页面等待或取消正在运行的同步、补偿和事实任务，然后在平台库确认两个计数都为 0：
+
+```sql
+select count(*) as active_sync_runs
+  from sync_runs
+ where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+select count(*) as active_fact_tasks
+  from fact_build_tasks
+ where status in ('QUEUED','RUNNING','RETRY_WAITING');
 ```
 
-确认路径无误后执行应用回滚：
+3. 先保存各来源的原开关值，再统一关闭。快照文件必须保留到恢复验收结束；后续恢复按 `config_id` 逐项还原，不能用“全部启用”覆盖原停用或手工模式：
 
 ```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL' > sync-config-flags.before.tsv
+select id || chr(9) ||
+       case when source_enabled then 'true' else 'false' end || chr(9) ||
+       case when auto_sync_enabled then 'true' else 'false' end
+  from gitlab_sync_configs
+ order by id;
+SQL
+cat sync-config-flags.before.tsv
+```
+
+`sync-config-flags.before.tsv` 每行是 `config_id<TAB>source_enabled<TAB>auto_sync_enabled`；确认行数等于数据源数量后，关闭所有来源：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+update gitlab_sync_configs
+   set source_enabled = false,
+       auto_sync_enabled = false,
+       updated_at = current_timestamp;
+select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;
+SQL
+```
+
+最后一行必须输出 `0`。
+
+4. 执行应用回滚。`current-attempt-backup.txt` 由本次升级在校验备份后写入，失败时直接指向本次使用的备份，不会误用上一次成功升级的 `latest-backup.txt`：
+
+```bash
+BACKUP_DIR="$(cat upgrade-backups/current-attempt-backup.txt)"
+echo "$BACKUP_DIR"
 bash ../{ctx.package_name}/rollback.sh "$PWD" "$BACKUP_DIR"
 ```
 
-Flyway 迁移是前向迁移。只有应用回滚仍不能恢复服务时，才在停机并确认备份无误后，将 `database.dump` 恢复到隔离数据库或经审批重建的平台库。
+`rollback.sh` 在替换 Compose 前会停止 backend/frontend，再次确认没有活动任务且所有同步开关为关闭，然后比较迁移集合；一致时用 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 启动旧 backend，不一致时按 7.5 处理并退出 3。它不修改 `.env`。
+
+5. 验证旧应用处于暂停态：
+
+```bash
+sudo docker inspect "$(sudo docker compose --env-file .env ps -q backend)" --format '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=false$'
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;
+select count(*) from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');
+SQL
+```
+
+第一条必须输出 `PLATFORM_BACKGROUND_JOBS_ENABLED=false`，后两行必须依次输出 `0`、`0`。
+
+6. 维护窗口保持关闭。旧应用页面仍可能显示同步按钮；不要点击，也不要直接调用同步、全量补偿或事实重建 API。暂停保护来自上述既有开关、活动任务清空和维护窗口，本包没有数据库级守卫；若绕过这些控制使用旧应用写入，回滚期新增或变更的数据会按旧版本口径进入平台库。
+
+### 7.3 回滚期数据与再次升级后的恢复顺序
+
+应用回滚不会删除回滚期新增数据，也不回退数据库。再次升级到目标版本后按本包声明完成数据动作：
+
+1. 再次备份。旧应用保持暂停态时，用本包 `backup.sh "$PWD"` 生成回滚期备份，保留新增数据与证据。
+2. 再升级到目标版本。使用新备份目录执行 `upgrade.sh "$PWD" "$BACKUP_DIR"`。升级后新 backend 默认启用后台调度，但同步开关仍为关闭，不会自动同步。
+{rollback_action_steps}
+{restore_step_no}. 验收全部通过后，按 `sync-config-flags.before.tsv` 逐项恢复每个来源的原值。该快照包含原停用（`false/false`）和手工模式（`true/false`），恢复时必须逐行写回，不能用全局“全部启用/自动同步”语句：
+
+```bash
+while IFS=$'\\t' read -r config_id source_enabled auto_sync_enabled; do
+  [[ "$config_id" =~ ^[0-9]+$ ]] || {{ echo "invalid config id: $config_id" >&2; exit 1; }}
+  [[ "$source_enabled" =~ ^(true|false)$ ]] || {{ echo "invalid source_enabled: $source_enabled" >&2; exit 1; }}
+  [[ "$auto_sync_enabled" =~ ^(true|false)$ ]] || {{ echo "invalid auto_sync_enabled: $auto_sync_enabled" >&2; exit 1; }}
+  sudo docker compose --env-file .env exec -T postgres sh -c \\
+    'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<SQL
+update gitlab_sync_configs
+   set source_enabled = $source_enabled,
+       auto_sync_enabled = $auto_sync_enabled,
+       updated_at = current_timestamp
+ where id = $config_id;
+SQL
+done < sync-config-flags.before.tsv
+```
+
+恢复后重新导出当前值并与原快照逐字节比较，差异必须为空：
+
+```bash
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL' > sync-config-flags.after.tsv
+select id || chr(9) ||
+       case when source_enabled then 'true' else 'false' end || chr(9) ||
+       case when auto_sync_enabled then 'true' else 'false' end
+  from gitlab_sync_configs
+ order by id;
+SQL
+diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv
+```
+
+`diff` 必须无输出，才能确认原停用和手工模式均已保留。随后观察一轮原 `auto_sync_enabled=true` 来源的自动增量、事实刷新和页面/Excel，最后重新开放维护窗口。
+
+{failure_step_no}. {failure_scope_text}失败或中断时，不要恢复开关；按第 6 节失败边界处理。整库恢复必须单独审批。
+
+### 7.4 手动事实重建的边界
+
+{manual_rebuild_note}
+
+### 7.5 迁移集合不一致：先恢复配套数据库
+
+`rollback.sh` 检测到当前库已应用迁移集合（版本+checksum）与本次备份的 `flyway-history.txt` 不一致时，会停止 backend/frontend、写入 `ROLLBACK_REQUIRES_DATABASE_RESTORE` 并以退出码 3 结束；它不会启动旧应用，也不会自动改写数据库。
+
+1. 确认维护窗口未开放，记录脚本输出的 `$BACKUP_DIR`。
+2. 按经批准的数据库恢复流程，把该目录的 `database.dump` 恢复到平台库。
+3. 在停机状态核对恢复后的集合与备份完全一致：
+
+```bash
+BACKUP_DIR="$(cat upgrade-backups/current-attempt-backup.txt)"
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select version || chr(124) || coalesce(checksum::text, chr(39) || chr(39)) from flyway_schema_history where success order by installed_rank;"' > live-flyway-history.txt
+diff -u "$BACKUP_DIR/flyway-history.txt" live-flyway-history.txt
+```
+
+`diff` 必须无输出。
+
+4. 再次执行同一回滚命令；只有集合一致后才会安装旧 Compose 并启动旧应用。
 """
 
 
@@ -1389,13 +2111,14 @@ db_query() {{
 
 BASE_CONFIG="$(compose config --format json)" || fail "current Compose configuration cannot be resolved"
 verify_compose_images "$BASE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEND"
-BASE_IDENTITY="$(compose_identity <<< "$BASE_CONFIG")" || fail "current Compose identity cannot be read"
-CURRENT_POSTGRES_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_pgdata"])' <<< "$BASE_IDENTITY")" || fail "PostgreSQL volume is not declared"
-CURRENT_BACKEND_LOG_VOLUME="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["qaflex_backend_logs"])' <<< "$BASE_IDENTITY")" || fail "backend log volume is not declared"
+CURRENT_POSTGRES_VOLUME="$(resolve_volume_for_mount "$BASE_CONFIG" postgres /var/lib/postgresql/data)" || fail "PostgreSQL volume is not declared"
+CURRENT_BACKEND_LOG_VOLUME="$(resolve_volume_for_mount "$BASE_CONFIG" backend /app/logs)" || fail "backend log volume is not declared"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ -n "$ENV_POSTGRES_VOLUME" && "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ -n "$ENV_BACKEND_LOG_VOLUME" && "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+# 标准基线通过 .env 声明卷变量；验收套件基线不声明，其卷身份由完整 Compose 的
+# 服务挂载与容器实际挂载交叉验证。若变量存在则必须与解析结果一致。
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
@@ -1420,6 +2143,7 @@ printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
 "${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
 compose images > "$BACKUP_DIR/compose-images.txt"
 db_query "select coalesce(version,'') || '|' || success from flyway_schema_history order by installed_rank desc limit 1;" > "$BACKUP_DIR/flyway-before.txt"
+db_query "select version || '|' || coalesce(checksum::text,'') from flyway_schema_history where success order by installed_rank;" > "$BACKUP_DIR/flyway-history.txt"
 
 CRITICAL_TABLES=(gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact integration_test_fact issue_fact_customer_members sync_runs sync_run_table_tasks fact_build_tasks review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records platform_ldap_users platform_ldap_roles platform_ldap_user_roles platform_permissions platform_role_permissions platform_default_role_permissions issue_scope_catalogs issue_scope_groups issue_scope_members statistic_board_snapshots page_record_snapshots)
 TABLE_ARGS=()
@@ -1456,11 +2180,19 @@ log "verified pre-deployment backup completed: $BACKUP_DIR"
 
 
 def upgrade_helper(ctx: BuildContext) -> str:
-    completion_message = (
-        f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' before final statistics acceptance"
-        if ctx.require_fact_rebuild
-        else "fact rebuild is not required for this release"
-    )
+    if ctx.require_fact_rebuild:
+        if ctx.require_ods_correction:
+            completion_message = (
+                f"login with LDAP, rebuild fact scope '{ctx.fact_rebuild_scope}' from existing ODS, "
+                "and run the declared ODS correction (full compensation) before final statistics acceptance"
+            )
+        else:
+            completion_message = (
+                f"login with LDAP and rebuild fact scope '{ctx.fact_rebuild_scope}' from existing ODS "
+                "before final statistics acceptance; full compensation is not required"
+            )
+    else:
+        completion_message = "fact rebuild is not required for this release"
     return f"""\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1503,6 +2235,8 @@ read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
 [[ "$BACKUP_DIR" == "$(realpath -e -- "$BACKUP_DIR")" ]] || fail "backup path must be canonical"
 cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
 [[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
+printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/current-attempt-backup.txt"
+log "upgrade attempt backup: $BACKUP_DIR"
 
 compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
@@ -1519,8 +2253,8 @@ verify_compose_images "$TARGET_CONFIG" "{BACKEND_IMAGE}:{ctx.backend_tag}" "{FRO
 verify_configured_volumes "$BASE_CONFIG" "$TARGET_CONFIG"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
 POSTGRES_ID="$(compose ps -q postgres)"
@@ -1570,11 +2304,7 @@ cp "$TARGET_COMPOSE" "$TEMP_COMPOSE"
 "${{DOCKER[@]}}" compose --env-file .env -f "$TEMP_COMPOSE" config >/dev/null
 mv -f "$TEMP_COMPOSE" docker-compose.yml
 trap - EXIT
-BACKEND_HEALTH_PORT="$(awk -F= '$1 == "BACKEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-FRONTEND_HEALTH_PORT="$(awk -F= '$1 == "FRONTEND_PORT" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-BACKEND_HEALTH_PORT="${{BACKEND_HEALTH_PORT:-{ctx.backend_port}}}"
-FRONTEND_HEALTH_PORT="${{FRONTEND_HEALTH_PORT:-{ctx.frontend_port}}}"
-
+resolve_health_addresses
 wait_healthy() {{
   local service="$1" timeout_seconds="$2" started container status
   started="$(date +%s)"
@@ -1582,6 +2312,11 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
+    # 基线可能未声明应用健康检查；此时以实际 HTTP 端点作为健康判据，
+    # 不能把 running 当成 healthy，也不能为适配而放宽 unhealthy 判据。
+    if [[ "$status" == "running" || "$status" == "created" || -z "$status" ]]; then
+      probe_application_endpoint "$service" && return 0
+    fi
     if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
       compose logs --no-color --tail 80 "$service" >&2 || true
       fail "$service entered state $status (service health is separate from migration completion)"
@@ -1629,7 +2364,13 @@ diff -u "$BACKUP_DIR/counts-migration-start.txt" "$BACKUP_DIR/counts-after-migra
 [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || fail "postgres container changed unexpectedly"
 
 log "recreating backend with normal background scheduling"
-PLATFORM_RUN_MODE=service PLATFORM_BACKGROUND_JOBS_ENABLED=true compose up -d --no-deps --force-recreate backend
+(
+  # `compose` is a shell function: a VAR=value prefix is not exported to its
+  # docker child process, so the flags must be exported by a subshell.
+  export PLATFORM_RUN_MODE=service
+  export PLATFORM_BACKGROUND_JOBS_ENABLED=true
+  compose up -d --no-deps --force-recreate backend
+)
 wait_healthy backend 900
 BACKEND_ID="$(compose ps -q backend)"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$BACKEND_ID" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1)" == "PLATFORM_BACKGROUND_JOBS_ENABLED=true" ]] || fail "normal background scheduling mode was not restored"
@@ -1638,8 +2379,8 @@ BACKEND_ID="$(compose ps -q backend)"
 log "recreating frontend after backend migration and health verification"
 compose up -d --no-deps --force-recreate frontend
 wait_healthy frontend 300
-curl -fsS "http://127.0.0.1:${{BACKEND_HEALTH_PORT}}/actuator/health" > "$BACKUP_DIR/backend-health.json"
-curl -fsS "http://127.0.0.1:${{FRONTEND_HEALTH_PORT}}/" > /dev/null
+curl -fsS "http://${{BACKEND_HEALTH_ADDR}}/actuator/health" > "$BACKUP_DIR/backend-health.json"
+curl -fsS "http://${{FRONTEND_HEALTH_ADDR}}/" > /dev/null
 printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/latest-backup.txt"
 
 log "upgrade completed; backup: $BACKUP_DIR"
@@ -1681,6 +2422,8 @@ read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
 [[ "$BACKUP_MANIFEST_PACKAGE_NAME" == "$PACKAGE_NAME" ]] || fail "pre-deployment backup belongs to another release package"
 [[ "$BACKUP_MANIFEST_BACKEND" == "$EXPECTED_BACKEND" ]] || fail "pre-deployment backup backend baseline mismatch"
 [[ "$BACKUP_MANIFEST_FRONTEND" == "$EXPECTED_FRONTEND" ]] || fail "pre-deployment backup frontend baseline mismatch"
+grep -q 'PLATFORM_BACKGROUND_JOBS_ENABLED' "$BACKUP_DIR/docker-compose.yml" \
+  || fail "baseline Compose does not pass PLATFORM_BACKGROUND_JOBS_ENABLED; the old application cannot be started paused"
 cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
 [[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
 
@@ -1698,6 +2441,24 @@ POSTGRES_ID="$(resolve_service_container postgres "$CURRENT_PROJECT")"
 [[ -n "$POSTGRES_ID" ]] || fail "no postgres container claims the current Compose project identity"
 verify_container_compose_identity "$POSTGRES_ID" postgres "$CURRENT_PROJECT"
 [[ "$("${{DOCKER[@]}}" inspect -f '{{{{.State.Health.Status}}}}' "$POSTGRES_ID")" == "healthy" ]] || fail "postgres is not healthy"
+
+assert_paused_prerequisites() {{
+  local enabled_configs active_runs active_fact_tasks
+  enabled_configs="$(db_query "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;")" \
+    || fail "cannot verify sync configuration switches"
+  [[ "$enabled_configs" == "0" ]] \
+    || fail "one or more sync configs are still enabled (count=$enabled_configs); disable source and automatic sync, wait for active tasks, then rerun rollback"
+  active_runs="$(db_query "select coalesce(string_agg(id::text || ':' || run_type || ':' || status, ','), '') from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');")" \
+    || fail "cannot verify active sync runs"
+  [[ -z "$active_runs" ]] \
+    || fail "active sync runs remain ($active_runs); wait or cancel them in the current application before rollback"
+  active_fact_tasks="$(db_query "select coalesce(string_agg(id::text || ':' || status, ','), '') from fact_build_tasks where status in ('QUEUED','RUNNING','RETRY_WAITING');")" \
+    || fail "cannot verify active fact build tasks"
+  [[ -z "$active_fact_tasks" ]] \
+    || fail "active fact build tasks remain ($active_fact_tasks); wait or cancel them in the current application before rollback"
+}}
+
+assert_paused_prerequisites
 # A stopped or exited backend is the situation rollback exists for; only its verifiable
 # Compose identity and mounts are required, never that it is currently running.
 BACKEND_ID="$(resolve_service_container backend "$CURRENT_PROJECT")"
@@ -1716,8 +2477,8 @@ verify_compose_images "$CANDIDATE_CONFIG" "$EXPECTED_BACKEND" "$EXPECTED_FRONTEN
 verify_configured_volumes "$CURRENT_CONFIG" "$CANDIDATE_CONFIG"
 ENV_POSTGRES_VOLUME="$(awk -F= '$1 == "POSTGRES_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
 ENV_BACKEND_LOG_VOLUME="$(awk -F= '$1 == "BACKEND_LOG_VOLUME_NAME" {{print substr($0, index($0, "=") + 1)}}' .env | tail -n 1)"
-[[ "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is missing or inconsistent in .env"
-[[ "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is missing or inconsistent in .env"
+[[ -z "$ENV_POSTGRES_VOLUME" || "$ENV_POSTGRES_VOLUME" == "$CURRENT_POSTGRES_VOLUME" ]] || fail "PostgreSQL volume identity is inconsistent between .env and Compose"
+[[ -z "$ENV_BACKEND_LOG_VOLUME" || "$ENV_BACKEND_LOG_VOLUME" == "$CURRENT_BACKEND_LOG_VOLUME" ]] || fail "backend log volume identity is inconsistent between .env and Compose"
 [[ "$POSTGRES_ID" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "PostgreSQL container changed after the pre-deployment backup"
 verify_named_volume_exists "$CURRENT_POSTGRES_VOLUME"
 verify_named_volume_exists "$CURRENT_BACKEND_LOG_VOLUME"
@@ -1740,6 +2501,22 @@ cp -p "$TEMP_COMPOSE" "$RECOVERY_DIR/rollback-candidate-compose.yml" || fail "ca
 printf '%s\n' "PREFLIGHT_PASSED" > "$RECOVERY_DIR/state.txt"
 log "rollback recovery evidence: $RECOVERY_DIR"
 
+CURRENT_HISTORY="$(db_query "select version || '|' || coalesce(checksum::text,'') from flyway_schema_history where success order by installed_rank;")" || fail "cannot read the current Flyway migration set"
+BACKUP_HISTORY=""
+if [[ -f "$BACKUP_DIR/flyway-history.txt" ]]; then
+  BACKUP_HISTORY="$(<"$BACKUP_DIR/flyway-history.txt")"
+fi
+if [[ -z "$BACKUP_HISTORY" || "$CURRENT_HISTORY" != "$BACKUP_HISTORY" ]]; then
+  log "database migration set differs from the pre-upgrade backup; the old application will not be started"
+  compose stop backend frontend >/dev/null 2>&1 || true
+  printf '%s\n' "ROLLBACK_REQUIRES_DATABASE_RESTORE" > "$RECOVERY_DIR/state.txt"
+  log "restore the approved database backup first: $BACKUP_DIR/database.dump"
+  log "after restore, compare the live history with $BACKUP_DIR/flyway-history.txt and rerun rollback.sh with the same backup directory"
+  log "recovery evidence: $RECOVERY_DIR"
+  exit 3
+fi
+log "database migration set matches the pre-upgrade backup"
+
 wait_healthy() {{
   local service="$1" timeout_seconds="$2" started container status
   started="$(date +%s)"
@@ -1747,6 +2524,9 @@ wait_healthy() {{
     container="$(compose ps -q "$service")"
     status="$("${{DOCKER[@]}}" inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{else}}}}{{{{.State.Status}}}}{{{{end}}}}' "$container" 2>/dev/null || true)"
     [[ "$status" == "healthy" ]] && return 0
+    if [[ "$status" == "running" || "$status" == "created" || -z "$status" ]]; then
+      probe_application_endpoint "$service" && return 0
+    fi
     [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]] && return 1
     (( $(date +%s) - started < timeout_seconds )) || return 1
     sleep 5
@@ -1754,21 +2534,49 @@ wait_healthy() {{
 }}
 
 start_application() {{
-  compose up -d --no-deps --force-recreate backend || return 1
+  resolve_health_addresses || return 1
+  (
+    export PLATFORM_BACKGROUND_JOBS_ENABLED=false
+    compose up -d --no-deps --force-recreate backend
+  ) || return 1
   wait_healthy backend 900 || return 1
+  local backend_flag
+  backend_flag="$("${{DOCKER[@]}}" inspect -f '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}' "$(compose ps -q backend)" | grep '^PLATFORM_BACKGROUND_JOBS_ENABLED=' | tail -n 1 || true)"
+  [[ "$backend_flag" == "PLATFORM_BACKGROUND_JOBS_ENABLED=false" ]] || {{ log "baseline backend did not start with PLATFORM_BACKGROUND_JOBS_ENABLED=false"; return 1; }}
   [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
   compose up -d --no-deps --force-recreate frontend || return 1
   wait_healthy frontend 300 || return 1
   [[ "$(compose ps -q postgres)" == "$POSTGRES_ID" ]] || return 1
 }}
 
+verify_rollback_paused_state() {{
+  local enabled_configs active_runs active_fact_tasks new_runs
+  enabled_configs="$(db_query "select count(*) from gitlab_sync_configs where source_enabled or auto_sync_enabled;")" || return 1
+  [[ "$enabled_configs" == "0" ]] || {{ log "sync configs are still enabled after rollback"; return 1; }}
+  active_runs="$(db_query "select coalesce(string_agg(id::text || ':' || run_type || ':' || status, ','), '') from sync_runs where status in ('SUBMITTED','QUEUED','RUNNING','RETRYING','PAUSED','CANCELLING');")" || return 1
+  [[ -z "$active_runs" ]] || {{ log "active sync runs appeared after rollback: $active_runs"; return 1; }}
+  active_fact_tasks="$(db_query "select coalesce(string_agg(id::text || ':' || status, ','), '') from fact_build_tasks where status in ('QUEUED','RUNNING','RETRY_WAITING');")" || return 1
+  [[ -z "$active_fact_tasks" ]] || {{ log "active fact build tasks appeared after rollback: $active_fact_tasks"; return 1; }}
+  new_runs="$(db_query "select count(*) from sync_runs where id > $MAX_RUN_ID_BEFORE;")" || return 1
+  [[ "$new_runs" == "0" ]] || {{ log "old application created $new_runs new sync run(s) during rollback"; return 1; }}
+  log "paused state verified: sync configs are off and no new sync run was created after rollback"
+}}
+
+log "closing the maintenance window: stopping current backend/frontend"
+compose stop backend frontend >/dev/null 2>&1 || true
+assert_paused_prerequisites
+MAX_RUN_ID_BEFORE="$(db_query "select coalesce(max(id), 0) from sync_runs;")" || fail "cannot record the sync run baseline"
+printf 'max_sync_run_id=%s\n' "$MAX_RUN_ID_BEFORE" > "$RECOVERY_DIR/sync-run-baseline.txt"
+log "sync run baseline recorded: max_sync_run_id=$MAX_RUN_ID_BEFORE"
+
 mv -f "$TEMP_COMPOSE" "$TARGET_DIR/docker-compose.yml" || fail "cannot atomically install rollback Compose configuration"
 trap - EXIT
 printf '%s\n' "ROLLBACK_CONFIG_INSTALLED" > "$RECOVERY_DIR/state.txt"
-if start_application; then
+if start_application && verify_rollback_paused_state; then
   printf '%s\n' "ROLLBACK_SUCCEEDED" > "$RECOVERY_DIR/state.txt"
   log "application configuration and images restored; both services are healthy"
-  log "database was not rewritten; the PostgreSQL schema and data are unchanged by rollback"
+  log "old backend started with background scheduling disabled; database was not rewritten"
+  log "the PostgreSQL schema and data are unchanged by rollback; keep the maintenance window closed and follow README section 7.3 only after returning to the fixed version"
   exit 0
 fi
 
@@ -1799,13 +2607,24 @@ def write_operational_files(ctx: BuildContext) -> None:
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
     else:
         write_text(ctx.package_dir / "README-INCREMENTAL-DEPLOY.md", incremental_readme(ctx))
-        write_text(
-            ctx.package_dir / "docker-compose.yml",
-            compose_content(ctx, external_postgres_volume=True),
+        release_compose = (
+            preserved_compose_content(ctx)
+            if ctx.preserve_baseline_topology
+            else compose_content(ctx, external_postgres_volume=True)
         )
+        write_text(ctx.package_dir / "docker-compose.yml", release_compose)
         write_text(ctx.package_dir / "backup.sh", backup_helper(ctx))
         write_text(ctx.package_dir / "upgrade.sh", upgrade_helper(ctx))
         write_text(ctx.package_dir / "rollback.sh", rollback_helper(ctx))
+
+
+def fact_manifest(ctx: BuildContext) -> dict[str, object]:
+    """事实重建与 ODS 纠正是彼此独立的发布属性，不得由范围推断。"""
+    return {
+        "rebuildRequired": ctx.require_fact_rebuild,
+        "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
+        "odsCorrectionRequired": ctx.require_ods_correction,
+    }
 
 
 def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
@@ -1852,10 +2671,7 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "backendImage": f"{BACKEND_IMAGE}:{ctx.baseline_backend_tag}",
             "frontendImage": f"{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}",
         },
-        "facts": {
-            "rebuildRequired": ctx.require_fact_rebuild,
-            "scope": ctx.fact_rebuild_scope if ctx.require_fact_rebuild else None,
-        },
+        "facts": fact_manifest(ctx),
         "compose": {
             "entrypoint": "docker-compose.yml",
             "model": "single-authoritative-file",
@@ -2021,6 +2837,16 @@ def validate_forbidden_delivery_items(ctx: BuildContext) -> None:
         fail("package contains forbidden delivery items: " + ", ".join(offenders))
 
 
+def package_compose_validation_args(ctx: BuildContext) -> tuple[str | Path, ...]:
+    args: list[str | Path] = ["docker", "compose"]
+    if ctx.preserve_baseline_topology and ctx.baseline_env_path is not None:
+        # 继承现场拓扑时 Compose 仍引用现场变量，校验必须使用同一份 .env，
+        # 但该文件不进入包内，站点升级时继续使用现场原文件。
+        args.extend(("--env-file", ctx.baseline_env_path))
+    args.extend(("-f", ctx.package_dir / "docker-compose.yml", "config"))
+    return tuple(args)
+
+
 def validate_layout(ctx: BuildContext) -> None:
     for path in required_files(ctx):
         require_path(path, f"required package item {path.relative_to(ctx.package_dir)}")
@@ -2037,13 +2863,7 @@ def validate_layout(ctx: BuildContext) -> None:
             }
         )
         run(
-            (
-                "docker",
-                "compose",
-                "-f",
-                ctx.package_dir / "docker-compose.yml",
-                "config",
-            ),
+            package_compose_validation_args(ctx),
             cwd=ctx.package_dir,
             env=compose_env,
         )
@@ -2107,6 +2927,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument("--require-fact-rebuild", action="store_true")
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
+    parser.add_argument(
+        "--require-ods-correction",
+        action="store_true",
+        help="declare that historical ODS timestamps are wrong and require one full compensation after upgrade",
+    )
     parser.add_argument("--frontend-port", type=int, default=18181)
     parser.add_argument("--backend-port", type=int, default=18080)
     parser.add_argument("--postgres-port", type=int, default=15432)
@@ -2142,6 +2967,11 @@ def main(argv: Sequence[str]) -> int:
         log(f"package: {ctx.package_name}")
         log(f"backend tag: {ctx.backend_tag}")
         log(f"frontend tag: {ctx.frontend_tag}")
+        log(
+            "facts: rebuild="
+            + (ctx.fact_rebuild_scope if ctx.require_fact_rebuild else "none")
+            + f", odsCorrection={str(ctx.require_ods_correction).lower()}"
+        )
         if ctx.mode == "incremental-update":
             log(
                 "container naming: "
@@ -2167,6 +2997,12 @@ def main(argv: Sequence[str]) -> int:
                 log(f"baseline: {ctx.baseline_name}")
                 log(f"baseline backend: {BACKEND_IMAGE}:{ctx.baseline_backend_tag}")
                 log(f"baseline frontend: {FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}")
+                topology = ["postgres", "backend", "frontend", *ctx.extra_services]
+                log(f"baseline services: {', '.join(topology)}")
+                log(
+                    "compose model: "
+                    + ("preserve-baseline-topology" if ctx.preserve_baseline_topology else "standard-three-service")
+                )
             return 0
 
         backend_fallback_used, backend_build_note = build_products(args)

@@ -50,7 +50,10 @@ public class FormSchemaStartupValidator implements ApplicationRunner {
             """
             select v.id, v.scope_id, v.version_label, v.storage_kind, v.instance_table,
                    v.record_table, v.field_spec::text as field_spec, v.migration_spec::text as migration_spec,
-                   v.version_status, s.template_key
+                   v.version_status, s.template_key,
+                   (select p.protocol_version from form_template_publications p
+                     where p.to_version_id = v.id and p.stage = 'PUBLISHED'
+                     order by p.id desc limit 1) as protocol_version
               from form_template_versions v
               join form_template_scopes s on s.id = v.scope_id
              where v.version_status = 'PUBLISHED'
@@ -66,7 +69,8 @@ public class FormSchemaStartupValidator implements ApplicationRunner {
                     rs.getString("record_table"),
                     rs.getString("field_spec"),
                     rs.getString("migration_spec"),
-                    rs.getString("version_label")));
+                    rs.getString("version_label"),
+                    rs.getObject("protocol_version", Integer.class)));
     for (VersionRow version : versions) {
       validateVersion(version);
     }
@@ -104,7 +108,7 @@ public class FormSchemaStartupValidator implements ApplicationRunner {
     if (version.versionLabel() == null || version.versionLabel().isBlank()) {
       throw new IllegalStateException("已发布 RECORDS 版本缺少发布标签: " + version.id());
     }
-    boolean migrationTarget = version.migrationSpec() != null;
+    boolean migrationTarget = migrationTarget(version);
     FormVersionSchema expected =
         schemaService.generate(version.scopeId(), version.id(), spec, migrationTarget);
     if (!expected.instanceTable().equals(version.instanceTable())
@@ -112,6 +116,25 @@ public class FormSchemaStartupValidator implements ApplicationRunner {
       throw new IllegalStateException("版本 " + version.id() + " 的物理表名与元数据不一致");
     }
     structureVerifier.verify(expected);
+  }
+
+  /**
+   * 按目标版本实际采用的持久发布协议选择建表模式。
+   *
+   * <p>协议 2 的发布器始终以严格空表模式建表，不因草稿带迁移说明而改变；协议 1 保留原
+   * “有迁移说明即为迁移目标”的历史口径。缺少发布证据时拒绝启动，避免用猜测放行结构漂移。
+   */
+  private boolean migrationTarget(VersionRow version) {
+    Integer protocol = version.protocolVersion();
+    if (protocol == null) {
+      throw new IllegalStateException("已发布 RECORDS 版本缺少发布协议证据: " + version.id());
+    }
+    return switch (protocol) {
+      case 1 -> version.migrationSpec() != null;
+      case 2 -> false;
+      default -> throw new IllegalStateException(
+          "版本 " + version.id() + " 的发布协议不受支持: " + protocol);
+    };
   }
 
   private record VersionRow(
@@ -123,5 +146,6 @@ public class FormSchemaStartupValidator implements ApplicationRunner {
       String recordTable,
       String fieldSpec,
       String migrationSpec,
-      String versionLabel) {}
+      String versionLabel,
+      Integer protocolVersion) {}
 }

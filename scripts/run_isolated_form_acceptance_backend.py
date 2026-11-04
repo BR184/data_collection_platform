@@ -32,12 +32,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_HEAD = "20261029.02"
 LOOPBACK_HOSTS = {"127.0.0.1", "0.0.0.0", "localhost", "::1"}
 ADDRESS_PATTERN = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3}):(\d{2,5})\b")
 
@@ -80,6 +80,57 @@ MONGO_EXCLUDES = (
 )
 
 
+def version_sort_key(version: str) -> tuple[tuple[int, object], ...]:
+    """Flyway 版本按段比较；数字段按数值，其它段按文本。"""
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part)
+        for part in version.split(".")
+        if part
+    )
+
+
+def jar_migration_versions(jar_path: str | Path) -> list[str]:
+    """从候选 JAR 的迁移资源读取完整版本集合，避免固定旧目标值。"""
+    jar = Path(jar_path)
+    if not jar.is_file():
+        raise RuntimeError(f"candidate jar does not exist: {jar}")
+    prefix = "BOOT-INF/classes/db/migration/"
+    versions: set[str] = set()
+    try:
+        with zipfile.ZipFile(jar) as archive:
+            for name in archive.namelist():
+                if not name.startswith(prefix):
+                    continue
+                match = re.match(r"^V([0-9][A-Za-z0-9._]*)__.+\.sql$", name[len(prefix):])
+                if match:
+                    versions.add(match.group(1).replace("_", "."))
+    except zipfile.BadZipFile as error:
+        raise RuntimeError(f"candidate jar is not a readable zip: {jar}") from error
+    if not versions:
+        raise RuntimeError(f"candidate jar has no versioned Flyway migrations: {jar}")
+    return sorted(versions, key=version_sort_key)
+
+
+def resolve_expected_head(args: argparse.Namespace) -> tuple[list[str], str]:
+    """以候选 JAR 为权威解析目标迁移头；显式目标或发布清单只能与之一致。"""
+    versions = jar_migration_versions(args.jar)
+    jar_head = versions[-1]
+    if args.expected_head is not None and args.expected_head != jar_head:
+        raise RuntimeError(
+            f"explicit expected head {args.expected_head} does not match candidate jar head {jar_head}"
+        )
+    if args.release_manifest:
+        manifest_path = Path(args.release_manifest)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        declared = (manifest.get("target") or {}).get("flywayVersion")
+        if declared != jar_head:
+            raise RuntimeError(
+                f"release manifest flywayVersion {declared!r} does not match candidate jar head {jar_head}"
+            )
+    args.expected_head = jar_head
+    return versions, jar_head
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="专属库预检并只开放发布 worker 启动后端。")
     parser.add_argument("--db-container", required=True, help="专属 PostgreSQL 容器名。")
@@ -90,7 +141,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--jar", required=True, help="后端可执行 jar 路径。")
     parser.add_argument("--log", required=True, help="后端日志输出路径。")
     parser.add_argument("--evidence", required=True, help="预检/启动证据 JSON 路径。")
-    parser.add_argument("--expected-head", default=EXPECTED_HEAD, help="期望 Flyway 迁移头。")
+    parser.add_argument(
+        "--expected-head",
+        default=None,
+        help="期望 Flyway 迁移头；省略时从 --jar 的迁移资源推导，显式值必须与 JAR 一致。",
+    )
+    parser.add_argument(
+        "--release-manifest",
+        default=None,
+        help="可选发布清单；提供时其 target.flywayVersion 必须与 JAR 迁移集一致。",
+    )
     parser.add_argument("--db-password", default=os.environ.get("ACCEPTANCE_DB_PASSWORD", "w4-acceptance"))
     parser.add_argument("--admin-password", default="admin-w4-acceptance-2026")
     parser.add_argument("--health-timeout", type=int, default=180)
@@ -492,6 +552,16 @@ def main(argv: list[str] | None = None) -> int:
         write_evidence(Path(args.evidence), evidence)
         print("资源身份不符：未迁移、未执行任何 SQL 写入、未启动后端。", file=sys.stderr)
         return 2
+
+    try:
+        versions, expected_head = resolve_expected_head(args)
+    except (RuntimeError, OSError, json.JSONDecodeError) as error:
+        evidence["result"] = "MIGRATION_SET_MISMATCH"
+        evidence["migrationSetError"] = str(error)
+        write_evidence(Path(args.evidence), evidence)
+        print(f"候选迁移集不一致：{error}；未迁移、未启动后端。", file=sys.stderr)
+        return 2
+    evidence["migrationSet"] = {"head": expected_head, "versionCount": len(versions)}
 
     if args.migrate:
         migration = run_migrations(args)

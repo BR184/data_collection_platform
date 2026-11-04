@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import json
 import unittest
+import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
@@ -91,6 +93,62 @@ class IsolationPropertiesTest(unittest.TestCase):
 
 
 
+class MigrationSetTest(unittest.TestCase):
+    """目标迁移集必须来自候选 JAR，并与显式目标/发布清单一致。"""
+
+    def setUp(self) -> None:
+        self.temp = TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.jar = self.root / "candidate.jar"
+        with zipfile.ZipFile(self.jar, "w") as archive:
+            archive.writestr("BOOT-INF/classes/db/migration/V1_2__a.sql", "select 1;")
+            archive.writestr("BOOT-INF/classes/db/migration/V20261104_01__b.sql", "select 2;")
+
+    def args(self, *extra: str):
+        return entry.parse_args(
+            [
+                "--db-container",
+                "pg",
+                "--db-port",
+                "15608",
+                "--server-port",
+                "18094",
+                "--jar",
+                str(self.jar),
+                "--log",
+                str(self.root / "backend.log"),
+                "--evidence",
+                str(self.root / "evidence.json"),
+                *extra,
+            ]
+        )
+
+    def test_versions_are_derived_from_the_candidate_jar(self) -> None:
+        versions = entry.jar_migration_versions(self.jar)
+        self.assertEqual(versions, ["1.2", "20261104.01"])
+
+    def test_default_head_comes_from_the_jar(self) -> None:
+        args = self.args()
+        _, head = entry.resolve_expected_head(args)
+        self.assertEqual(head, "20261104.01")
+        self.assertEqual(args.expected_head, "20261104.01")
+
+    def test_explicit_head_must_match_the_jar(self) -> None:
+        args = self.args("--expected-head", "20261029.02")
+        with self.assertRaisesRegex(RuntimeError, "does not match candidate jar head"):
+            entry.resolve_expected_head(args)
+
+    def test_release_manifest_must_match_the_jar(self) -> None:
+        manifest = self.root / "release-manifest.json"
+        manifest.write_text(
+            json.dumps({"target": {"flywayVersion": "20261029.02"}}), encoding="utf-8"
+        )
+        args = self.args("--release-manifest", str(manifest))
+        with self.assertRaisesRegex(RuntimeError, "does not match candidate jar head"):
+            entry.resolve_expected_head(args)
+
+
 class MainFlowTest(unittest.TestCase):
     """主入口编排：资源身份只读检查必须早于任何迁移/SQL 写入。"""
 
@@ -99,6 +157,10 @@ class MainFlowTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.events: list[str] = []
+        jar = self.root / "app.jar"
+        with zipfile.ZipFile(jar, "w") as archive:
+            archive.writestr("BOOT-INF/classes/db/migration/V20261029_02__base.sql", "select 1;")
+            archive.writestr("BOOT-INF/classes/db/migration/V20261104_01__head.sql", "select 2;")
 
     def argv(self, *extra: str) -> list[str]:
         return [
@@ -184,6 +246,13 @@ class MainFlowTest(unittest.TestCase):
         self.patch_flow(identity_ok=True, preflight_ok=False)
         self.assertEqual(entry.main(self.argv("--migrate")), 2)
         self.assertEqual(self.events, ["identity", "migrate", "switches", "preflight"])
+
+    def test_migration_set_mismatch_fails_before_migration_or_start(self) -> None:
+        self.patch_flow(identity_ok=True, preflight_ok=True)
+        self.assertEqual(entry.main(self.argv("--migrate", "--expected-head", "20261029.02")), 2)
+        self.assertEqual(self.events, ["identity"])
+        evidence = json.loads((self.root / "evidence.json").read_text(encoding="utf-8"))
+        self.assertEqual(evidence["result"], "MIGRATION_SET_MISMATCH")
 
 
 if __name__ == "__main__":

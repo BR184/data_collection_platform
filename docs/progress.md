@@ -1,3 +1,16 @@
+## 2026-11-04 16项综合修复第一批（启动与升级恢复）实施完成
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | 第一批R01/R02/R03/R12/R13/R14/E01已实施并通过定向回归；R3六步与链接L3仍待真实GitLab与令牌 | 表单多版本与填写功能开发-20261026 | 按[综合修复方案](plans/unified-form-review-remediation-20261104.md)实施第二至第四批；资源齐备后做R3/L3；黄金/update、main、出包与生产启用仍禁止 |
+
+- [R01] 启动校验不再以`migration_spec`非空推断建表协议，改为关联`form_template_publications.protocol_version`：protocol=2按严格空表模式，protocol=1保留原迁移模式，缺失或未知协议拒绝启动。新增冷启动用例：真实PG发布两版并写记录后，以第二个Spring上下文启动同库成功，随后旧版可编辑、当前版可新增；`FormTemplateAdminIntegrationTest` 21项、`FormStorageFoundationUpgradeTest` 1项通过。
+- [R02/R12] 打包器以远端`f76d5be1`实现为基线恢复：基线完整Compose及现场`.env`解析镜像，保留未展开拓扑/挂载；恢复独立`--require-ods-correction`与清单字段。打包套件77项通过、12项跳过。
+- [R03/E01] 备份新增`flyway-history.txt`（版本＋checksum全量）；回滚在启动旧应用前比较当前与备份迁移集合，不一致先停应用并返回`ROLLBACK_REQUIRES_DATABASE_RESTORE`（exit 3），正常回滚与失败补偿共用该检查；升级开始即记录`upgrade-backups/current-attempt-backup.txt`，失败恢复使用本次备份而非`latest-backup.txt`。打包套件含退出码、Compose不变、无启动调用与备份指针断言。
+- [R13] 隔离验收移除固定head，从候选JAR的`BOOT-INF/classes/db/migration`推导目标集合，显式`--expected-head`或`--release-manifest`不一致在迁移前失败；隔离验收套件15项通过。
+- [R14] 旧库升级手册同步为175条、head `20261104.01`，140/156/158前缀差集改为35/19/17并注明按候选集合核验成员。
+- 边界：未生成/更新黄金快照、未合main、未出包、未升级现场、未生产启用；未访问真实GitLab、未使用机器人令牌。
+
 ## 2026-11-04 延期原因R2复核修正与R1桌面四动作：受影响范围与真实业务链复验通过
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
