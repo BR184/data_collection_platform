@@ -172,20 +172,27 @@ export function useAcceptedPageView<T>(deps: AcceptedPageDependencies<T>) {
   async function renew(): Promise<void> {
     const frame = accepted.value;
     const generation = acceptedGeneration;
+    // 续约发出时还要记住页面准备代次：更新意图开始后，旧续约的结果与 409 恢复都必须让位。
+    const requestGeneration = preparation;
     if (!frame || renewing || disposed) { return; }
     renewing = true;
     try {
       const metadata = await views.renew(frame.metadata.readContextId);
+      if (generation !== acceptedGeneration || requestGeneration !== preparation) { return; }
       transport(frame.metadata, frame.scope).onReadView(metadata);
-      if (generation === acceptedGeneration) {
-        accepted.value = Object.freeze({ ...frame, metadata });
-        // 有新完整发布点或跨业务日时后台准备整批画面；旧画面在准备全过程继续服务。
-        if (metadata.sourceState === 'NEWER_AVAILABLE' && !preparing.value) {
-          await prepare(frame.scope, acceptedLoader, frame.metadata.pageKey);
-        }
+      accepted.value = Object.freeze({ ...frame, metadata });
+      // 有新完整发布点或跨业务日时后台准备整批画面；旧画面在准备全过程继续服务。
+      if (metadata.sourceState === 'NEWER_AVAILABLE' && !preparing.value) {
+        await prepare(frame.scope, acceptedLoader, frame.metadata.pageKey);
       }
     } catch (error) {
-      if (generation !== acceptedGeneration) { return; }
+      if (generation !== acceptedGeneration || requestGeneration !== preparation) {
+        // 旧意图不覆盖新准备；认证/权限收紧仍要立即清理私人数据。
+        if (error instanceof HttpRequestError && (error.status === 401 || error.status === 403)) {
+          handleFailure(error);
+        }
+        return;
+      }
       handleFailure(error);
       if (error instanceof HttpRequestError && error.status === 409 && error.code === 'READ_VIEW_REBIND_REQUIRED') {
         await prepare(frame.scope, acceptedLoader, frame.metadata.pageKey);

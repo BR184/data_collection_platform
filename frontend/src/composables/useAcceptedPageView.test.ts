@@ -182,4 +182,90 @@ describe('accepted page view', () => {
     expect(page.accepted.value).toBeNull();
     page.dispose();
   });
+
+  it('does not let a late renewal 409 cancel a newer page preparation', async () => {
+    const { page, views, load } = setup();
+    await page.prepare({ name: 'old' });
+    let rejectRenew!: (error: unknown) => void;
+    views.renew.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectRenew = reject; }),
+    );
+    const renewing = page.renew();
+    let finishLoad!: () => void;
+    load.mockImplementationOnce(async (_scope, input) => {
+      await new Promise<void>((resolve) => { finishLoad = resolve; });
+      input.onReadView(metadata(input.readContextId));
+      return { main: 'new', options: ['new'], title: 'new' };
+    });
+    const preparing = page.prepare({ name: 'new' });
+    await flushPromises();
+
+    rejectRenew(new HttpRequestError('rebind', 409, 'READ_VIEW_REBIND_REQUIRED'));
+    await flushPromises();
+    finishLoad();
+    expect(await preparing).toBe(true);
+    await renewing;
+
+    expect(views.acquire).toHaveBeenCalledTimes(2);
+    expect(page.accepted.value?.data.main).toBe('new');
+    expect(page.accepted.value?.metadata.readContextId).toBe('view-2');
+    expect(page.lastError.value).toBeNull();
+    page.dispose();
+  });
+
+  it('discards a late successful renewal after a newer preparation starts', async () => {
+    const { page, views, load } = setup();
+    await page.prepare({ name: 'old' });
+    let resolveRenew!: (value: ReadViewMetadata) => void;
+    views.renew.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveRenew = resolve; }),
+    );
+    const renewing = page.renew();
+    let finishLoad!: () => void;
+    load.mockImplementationOnce(async (_scope, input) => {
+      await new Promise<void>((resolve) => { finishLoad = resolve; });
+      input.onReadView(metadata(input.readContextId));
+      return { main: 'new', options: ['new'], title: 'new' };
+    });
+    const preparing = page.prepare({ name: 'new' });
+    await flushPromises();
+
+    resolveRenew({ ...metadata('view-1'), sourceState: 'NEWER_AVAILABLE' });
+    await flushPromises();
+    finishLoad();
+    expect(await preparing).toBe(true);
+    await renewing;
+
+    expect(views.acquire).toHaveBeenCalledTimes(2);
+    expect(page.accepted.value?.metadata.readContextId).toBe('view-2');
+    expect(page.accepted.value?.metadata.sourceState).toBe('CURRENT');
+    page.dispose();
+  });
+
+  it('clears private data on an auth failure even when a newer preparation started', async () => {
+    const { page, views, load } = setup();
+    await page.prepare({ name: 'old' });
+    let rejectRenew!: (error: unknown) => void;
+    views.renew.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectRenew = reject; }),
+    );
+    const renewing = page.renew();
+    let finishLoad!: () => void;
+    load.mockImplementationOnce(async (_scope, input) => {
+      await new Promise<void>((resolve) => { finishLoad = resolve; });
+      input.onReadView(metadata(input.readContextId));
+      return { main: 'new', options: ['new'], title: 'new' };
+    });
+    const preparing = page.prepare({ name: 'new' });
+    await flushPromises();
+
+    rejectRenew(new HttpRequestError('revoked', 403));
+    await flushPromises();
+    expect(page.accepted.value).toBeNull();
+    finishLoad();
+    expect(await preparing).toBe(false);
+    await renewing;
+    expect(page.accepted.value).toBeNull();
+    page.dispose();
+  });
 });

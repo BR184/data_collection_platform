@@ -7,7 +7,7 @@ import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
-import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
+import { navigateAnalyticsDetail } from '../components/dashboard/analytics-read-navigation';
 import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue';
 import RuleHintIcon from '../components/dashboard/RuleHintIcon.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
@@ -169,53 +169,54 @@ function summaryRule(card: SystemTestIssueMultiBoardSummaryCardResponse) {
   return ruleByKey.value.get(card.ruleKey) ?? null;
 }
 
-function inheritedDetailParameters() {
+function acceptedDetailParameters(frame: MultiFrame) {
   return {
-    projectId: String(board.value?.scope.projectId ?? selectedProjectId.value),
-    projectName: board.value?.scope.projectName || '',
-    testingPhase: board.value?.scope.testingPhase || selectedTestingPhase.value || '',
+    projectId: String(frame.board.scope.projectId ?? frame.query.projectId),
+    projectName: frame.board.scope.projectName || '',
+    testingPhase: frame.board.scope.testingPhase || frame.query.testingPhase || '',
   };
 }
 
-function chartDetailLocation(
+/**
+ * 标题与图点共用父页已接受画面的读取上下文；子租约复制父版本，不从编辑中筛选或最新版本重建。
+ */
+async function openDetail(
   chart: SystemTestIssueMultiBoardChartResponse,
   point?: EChartPointClickEvent,
 ) {
   const viewKey = point?.detailViewKey || chart.detailViewKey;
   if (!viewKey) {
-    return null;
+    return;
   }
-  return buildAnalyticsDetailRoute(
-    DASHBOARD_KEY,
-    {
-      viewKey,
-      params: {
-        ...chart.detailParams,
-        ...(point?.detailParams ?? {}),
-      },
-    },
-    inheritedDetailParameters(),
-  );
+  if (point && !Object.keys(point.detailParams).length) {
+    return;
+  }
+  const action = {
+    viewKey,
+    params: { ...chart.detailParams, ...(point?.detailParams ?? {}) },
+  };
+  try {
+    await navigateAnalyticsDetail(
+      acceptedPage,
+      router,
+      DASHBOARD_KEY,
+      action,
+      acceptedDetailParameters,
+    );
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '详情打开失败'));
+  }
 }
 
 async function handleChartTitleClick(chart: SystemTestIssueMultiBoardChartResponse) {
-  const location = chartDetailLocation(chart);
-  if (location) {
-    await router.push(location);
-  }
+  await openDetail(chart);
 }
 
 async function handleChartPointClick(
   point: EChartPointClickEvent,
   chart: SystemTestIssueMultiBoardChartResponse,
 ) {
-  if (!point.detailViewKey || !Object.keys(point.detailParams).length) {
-    return;
-  }
-  const location = chartDetailLocation(chart, point);
-  if (location) {
-    await router.push(location);
-  }
+  await openDetail(chart, point);
 }
 
 function openRule(rule: AnalyticsDashboardRule | null) {

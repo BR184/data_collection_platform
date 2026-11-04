@@ -55,13 +55,14 @@ public class GitlabMirrorIndexService {
       return;
     }
 
-    Map<String, Boolean> current = loadIndexValidity(mirrorTable, applicable);
+    Map<String, IndexState> current = loadIndexStates(applicable);
     for (GitlabMirrorIndexCatalog.IndexDefinition definition : applicable) {
-      Boolean valid = current.get(definition.name());
-      if (Boolean.TRUE.equals(valid)) {
+      IndexState state = current.get(definition.name());
+      if (state != null && state.valid()) {
+        requireSameDefinition(mirrorTable, definition, state);
         continue;
       }
-      if (Boolean.FALSE.equals(valid)) {
+      if (state != null) {
         jdbcTemplate.execute(
             "drop index concurrently if exists " + SqlIdentifierSupport.quoteIdentifier(definition.name()));
       }
@@ -69,36 +70,181 @@ public class GitlabMirrorIndexService {
     }
   }
 
-  private Map<String, Boolean> loadIndexValidity(
-      String mirrorTable, List<GitlabMirrorIndexCatalog.IndexDefinition> definitions) {
+  /**
+   * 同名有效索引必须与目录声明的表、方法、键列顺序/方向和谓词一致才能复用。
+   *
+   * <p>索引名不是契约：现场已有同名但异义的索引时明确报错并保留现场索引，不能因为“有效”就跳过，
+   * 否则目标查询仍可能缺少可用索引。
+   */
+  private void requireSameDefinition(
+      String mirrorTable,
+      GitlabMirrorIndexCatalog.IndexDefinition definition,
+      IndexState state) {
+    List<String> expectedColumns =
+        definition.columns().stream().map(GitlabMirrorIndexCatalog.IndexColumn::name).toList();
+    List<Boolean> expectedDescending =
+        definition.columns().stream().map(GitlabMirrorIndexCatalog.IndexColumn::descending).toList();
+    boolean same =
+        mirrorTable.equalsIgnoreCase(state.tableName())
+            && "btree".equalsIgnoreCase(state.method())
+            && expectedColumns.equals(state.columns())
+            && expectedDescending.equals(state.descending())
+            && predicateTerms(definition.predicate()).equals(predicateTerms(state.predicate()));
+    if (!same) {
+      throw new IllegalStateException(
+          "同名索引定义与目录不一致，保留现场索引："
+              + definition.name()
+              + "（实际表="
+              + state.tableName()
+              + "，方法="
+              + state.method()
+              + "，列="
+              + state.columns()
+              + "，方向="
+              + state.descending()
+              + "，谓词="
+              + state.predicate()
+              + "；目录列="
+              + expectedColumns
+              + "，方向="
+              + expectedDescending
+              + "，谓词="
+              + definition.predicate()
+              + "）");
+    }
+  }
+
+  private Map<String, IndexState> loadIndexStates(
+      List<GitlabMirrorIndexCatalog.IndexDefinition> definitions) {
     String placeholders = String.join(", ", java.util.Collections.nCopies(definitions.size(), "?"));
     String sql =
         """
-        select index_class.relname as index_name, index_state.indisvalid
+        select index_class.relname as index_name, table_class.relname as table_name,
+               index_state.indisvalid, am.amname as index_method,
+               pg_get_expr(index_state.indpred, index_state.indrelid) as predicate,
+               array(
+                 select att.attname
+                   from generate_series(1, index_state.indnkeyatts) as pos(k)
+                   join pg_attribute att on att.attrelid = index_state.indrelid
+                                      and att.attnum = index_state.indkey[pos.k - 1]
+                  order by pos.k
+               ) as key_columns,
+               array(
+                 select case when (index_state.indoption[pos.k - 1] & 1) = 1 then 1 else 0 end
+                   from generate_series(1, index_state.indnkeyatts) as pos(k)
+                  order by pos.k
+               ) as key_descending
           from pg_index index_state
           join pg_class table_class on table_class.oid = index_state.indrelid
           join pg_namespace table_namespace on table_namespace.oid = table_class.relnamespace
           join pg_class index_class on index_class.oid = index_state.indexrelid
+          join pg_am am on am.oid = index_class.relam
          where table_namespace.nspname = current_schema()
-           and table_class.relname = ?
            and index_class.relname in (%s)
         """
             .formatted(placeholders);
-    java.util.ArrayList<Object> args = new java.util.ArrayList<>(definitions.size() + 1);
-    args.add(mirrorTable);
+    java.util.ArrayList<Object> args = new java.util.ArrayList<>(definitions.size());
     definitions.stream().map(GitlabMirrorIndexCatalog.IndexDefinition::name).forEach(args::add);
     return jdbcTemplate.query(
         sql,
         resultSet -> {
-          LinkedHashMap<String, Boolean> validity = new LinkedHashMap<>();
+          LinkedHashMap<String, IndexState> states = new LinkedHashMap<>();
           while (resultSet.next()) {
-            validity.put(
-                resultSet.getString("index_name"), resultSet.getBoolean("indisvalid"));
+            java.sql.Array columnArray = resultSet.getArray("key_columns");
+            java.sql.Array descendingArray = resultSet.getArray("key_descending");
+            List<String> columns = new java.util.ArrayList<>();
+            if (columnArray != null) {
+              for (Object column : (Object[]) columnArray.getArray()) {
+                columns.add(String.valueOf(column));
+              }
+            }
+            List<Boolean> descending = new java.util.ArrayList<>();
+            if (descendingArray != null) {
+              for (Object value : (Object[]) descendingArray.getArray()) {
+                descending.add(value instanceof Number number && number.intValue() == 1);
+              }
+            }
+            states.put(
+                resultSet.getString("index_name"),
+                new IndexState(
+                    resultSet.getString("table_name"),
+                    resultSet.getBoolean("indisvalid"),
+                    resultSet.getString("index_method"),
+                    List.copyOf(columns),
+                    List.copyOf(descending),
+                    resultSet.getString("predicate")));
           }
-          return validity;
+          return states;
         },
         args.toArray());
   }
+
+  /** 谓词按顶层 AND 拆项并忽略括号与空白差异，保留每一项内部的逻辑分组。 */
+  static List<String> predicateTerms(String predicate) {
+    if (predicate == null || predicate.isBlank()) {
+      return List.of();
+    }
+    String value = stripWrappingParentheses(predicate.trim().toLowerCase(java.util.Locale.ROOT));
+    List<String> terms = new java.util.ArrayList<>();
+    int depth = 0;
+    int start = 0;
+    int index = 0;
+    while (index < value.length()) {
+      char current = value.charAt(index);
+      if (current == '(') {
+        depth++;
+      } else if (current == ')') {
+        depth--;
+      } else if (depth == 0 && value.startsWith(" and ", index)) {
+        terms.add(normalizeTerm(value.substring(start, index)));
+        index += 5;
+        start = index;
+        continue;
+      }
+      index++;
+    }
+    terms.add(normalizeTerm(value.substring(start)));
+    return terms.stream().sorted().toList();
+  }
+
+  private static String normalizeTerm(String term) {
+    return stripWrappingParentheses(term.replaceAll("\\s+", " ").trim());
+  }
+
+  private static String stripWrappingParentheses(String value) {
+    String result = value.trim();
+    while (enclosesWholeExpression(result)) {
+      result = result.substring(1, result.length() - 1).trim();
+    }
+    return result;
+  }
+
+  private static boolean enclosesWholeExpression(String value) {
+    if (!value.startsWith("(") || !value.endsWith(")")) {
+      return false;
+    }
+    int depth = 0;
+    for (int index = 0; index < value.length(); index++) {
+      char current = value.charAt(index);
+      if (current == '(') {
+        depth++;
+      } else if (current == ')') {
+        depth--;
+        if (depth == 0 && index != value.length() - 1) {
+          return false;
+        }
+      }
+    }
+    return depth == 0;
+  }
+
+  private record IndexState(
+      String tableName,
+      boolean valid,
+      String method,
+      List<String> columns,
+      List<Boolean> descending,
+      String predicate) {}
 
   private String createIndexSql(
       String mirrorTable, GitlabMirrorIndexCatalog.IndexDefinition definition) {

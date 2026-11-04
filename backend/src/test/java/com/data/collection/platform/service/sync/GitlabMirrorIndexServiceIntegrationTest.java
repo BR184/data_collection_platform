@@ -215,6 +215,69 @@ class GitlabMirrorIndexServiceIntegrationTest {
     assertThat(indexValidity("idx_ods_gitlab_issues_project_root_active")).isTrue();
   }
 
+  @Test
+  void test_same_name_valid_index_with_different_column_order_is_reported() {
+    jdbcTemplate.execute(
+        """
+        create index idx_ods_gitlab_issues_project_root_active
+            on ods_gitlab_issues(id, project_id)
+            where mirror_deleted = false
+        """);
+
+    assertThatThrownBy(() -> indexService.ensureIndexes("issues", "ods_gitlab_issues", issueSchema()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("同名索引定义与目录不一致")
+        .hasMessageContaining("idx_ods_gitlab_issues_project_root_active");
+    assertThat(indexValidity("idx_ods_gitlab_issues_project_root_active")).isTrue();
+    assertThat(indexDefinition("idx_ods_gitlab_issues_project_root_active"))
+        .as("异义索引保留现场定义，不被静默替换")
+        .contains("(id, project_id)");
+  }
+
+  @Test
+  void test_same_name_valid_index_with_different_predicate_is_reported() {
+    jdbcTemplate.execute(
+        """
+        create index idx_ods_gitlab_issues_project_root_active
+            on ods_gitlab_issues(project_id, id)
+            where mirror_deleted = true
+        """);
+
+    assertThatThrownBy(() -> indexService.ensureIndexes("issues", "ods_gitlab_issues", issueSchema()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("同名索引定义与目录不一致");
+    assertThat(indexValidity("idx_ods_gitlab_issues_project_root_active")).isTrue();
+    assertThat(indexDefinition("idx_ods_gitlab_issues_project_root_active"))
+        .contains("mirror_deleted = true");
+  }
+
+  @Test
+  void test_predicate_terms_ignore_parentheses_whitespace_and_case() {
+    assertThat(
+            GitlabMirrorIndexService.predicateTerms(
+                "((mirror_deleted = false) AND (issue_id IS NOT NULL))"))
+        .containsExactly("issue_id is not null", "mirror_deleted = false");
+    assertThat(
+            GitlabMirrorIndexService.predicateTerms(
+                " issue_id   is not null and mirror_deleted = false "))
+        .containsExactly("issue_id is not null", "mirror_deleted = false");
+    assertThat(
+            GitlabMirrorIndexService.predicateTerms(
+                "(mirror_deleted = false AND issue_id is not null) OR (issue_id = 1)"))
+        .containsExactly(
+            "(mirror_deleted = false and issue_id is not null) or (issue_id = 1)");
+  }
+
+  private String indexDefinition(String indexName) {
+    return jdbcTemplate.queryForObject(
+        """
+        select indexdef from pg_indexes
+         where schemaname = current_schema() and indexname = ?
+        """,
+        String.class,
+        indexName);
+  }
+
   private void createReverseLookupDependencyTables() {
     jdbcTemplate.execute(
         """

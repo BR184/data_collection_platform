@@ -159,6 +159,74 @@ describe('SystemTestMultiBoardView mount smoke', () => {
     }));
   });
 
+  it('drills down from the accepted parent frame and forks its read context', async () => {
+    const forkedId = '22222222-2222-4222-8222-222222222222';
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/read-views/') && url.endsWith('/fork')) {
+        return jsonResponse({ ...metadata, readContextId: forkedId, pageKey: 'system-test-issues' });
+      }
+      if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
+      if (url.includes('/api/question-metrics/multi-board')) {
+        const board = createMultiBoard();
+        board.charts[0].detailViewKey = 'system-test-issue-records';
+        return jsonResponse(board);
+      }
+      if (url.includes('/api/question-metrics/issue-search')) {
+        return jsonResponse({ items: [], total: 0 });
+      }
+      return jsonResponse(null);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/question-metrics/multi-board',
+          component: SystemTestMultiBoardView,
+          meta: { pageKey: 'question-metrics-multi-board' },
+        },
+        {
+          path: '/question-metrics/issue-search',
+          component: { template: '<div />' },
+          meta: { pageKey: 'question-metrics-issue-search' },
+        },
+      ],
+    });
+    await router.push('/question-metrics/multi-board?projectId=9&testingPhase=CC2026R3');
+    await router.isReady();
+    const wrapper = mount(SystemTestMultiBoardView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    const pushSpy = vi.spyOn(router, 'push');
+    await wrapper.find('.system-test-multi-board__panel-title').trigger('click');
+    await flushPromises();
+
+    const forkCall = fetchSpy.mock.calls.find(([url]) => String(url).endsWith('/fork'));
+    expect(forkCall).toBeDefined();
+    expect(String(forkCall![0])).toContain(metadata.readContextId);
+    const forkBody = JSON.parse(String((forkCall![1] as RequestInit).body));
+    expect(forkBody.pageKey).toBe('system-test-issues');
+    expect(forkBody.scope).toMatchObject({ projectId: '9', testingPhase: 'CC2026R3' });
+    expect(router.currentRoute.value.path).toBe('/question-metrics/issue-search');
+    expect(router.currentRoute.value.query).toMatchObject({
+      projectId: '9',
+      testingPhase: 'CC2026R3',
+    });
+    expect(pushSpy).toHaveBeenCalledWith(expect.objectContaining({
+      state: expect.objectContaining({
+        analyticsReadContextId: forkedId,
+        readViewPageKey: 'system-test-issues',
+      }),
+    }));
+
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
+
   it('loads project options and renders the dashboard shell', async () => {
     const fetchSpy = vi.fn((url: string) => {
       if (url.startsWith('/api/read-views')) return jsonResponse(metadata);
