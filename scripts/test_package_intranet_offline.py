@@ -1604,6 +1604,11 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "  else printf '0\\n'; fi\n"
             "  exit 0;\n"
             "fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' stop backend frontend'* ]]; then\n"
+            "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
+            "  rm -f \"$state/backend.running\" \"$state/frontend.running\"\n"
+            "  exit 0\n"
+            "fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' up '* ]]; then\n"
             "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
             "  count=0; [[ -f \"$state/up.count\" ]] && count=\"$(cat \"$state/up.count\")\"\n"
@@ -1663,6 +1668,8 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
     def _run_rollback_execution(self, root: Path, fixture: dict, *, extra_env: dict[str, str] | None = None):
         bash = self._git_bash_path()
         env = os.environ.copy()
+        # Linux 容器挂载点是被测协议值，Git Bash 不应将其转换成 Windows 本地路径。
+        env["MSYS2_ARG_CONV_EXCL"] = "*"
         env["PATH"] = f"{self._msys_path(fixture['fake_bin'])}:/usr/bin:/bin:" + env.get("PATH", "")
         env["FAKE_DOCKER_MUTATIONS"] = self._msys_path(fixture["mutation_log"])
         env.update(fixture["extra_env"])
@@ -1740,8 +1747,8 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertIn("old application will not be started", result.stdout + result.stderr)
             self.assertEqual(compose_before, (deployment / "docker-compose.yml").read_bytes())
             mutations = fixture["mutation_log"].read_text(encoding="utf-8")
-            self.assertIn("compose stop backend frontend", mutations)
-            self.assertNotIn("compose up", mutations)
+            self.assertTrue(any(line.endswith(" stop backend frontend") for line in mutations.splitlines()), mutations)
+            self.assertFalse(any(" up " in line for line in mutations.splitlines()), mutations)
 
     def test_upgrade_records_attempt_backup_and_readme_uses_it_for_failure_recovery(self):
         context = self.build_context()
