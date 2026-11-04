@@ -2,7 +2,7 @@
 
 ## 进度与中间物
 
-- 阶段：2026-11-04审批回执`767cf44c`批准候选身份并准入首次非update黄金严格比较。已修正黄金清单、登记两个内部明细用例并完成一次`-Dgolden.update=false`全量比较：`205`项中`8`失败`2`错误，除已确认的quality-rd动作、BI四份`ruleVersion`和两个缺失快照外，另发现quality-rd规则文案与两个既有明细新增`isFixed`字段，待差异审批。本轮未生成/更新快照、未改夹具/掩码/EXCLUDED、未合main、未打包。技术验收基线仍为`aa62d219`，R01-a/b/c与R02关闭。
+- 阶段：2026-11-04按审批回执`066b0165`完成两处修复与限定范围快照生成：普通版本规则说明恢复原文案、组合版本列实际成员阶段；`isFixed`仅内部计算、不返回客户端。定向`QualityRdAnalyticsDashboardProviderTest`与`QualityRdAnalyticsDetailQueryServiceTest`共`23/0/0/0`，随后`golden.update=true`生成`5`份更新+`2`份新增快照、`205/0/0/0 BUILD SUCCESS`。**未执行严格复比**，等待审核方审批生成结果；未改夹具/掩码/EXCLUDED/比较器、未合main、未打包。技术验收基线`aa62d219`与R01/a/b/c结论保留。
 - 审批记录：回执`901614ea`确认经理独立复跑58项（含5项真实PostgreSQL、0跳过）全部通过；回执`767cf44c`纠正“无2027夹具即BI快照不变”的推断，指出四份BI快照的`$.data.ruleVersion`参与严格比较。吸收范围仅审批回执与执行单，不整体合入含表单审核记录的审核分支。
 - 工作区：`D:/projects/dcp-dashboard-combined-20261103`，分支`看板合并版本范围-20261103`（从稳定main `f74fdef7`创建）。方案原定分支名`codex/dashboard-combined-version-20261103`，按AGENTS中文功能名称规则改名，基线提交与范围未变。
 - 已完成：新增`dashboard-version-scopes.json`、`DashboardVersionScopeConfig/Loader/Scope/Service`及测试；质量看板候选/默认/请求、评审密度、系统测试阶段、集成测试、明细与导出接入；BI平台产品版本/评审/编码/系统测试适配器与来源指纹接入；规则版本升级；前后端定向测试新增与更新；BI与平台权威文档更新。
@@ -127,7 +127,44 @@
 
 响应正文完整JSON位于`.tmp/golden-actual/`：评审明细6,951字节，SHA-256 `f4b7af4bc2f48f27f224330e686022baf6fdbf59d44e45ce0a42143798597b72`；新发缺陷14,249字节，SHA-256 `d09ebff68446e4b541ef28df44e1fdae1d7c9dd5306217bd3bd95a4baefa215b`。未写入`snapshots/`。
 
-后续：先审批上述实际差异（尤其是[33][37][38]），再授权`-Dgolden.update=true`生成；预计更新8份既有快照并新增2份，随后去掉update严格复比。本轮不生成、不合main、不打包。
+上述[33][37][38]已按回执`066b0165`修复并完成限定范围生成，实际结果见第8节；本轮不执行严格复比、不合main、不打包。
+
+### 8. 限定范围修复与快照生成结果（2026-11-04，回执 066b0165）
+
+| 项目 | 结果 |
+| --- | --- |
+| 规则说明 | `QualityRdAnalyticsDashboardProvider`：普通版本恢复原文案（`<项目>集成测试`、`<项目> 的集成测试与系统测试阶段`）；组合版本按成员阶段拼接，不生成组合阶段 |
+| 内部字段 | `QualityRdAnalyticsDetailQueryService.issueRows`：`isFixed`仅供`fixState`计算，`enrich`后移除；新发明细保留`fixState`，原有两个议题明细字段集合恢复原样 |
+| 定向回归 | `QualityRdAnalyticsDashboardProviderTest` 10项、`QualityRdAnalyticsDetailQueryServiceTest` 13项，合计**23/0/0/0**（`.tmp/golden-fix-tests-20261104.log`） |
+| 文档纠正 | 组合入口请求值改为稳定key `cc-2027-r1-r2`，显示名仅用于展示；删除“显示名作请求值”的旧表述 |
+
+快照生成（`-Dgolden.update=true`，HEAD `8c3d1c9f`，运行时代码差异指纹`f4e51e41…b0b2`）：
+
+| 项目 | 记录 |
+| --- | --- |
+| 命令与环境 | `mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=true`；Testcontainers `postgres:16-alpine`双容器+随机端口 |
+| 结果 | **205项：0失败、0错误、0跳过，BUILD SUCCESS**，06:14（`.tmp/golden-update-20261104.log`） |
+| 变更范围 | 仅**5份更新+2份新增**：`analytics-dashboards/get___{dashboardKey}__quality-rd.json`，`bi/get___{requirements,design,coding,system-test}__*.json`（4份），以及两个新明细快照；其余259份按运行前备份完整恢复，`rules`、`release-leakage-defects`、`fix-user-defects`与原文件字节一致 |
+| 额外差异核查 | 生成模式重写了全部快照；54份非授权文件的差异经目录掩码核对仅涉及`sourceVersion`/`snapshotId`/`generatedAt`、时间、端口、保留小时等易变字段与对象键序，**无业务值变化**，已全部恢复 |
+| 掩码与夹具 | 未改夹具、掩码、EXCLUDED、比较器或基线清单 |
+
+已批准5份更新的业务差异（其余为更新模式重写的掩码字段与对象键序，严格比较忽略）：
+
+| 快照 | 业务差异 |
+| --- | --- |
+| `bi/get___requirements__default.json`、`get___design__default.json` | `$.data.ruleVersion`：`bi-review-v3`→`bi-review-v4` |
+| `bi/get___coding__day-all.json` | `$.data.ruleVersion`：`bi-coding-v5`→`bi-coding-v6` |
+| `bi/get___system-test__default.json` | `$.data.ruleVersion`：`bi-system-test-v3`→`bi-system-test-v4` |
+| `analytics-dashboards/get___{dashboardKey}__quality-rd.json` | `metrics[0]`/`metrics[1].detail.viewKey`→`quality-review-records`；`metrics[7].detail.viewKey`→`new-issue-defects`，参数`testingPhase`→`projectName`；指标值不变 |
+
+两份新增快照（原冻结夹具、原目录范围）：
+
+| 快照 | 内容 | SHA-256 |
+| --- | --- | --- |
+| `...__quality-rd-quality-review-records.json` | `total=18`，当前页18条、11列；均为`CC2026R3`需求说明书评审；`problemCount`合计212、`reviewScalePages`合计0；无内部key | `b07ec50d…5904ce`（9,416字节） |
+| `...__quality-rd-new-issue-defects.json` | `total=30`，当前页20条、13列；`fixState`为16条`已修复/未复现`、4条`未修复`；**响应不含`isFixed`** | `6d77cf02…f9cb9f`（18,147字节） |
+
+本轮生成结果交审核方审批；**未执行严格复比**，未合main、未打包、未部署。审核通过后再以相同入口改为`-Dgolden.update=false`执行全量严格比较。
 
 ## 1. 用户能看到什么
 
@@ -160,7 +197,7 @@ GitLab里程碑和标签、ODS、事实中的原始版本与测试阶段均保�
 新增平台共享的 `DashboardVersionScopeService`，仅供两个看板使用。返回不可变 `DashboardVersionScope`：分组key、显示名、锚点ID、已解析成员组ID/业务键、原测试阶段成员、配置及目录指纹。
 
 - BI继续使用现有正数 `productVersionId`，合并入口取锚点R1的原目录ID；此ID在看板请求里解析为组合范围，在独立系统测试里仍表示原R1。原目录对象和业务键不改写。
-- 质量看板继续使用 `projectName` 参数，组合入口的请求值为 `CC2027R1&R2`，经服务解析；不在查询中拿显示名拼来源标签。无需新增页面或重做布局。
+- 质量看板继续使用 `projectName` 参数，组合入口的请求值为稳定key `cc-2027-r1-r2`，显示名 `CC2027R1&R2` 只用于展示，经服务解析；不在查询中拿显示名拼来源标签。无需新增页面或重做布局。
 - 看板候选将组合项放在原成员最靠前的位置，其余排序不变，默认项仍取最终候选首项；从两个看板候选中隐藏已被组合替代的单独R1/R2项。独立系统测试仍列出原两项。
 - 未参与组合的版本由原目录形成单成员范围。BI旧R2链接按现有候选校验流程重新选取有效入口；服务端不保留R2别名查询组合数据。
 - 只展开当前启用的原目录及成员；R2尚未定义时不制造轮次，后续管理员按原流程登记启用R2后自动进入合并范围。锚点不存在/停用则组合入口不可用，不私自换锚点。加载器拒绝重复key、重复锚点、交叉组合及跨项目成员。

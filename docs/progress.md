@@ -3,6 +3,7 @@
 - [审批与候选] 2026-11-04审批回执`901614ea`通过技术验收：R01-a/b/c与R02全部关闭，技术基线`aa62d219`；经理独立复跑58项（含5项真实PostgreSQL、0跳过）。本阶段只准备发布门禁资料，不运行/更新黄金、不合main、不打包或部署。
 - [发布准备] 活动计划已整理候选冻结、影响清单、端点登记核对、黄金拟变更清单、升级回滚说明与现场核对项；实现范围`f74fdef7..aa62d219`无Flyway迁移、无Controller路径变更，main保持`f74fdef7`。资料提交后以审批的最终HEAD为打包SHA，且生产代码须与`aa62d219`无差异。
 - [黄金首次比较] 按回执`767cf44c`登记`quality-rd-quality-review-records`与`quality-rd-new-issue-defects`两个case后，执行一次`-Dgolden.update=false`严格比较：**205项/8失败/2错误/0跳过**。已确认差异为quality-rd动作接线与四份BI快照`ruleVersion`；另发现quality-rd规则文案变化及`release-leakage-defects`/`fix-user-defects`新增`isFixed`字段，待差异审批；两个新用例快照缺失属预期。未生成/更新快照，快照、夹具、掩码与基线清单均未变。
+- [修复与快照生成] 按回执`066b0165`恢复普通版本规则说明、组合版本列实际成员阶段；`isFixed`仅内部计算、不返回客户端。定向Provider/DetailQueryService**23/0/0/0**；`golden.update=true`生成**5份更新+2份新增**快照，**205/0/0/0 BUILD SUCCESS**；其余259份按运行前备份恢复，核查无额外业务差异，夹具/掩码/EXCLUDED/比较器未改。未执行严格复比，未合main、未打包、未部署。
 - [范围与隔离] 在 `D:/projects/dcp-dashboard-combined-20261103`、分支 `看板合并版本范围-20261103`（基线稳定main `f74fdef7`）实施。新增只读资源 `dashboard-version-scopes.json` 与平台共享 `DashboardVersionScopeService`，在议题测试阶段目录之上生成 `CC2027R1&R2` 候选并解析成员范围；不修改目录、不新增迁移、不改GitLab标签/原始数据/指标公式。独立系统测试、客户问题、BI客户问题页及CAT连接/映射/同步/数据保持原状。
 - [实现] 质量看板的候选、默认、请求、评审密度、系统测试阶段、集成测试、明细与导出接入组合范围；代码走查按成员项目名并集一次查询，评审按稳定记录ID去重。BI产品版本、评审、编码、系统测试适配器接入成员业务键与配置指纹；系统测试来源版本按成员事实版本并集计算；规则版本升至`bi-review-v4`、`bi-coding-v6`、`bi-system-test-v4`、`quality-rd-rules@3`、`legacy-personal-quality-v4`。前端无代码改动。
 - [缺陷与修复] 首轮默认全量套件暴露`DashboardVersionScopeConfigLoader`双构造器未标注注入点，Spring回退默认构造器失败致177个上下文错误；为公开构造器补`@Autowired`后定向3+4项通过，重跑全量恢复全绿。
