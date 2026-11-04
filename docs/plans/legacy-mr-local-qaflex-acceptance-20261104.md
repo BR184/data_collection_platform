@@ -1,5 +1,15 @@
 # 当前状态与待办
 
+## 进度与中间物
+
+- 阶段：真实链路验收完成，等待经理复核；无业务代码改动，未提交修复。
+- 任务目录 `D:/projects/dcp-legacy-mr-parser-20261104`，分支 `codex/legacy-mr-parser-20261104`，基线 `b57dea4a`；JAR 摘要实测等于 `c1a96ae9…fd9c5`。
+- 环境：任务自有 Compose 项目 `dcp-legacy-mr-acceptance-20261104`（GitLab 16.11.10、MySQL 8、Mongo 4.4；端口 18990/13316/13317），已 `docker compose stop` 释放，卷保留可复核；qaflex 库仅 SELECT；未启停他人容器。
+- 样例：qaflex MR 47882(!30039)/47884(!30040)/43696(!28411)，在测试项目 `root/legacy-mr-acceptance`（项目ID 9）重建为 !1/!2/!3。
+- 结果：解析/写入/去重均 3 行；A/B/C 全部字段（项目名称、状态、合并时间、合并人、模块、走查人、走查值）与 API 预期及独立 SQL 回读一致；`comparison.json` 三项 passed。
+- 证据目录：`.tmp/legacy-mr-local-qaflex-20261104/`（`report.md`、`comparison.md`、`parsed.json`、`after_write.json`、`after_dedup.json`、`sql_readback.tsv`、`run.log`、`gitlab-workhorse.log`、`kit/expected.json`）。
+- 恢复命令：`git -C D:/projects/dcp-legacy-mr-parser-20261104 status --short --branch`；容器恢复：在 `.tmp/legacy-mr-local-qaflex-20261104/kit` 执行 `docker compose start`。
+
 | 目标 | 完成标准 | 状态与负责人 |
 | --- | --- | --- |
 | 用本地qaflex样例验证当前爬虫 | 3条MR的真实API/页面→当前JAR解析→老平台MySQL写入及去重→独立SQL回读一致 | 用户已授权员工本地测试；员工执行，审核方复核 |
