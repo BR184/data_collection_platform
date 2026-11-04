@@ -70,7 +70,7 @@
 
 ## D-05 两个看板的版本合并使用独立分组资源，共享测试阶段目录保持不变
 
-- **状态**：已实现（任务分支 `看板合并版本范围-20261103`，2026-11-03），开发送审；生产目录/来源只读证据尚未取得，配置未标记为已核实，未运行黄金、未合 main。
+- **状态**：2026-11-04验收通过并获用户授权，以`ec7e0dda`合入main；候选`9373de72`与受测`b8ff5380`业务/快照一致，严格黄金205/0/0/0。尚未打包或部署，生产来源现场核对见数据契约。
 - **背景**：用户要求 BI 看板与质量看板把原目录中的 `CC2027R1`、`CC2027R2` 统一显示为 `CC2027R1&R2` 并按合并范围统计；独立“系统测试”模块、客户问题模块和尚未接入的 CAT 必须保持原状。共享的 `issue_scope_catalogs/groups/members` 同时服务独立系统测试，不能通过改名或合并分组实现。
 - **决策**：
   1. 新增版本化资源 `backend/src/main/resources/dashboard-version-scopes.json`（`schemaVersion=1`）和平台共享 `DashboardVersionScopeService`。分组只登记锚点、成员业务键、评审来源项目名和集成测试来源值，按稳定业务键和原目录 ID 解析，不按显示名、标签前缀或项目标签猜测成员。
@@ -84,4 +84,4 @@
   3. 先分别计算 R1/R2 再相加：同一组合记录会被重复计。
   4. 用显示名或项目标签前缀动态匹配成员：与稳定业务键和现有目录维护流程冲突。
   5. 本轮改 CAT 映射/连接以接入组合版本：超出“保持未接入”的范围。
-- **关联**：`docs/bi-dashboard/product.md`、`docs/bi-dashboard/data-contracts.md`、`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md`（G-09）、`docs/platform-page-business-rules.md`、`docs/plans/dashboard-combined-version-implementation-20261103.md`
+- **关联**：`docs/bi-dashboard/product.md`、`docs/bi-dashboard/data-contracts.md`、`docs/bi-dashboard/BI看板数据来源与计算口径核对表.md`（G-09）、`docs/platform-page-business-rules.md`
