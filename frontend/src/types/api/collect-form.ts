@@ -37,6 +37,7 @@ export interface FormFieldSpecView {
   optionsSource?: string;
   requiredWhen?: FormConditionView | null;
   clearWhen?: FormConditionView | null;
+  visibleWhen?: FormConditionView | null;
   storage?: Record<string, unknown>;
 }
 

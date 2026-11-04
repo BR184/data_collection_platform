@@ -77,7 +77,7 @@ public class FormIssueLinkService {
   /**
    * 在 ISSUE 完整发布事务内登记就绪议题；回滚时登记随发布一并回滚。
    *
-   * <p>只登记本项目、响应与回复均为持久 {@code FORM}、范围与当前版本有效的议题；已登记的行
+   * <p>只登记本项目、响应与回复均为持久 {@code FORM}、两侧范围与当前版本均有效的议题；已登记的行
    * 不重复写入，因此重复发布不会重复登记。
    *
    * @param publicationId 正在提交的 ISSUE 发布身份
@@ -109,13 +109,20 @@ public class FormIssueLinkService {
                 and i.project_id = a.project_id
                 and i.iid = a.resource_id)
            and exists (
-             select 1 from form_resource_authorities b
+             select 1
+               from form_resource_authorities b
+               join form_template_scopes bs on bs.id = b.scope_id
+               join form_template_versions bv on bv.id = bs.current_version_id
               where b.source_config_id = a.source_config_id
                 and b.project_id = a.project_id
                 and b.resource_type = 'issue'
                 and b.resource_id = a.resource_id
                 and b.template_key = ?
-                and b.authority = 'FORM')
+                and b.authority = 'FORM'
+                and bs.status = 'ACTIVE'
+                and bv.version_status = 'PUBLISHED'
+                and bv.storage_kind = 'RECORDS'
+                and bv.version_label is not null)
            and exists (
              select 1
                from form_template_scopes s
@@ -242,7 +249,7 @@ public class FormIssueLinkService {
     return Boolean.TRUE.equals(sent);
   }
 
-  /** 运行期就绪复核：响应/回复仍为 FORM、事实已公开、范围与当前版本仍有效。 */
+  /** 运行期就绪复核：响应/回复仍为 FORM，两侧范围与当前版本仍有效，事实已公开。 */
   private boolean ready(
       Map<String, Object> row, String sourceInstance, long projectId, long issueIid) {
     long scopeId = ((Number) row.get("scope_id")).longValue();
@@ -266,13 +273,20 @@ public class FormIssueLinkService {
             sourceInstance,
             projectId,
             issueIid);
-    Boolean replyIsForm =
+    Boolean replyValid =
         jdbcTemplate.queryForObject(
             """
             select exists(
-              select 1 from form_resource_authorities
-               where source_config_id = ? and project_id = ? and resource_type = 'issue'
-                 and resource_id = ? and template_key = ? and authority = 'FORM')
+              select 1
+                from form_resource_authorities b
+                join form_template_scopes bs on bs.id = b.scope_id
+                join form_template_versions bv on bv.id = bs.current_version_id
+               where b.source_config_id = ? and b.project_id = ? and b.resource_type = 'issue'
+                 and b.resource_id = ? and b.template_key = ? and b.authority = 'FORM'
+                 and bs.status = 'ACTIVE'
+                 and bv.version_status = 'PUBLISHED'
+                 and bv.storage_kind = 'RECORDS'
+                 and bv.version_label is not null)
             """,
             Boolean.class,
             configId,
@@ -294,7 +308,7 @@ public class FormIssueLinkService {
             Boolean.class,
             scopeId);
     return Boolean.TRUE.equals(factPublished)
-        && Boolean.TRUE.equals(replyIsForm)
+        && Boolean.TRUE.equals(replyValid)
         && Boolean.TRUE.equals(scopeValid);
   }
 

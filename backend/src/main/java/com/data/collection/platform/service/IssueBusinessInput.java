@@ -93,7 +93,14 @@ record IssueBusinessInput(
       Boolean hasResidualImpact,
       String residualImpactDetail,
       String relationTableUpdated,
-      String supplementNote) {
+      String supplementNote,
+      String deferralReason,
+      boolean deferralFieldPresent,
+      boolean deferralTracked) {
+
+    /** 冻结延期原因枚举；与回复模板 issue_reply 的 deferral_reason 选项一一对应。 */
+    static final List<String> DEFERRAL_REASONS =
+        List.of("TECHNICAL_BLOCKER", "RESOURCE_BLOCKER", "DATA_ANOMALY");
 
     ReplySnapshot {
       causeKeys = causeKeys == null ? List.of() : List.copyOf(causeKeys);
@@ -102,9 +109,31 @@ record IssueBusinessInput(
     }
 
     static ReplySnapshot absent() {
+      return absent(false);
+    }
+
+    /**
+     * 无有效回复的快照；仍保留“该议题曾出现新版回复”的受管标记。
+     *
+     * <p>新版回复全部作废时有效记录为空，但本期四标签仍由表单目标管理，必须返回空目标以清除。
+     */
+    static ReplySnapshot absent(boolean deferralTracked) {
       return new ReplySnapshot(
           false, null, null, null, null, null, List.of(), List.of(), null, null, null,
-          List.of(), null, null, null, null, null, null, null);
+          List.of(), null, null, null, null, null, null, null, null, false, deferralTracked);
+    }
+
+    /**
+     * 最新有效回复给出的延期标签目标原因；仅当本期受管、状态为申请延期且原因合法时非空。
+     *
+     * @return 稳定枚举键；受管但取消延期、非申请延期或无新版回复时返回空串；旧版回复返回 {@code null}
+     */
+    String deferralTargetReason() {
+      if (!deferralTracked || !present || !deferralFieldPresent
+          || !"DEFERRED".equals(fixStatus)) {
+        return "";
+      }
+      return deferralReason == null ? "" : deferralReason;
     }
 
     /** 去重后的稳定原因数量；0 或大于 1 在模板合规层单独判为不唯一。 */

@@ -72,6 +72,60 @@ class FormConditionContractTest {
   }
 
   @Test
+  void acceptsNotEqualsAndVisibleWhenAndFreezesOppositeConstraints() {
+    String specJson =
+        """
+        {
+          "spec_version": 1,
+          "template_key": "issue_reply",
+          "fields": [
+            {"name":"status","apiKey":"status","label":"状态","type":"enum","control":"radio",
+             "required":true,"options":[{"value":"A","label":"甲"},{"value":"B","label":"乙"}],
+             "storage":{"column":"status","columnType":"varchar(32)"}},
+            {"name":"reason","apiKey":"reason","label":"原因","type":"enum","control":"radio",
+             "required":false,"options":[{"value":"X","label":"原因甲"},{"value":"Y","label":"原因乙"}],
+             "requiredWhen":{"field":"status","equals":"A"},
+             "clearWhen":{"field":"status","notEquals":"A"},
+             "visibleWhen":{"field":"status","equals":"A"},
+             "storage":{"column":"reason","columnType":"varchar(32)"}}
+          ],
+          "conditions": [
+            {"type":"conditionalRequired","target":"reason",
+             "requiredWhen":{"field":"status","equals":"A"},
+             "clearWhen":{"field":"status","notEquals":"A"}}
+          ],
+          "dictionaries": []
+        }
+        """;
+    FormTemplateSpec spec = validator.parse(specJson);
+    validator.validate(spec);
+
+    String ddl =
+        String.join("\n", schemaService.generate(1, 2, spec, false).statements());
+    assertThat(ddl)
+        .contains("check (not (status = 'A') or (reason is not null and btrim(reason) <> ''))")
+        .contains("check ((status = 'A') or reason is null)");
+  }
+
+  @Test
+  void rejectsAmbiguousOrUnknownNotEqualsConditions() {
+    ObjectNode ambiguous = specNode();
+    ObjectNode noteCondition = (ObjectNode) ambiguous.get("conditions").get(1);
+    noteCondition.putObject("requiredWhen")
+        .put("field", "status")
+        .put("equals", "A")
+        .put("notEquals", "B");
+    assertThat(validationErrors(ambiguous))
+        .anyMatch(error -> error.contains("必须且只能指定一种比较方式"));
+
+    ObjectNode unknownValue = specNode();
+    ObjectNode clearCondition = (ObjectNode) unknownValue.get("conditions").get(1);
+    clearCondition.putObject("clearWhen").put("field", "status").put("notEquals", "Z");
+    assertThat(validationErrors(unknownValue))
+        .anyMatch(error -> error.contains("不在字段") && error.contains("选项或词典中"));
+  }
+
+  @Test
   void rejectsUnsupportedConditionCombinationsBeforePublish() {
     ObjectNode mutualOnEnum = specNode();
     ((ObjectNode) mutualOnEnum.get("conditions").get(0)).put("field", "status");

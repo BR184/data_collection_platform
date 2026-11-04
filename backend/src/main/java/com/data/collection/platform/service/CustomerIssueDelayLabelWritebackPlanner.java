@@ -14,13 +14,25 @@ public class CustomerIssueDelayLabelWritebackPlanner {
     this.writebackService = writebackService;
   }
 
-  CustomerIssueDelayLabelWritebackPlan plan(IssueFact fact) {
+  /**
+   * 由已发布事实与本轮冻结的回复输入计算写回目标。
+   *
+   * @param fact 已发布事实；{@code null} 视为无标签
+   * @param reply 表单回复快照；{@code null} 表示无表单输入，不管理本期四标签
+   * @return 当前标签与合并差异
+   */
+  CustomerIssueDelayLabelWritebackPlan plan(
+      IssueFact fact, IssueBusinessInput.ReplySnapshot reply) {
     List<String> currentLabels = parseLabels(fact == null ? null : fact.getLabelNames());
+    boolean deferralManaged = reply != null && reply.deferralTracked();
+    String deferralReason = reply == null ? "" : reply.deferralTargetReason();
     CustomerIssueDelayLabelWritebackService.LabelChange change =
-        writebackService.delayLabelChange(
+        writebackService.labelChange(
             currentLabels,
             fact != null && Boolean.TRUE.equals(fact.getResponseDelayed()),
-            fact != null && Boolean.TRUE.equals(fact.getResolveDelayed()));
+            fact != null && Boolean.TRUE.equals(fact.getResolveDelayed()),
+            deferralManaged,
+            deferralReason);
     return new CustomerIssueDelayLabelWritebackPlan(fact, currentLabels, change);
   }
 

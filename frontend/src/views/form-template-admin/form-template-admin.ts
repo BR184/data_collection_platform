@@ -370,7 +370,7 @@ export const RESOURCE_SEVERITY_FIELD = '__resource_severity__';
 export const RESOURCE_SEVERITY_VALUES = ['一级缺陷', '二级缺陷', '三级缺陷', '建议类', '未设定'] as const;
 
 export type ConditionRowKind = 'required' | 'mutual';
-export type ConditionOperator = 'equals' | 'contains' | 'notContains';
+export type ConditionOperator = 'equals' | 'notEquals' | 'contains' | 'notContains';
 
 /** 管理页可编辑的条件行；字段与选项一律用业务名称显示。 */
 export interface ConditionRow {
@@ -417,6 +417,13 @@ function triggerShape(
         triggerField: record.field,
         operator: 'equals',
         values: stringList(record.equals),
+      };
+    }
+    if ('notEquals' in record) {
+      return {
+        triggerField: record.field,
+        operator: 'notEquals',
+        values: stringList(record.notEquals),
       };
     }
     return null;
@@ -555,6 +562,16 @@ export function hasUnsupportedConditions(spec: FormTemplateSpecView): boolean {
   return unsupportedRoot || unsupportedField;
 }
 
+function typedTriggerValue(field: FormFieldSpecView | undefined, value: string): unknown {
+  if (field?.type === 'boolean') {
+    return value === 'true';
+  }
+  if (field?.type === 'integer' && /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value))) {
+    return Number(value);
+  }
+  return value;
+}
+
 function buildRequiredWhen(row: ConditionRow, spec: FormTemplateSpecView): Record<string, unknown> {
   const value = row.values[0] ?? '';
   if (row.triggerField === RESOURCE_SEVERITY_FIELD) {
@@ -569,11 +586,11 @@ function buildRequiredWhen(row: ConditionRow, spec: FormTemplateSpecView): Recor
     return { field: row.triggerField, notContains: value };
   }
   const field = spec.fields.find(item => item.name === row.triggerField);
-  if (field?.type === 'boolean') return { field: row.triggerField, equals: value === 'true' };
-  if (field?.type === 'integer' && /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value))) {
-    return { field: row.triggerField, equals: Number(value) };
+  const triggerValue = typedTriggerValue(field, value);
+  if (row.operator === 'notEquals') {
+    return { field: row.triggerField, notEquals: triggerValue };
   }
-  return { field: row.triggerField, equals: value };
+  return { field: row.triggerField, equals: triggerValue };
 }
 
 function buildClearWhen(
@@ -591,8 +608,18 @@ function buildClearWhen(
   if (row.operator === 'contains') {
     return { field: row.triggerField, notContains: row.values[0] ?? '' };
   }
-  if (row.operator === 'equals' && field.type === 'boolean') {
-    return { field: row.triggerField, equals: row.values[0] !== 'true' };
+  if (field.type === 'boolean' && (row.operator === 'equals' || row.operator === 'notEquals')) {
+    const value = row.values[0] ?? '';
+    return {
+      field: row.triggerField,
+      equals: row.operator === 'equals' ? value !== 'true' : value === 'true',
+    };
+  }
+  if (row.operator === 'equals' || row.operator === 'notEquals') {
+    const triggerValue = typedTriggerValue(field, row.values[0] ?? '');
+    return row.operator === 'equals'
+      ? { field: row.triggerField, notEquals: triggerValue }
+      : { field: row.triggerField, equals: triggerValue };
   }
   return null;
 }
@@ -606,7 +633,11 @@ export function canClearWhen(row: ConditionRow, spec: FormTemplateSpecView): boo
     return true;
   }
   const field = spec.fields.find((item) => item.name === row.triggerField);
-  return Boolean(field && field.type === 'boolean' && row.operator === 'equals');
+  return Boolean(
+    field
+    && (field.type === 'boolean' || field.type === 'enum' || field.type === 'string'
+      || field.type === 'integer' || field.type === 'date'),
+  );
 }
 
 /**
@@ -700,7 +731,7 @@ export function conditionOperators(
     return [{ value: 'equals', label: '为' }];
   }
   const field = spec.fields.find((item) => item.name === row.triggerField);
-  if (!field || field.type === 'boolean') {
+  if (!field) {
     return [{ value: 'equals', label: '为' }];
   }
   if (field.type === 'enum-array') {
@@ -709,7 +740,10 @@ export function conditionOperators(
       { value: 'notContains', label: '不包含' },
     ];
   }
-  return [{ value: 'equals', label: '为' }];
+  return [
+    { value: 'equals', label: '为' },
+    { value: 'notEquals', label: '不为' },
+  ];
 }
 
 /** 条件取值选项（选项/词典/布尔/严重级别），全部为业务名称。 */
@@ -785,7 +819,13 @@ export function describeConditionRow(
     return `当${trigger}选择${values}时，不能同时选择${conflicts}。`;
   }
   const operator =
-    row.operator === 'contains' ? '包含' : row.operator === 'notContains' ? '不包含' : '为';
+    row.operator === 'contains'
+      ? '包含'
+      : row.operator === 'notContains'
+        ? '不包含'
+        : row.operator === 'notEquals'
+          ? '不为'
+          : '为';
   const clear = row.clearWhenOff ? '；否则自动清空' : '';
   return `当${trigger}${operator}${values}时，「${labelOfField(row.target, rows)}」必填${clear}。`;
 }

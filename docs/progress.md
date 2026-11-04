@@ -2,12 +2,12 @@
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |
 | --- | --- | --- | --- |
-| 统一表单系统 | 就绪后投放 L1/L2 已交付；延期原因 R1—R3 准予实施 | 表单多版本与填写功能开发-20261026 | 先延期原因 R1/R2；再补链接登记/发送的响应、回复双模板范围与版本校验，然后做 R3 与[链接L3](plans/form-issue-ready-link-delivery-20261104.md)；黄金/update、main、出包与生产启用仍禁止 |
+| 统一表单系统 | 就绪后投放 L1/L2 已交付；延期原因 R1/R2 已实施并通过定向与真实PG复验 | 表单多版本与填写功能开发-20261026 | 下一步做 R3 六步联验与桌面四动作，再[链接L3](plans/form-issue-ready-link-delivery-20261104.md)；黄金/update、main、出包与生产启用仍禁止 |
 
 - 实现：`form_resource_authorities` 响应行新增 `entry_registered_at`/`entry_comment_id`（迁移 `V20261104_01`，索引仅覆盖待发）；`FactTargetPublicationService` 在 ISSUE 发布事务内登记，提交后经 `platformAsyncExecutor` 异步发送；`GitlabCompensationScheduler` 每轮补发已登记且编号为空的 325 议题；`FormIssueLinkService` 独立事务锁响应权威行、复查编号与就绪、带超时发一条含响应/回复两个入口的评论并保存编号。投放默认关闭，需 `platform.form-issue-link.enabled` 与 `external-base-url`。
 - 验证：`FormIssueAdoptionFactPipelineIntegrationTest` 32/32（新增6项：发布回滚0行、成功1行且不新增任务行、重复登记0行、单条评论含两入口、并发仅1条、HTTP 500后编号为空且下一轮成功、COMMENT/非325为0）；`GitlabCompensationSchedulerTest` 14/14、`FactPublicationFailurePreservationTest` 5/5、`FactTargetPublicationServiceIntegrationTest` 19/19、`LegacyPlatformFormalImportRevisionIntegrationTest` 5/5、`DatabaseBrowserFormTableDefinitionsTest` 1/1。
-- 链接小修（待实施）：静态核对发现回复侧只有 FORM 存在性检查，登记与发送须补同一范围/当前版本有效性判断；修后进入 L3。ci_robot 需目标 GitLab 的 `api` 作用域 PAT 与项目评论权限，安全注入只卡真实评论联验。
-- 延期原因准入：用户准予[方案R1—R3](plans/form-reply-deferral-reason-20261104.md)实施，先单选字段与既有写回链，再六步集合联验；无需等待链接 L3。
+- 链接小修（已实施）：登记与发送对响应、回复分别要求所属范围 `ACTIVE` 且当前版本 `PUBLISHED`/`RECORDS`/标签非空；发送仍只锁响应权威行。真实PG覆盖回复范围退役或版本无效时登记0、HTTP0，恢复后登记1并发1条。
+- 延期原因 R1/R2（已实施）：`issue_reply` 增加条件必填单选项“延期原因”（技术卡点/资源卡点/数据异常），条件语言扩展 `notEquals` 与 `visibleWhen`；回复快照区分旧版缺字段、明确取消与全部作废，写回在同一差异中合并 SLA 与四标签。定向 78/78（含真实PG保存拒绝缺失/残留/未知、改原因、取消、旧版缺字段、技术→资源作业目标变化与旧修订拒绝）；前端表单逻辑 9/9、模板管理 14/14、typecheck 通过。桌面四动作与 R3 六步待专属环境。
 - 边界：未生成/更新黄金快照、未合main、未出包、未升级现场、未生产启用；FORM/COMMENT 权威、生产MR评论与非法页旧源未改。L3 的10分钟采集间隔属本地来源配置，尚未调整。
 
 ## 2026-11-04 表单T2夹具与首次严格compare：34份差异全部归因，0需修复

@@ -8,6 +8,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -48,12 +49,15 @@ public class CustomerIssueDelayLabelWritebackQueueService {
 
   private final JdbcTemplate jdbcTemplate;
   private final CustomerIssueDelayLabelWritebackPlanner planner;
+  private final FormIssueInputResolver formIssueInputResolver;
 
   public CustomerIssueDelayLabelWritebackQueueService(
       JdbcTemplate jdbcTemplate,
-      CustomerIssueDelayLabelWritebackPlanner planner) {
+      CustomerIssueDelayLabelWritebackPlanner planner,
+      FormIssueInputResolver formIssueInputResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.planner = planner;
+    this.formIssueInputResolver = formIssueInputResolver;
   }
 
   /**
@@ -84,10 +88,13 @@ public class CustomerIssueDelayLabelWritebackQueueService {
       int limit) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     List<IssueFact> candidates = loadCandidates(sourceInstance, afterIssueId, Math.max(1, limit));
+    Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> inputs =
+        resolvePageInputs(sourceInstance, candidates);
     LocalDateTime labelRefreshFinishedAt = labelRefreshFinishedAt(mirrorRunId);
     int enqueued = 0;
     for (IssueFact candidate : candidates) {
-      CustomerIssueDelayLabelWritebackPlan plan = planner.plan(candidate);
+      CustomerIssueDelayLabelWritebackPlan plan =
+          planner.plan(candidate, replyOf(inputs, candidate));
       if (!plan.hasChanges()) {
         continue;
       }
@@ -108,6 +115,34 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         candidates.isEmpty() ? afterIssueId : candidates.getLast().getIssueId();
     return new PageResult(
         enqueued, lastIssueId, candidates.size() >= Math.max(1, limit));
+  }
+
+  /** 本页候选的回复输入：单次批量解析，沿用事实构建同一权威与版本规则。 */
+  private Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> resolvePageInputs(
+      String sourceInstance, List<IssueFact> candidates) {
+    List<FormIssueInputResolver.IssueRef> refs =
+        candidates.stream()
+            .filter(candidate -> candidate.getProjectId() != null && candidate.getIssueIid() != null)
+            .map(
+                candidate ->
+                    new FormIssueInputResolver.IssueRef(
+                        candidate.getProjectId(), candidate.getIssueIid()))
+            .distinct()
+            .toList();
+    if (refs.isEmpty()) {
+      return Map.of();
+    }
+    return formIssueInputResolver.resolveAll(sourceInstance, refs).inputs();
+  }
+
+  private IssueBusinessInput.ReplySnapshot replyOf(
+      Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> inputs, IssueFact fact) {
+    if (fact.getProjectId() == null || fact.getIssueIid() == null) {
+      return null;
+    }
+    IssueBusinessInput input =
+        inputs.get(new FormIssueInputResolver.IssueRef(fact.getProjectId(), fact.getIssueIid()));
+    return input == null ? null : input.reply();
   }
 
   /**

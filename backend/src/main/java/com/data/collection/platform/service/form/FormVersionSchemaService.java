@@ -528,6 +528,13 @@ public class FormVersionSchemaService {
       }
       return column + " = " + literal(value.asText());
     }
+    if (condition.has("notEquals")) {
+      JsonNode value = condition.path("notEquals");
+      if (value.isBoolean()) {
+        return value.asBoolean() ? "not " + column : column;
+      }
+      return "not (" + column + " = " + literal(value.asText()) + ")";
+    }
     throw new IllegalArgumentException("Unsupported form condition: " + condition);
   }
 
@@ -549,6 +556,13 @@ public class FormVersionSchemaService {
     }
     if (condition.hasNonNull("contains")) {
       return "not (" + literal(condition.path("contains").asText()) + " = any(" + column + "))";
+    }
+    if (condition.has("notEquals")) {
+      JsonNode value = condition.path("notEquals");
+      if (value.isBoolean()) {
+        return value.asBoolean() ? column : "not " + column;
+      }
+      return column + " = " + literal(value.asText());
     }
     throw new IllegalArgumentException("Unsupported negated form condition: " + condition);
   }

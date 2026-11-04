@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,34 +22,109 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayLabelWritebackService {
   static final String RESPONSE_DELAY_LABEL = "响应已延期";
   static final String RESOLVE_DELAY_LABEL = "解决已延期";
+  static final String DEFERRAL_STATUS_LABEL = "状态：申请延期";
+  static final String TECHNICAL_BLOCKER_LABEL = "技术卡点";
+  static final String RESOURCE_BLOCKER_LABEL = "资源卡点";
+  static final String DATA_ANOMALY_LABEL = "数据异常";
+  private static final Map<String, String> DEFERRAL_REASON_LABELS =
+      Map.of(
+          "TECHNICAL_BLOCKER", TECHNICAL_BLOCKER_LABEL,
+          "RESOURCE_BLOCKER", RESOURCE_BLOCKER_LABEL,
+          "DATA_ANOMALY", DATA_ANOMALY_LABEL);
+  private static final Set<String> SLA_LABELS = Set.of(RESPONSE_DELAY_LABEL, RESOLVE_DELAY_LABEL);
+  private static final Set<String> DEFERRAL_LABELS =
+      Set.of(
+          DEFERRAL_STATUS_LABEL,
+          TECHNICAL_BLOCKER_LABEL,
+          RESOURCE_BLOCKER_LABEL,
+          DATA_ANOMALY_LABEL);
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
   private final HttpClient httpClient =
       HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
 
-  LabelChange delayLabelChange(List<String> currentLabels, boolean responseDelayed, boolean resolveDelayed) {
-    LinkedHashSet<String> currentDelayLabels = new LinkedHashSet<>();
-    for (String label : currentLabels == null ? List.<String>of() : currentLabels) {
-      if (!StringUtils.hasText(label)) {
-        continue;
-      }
-      String trimmed = label.trim();
-      if (RESPONSE_DELAY_LABEL.equals(trimmed) || RESOLVE_DELAY_LABEL.equals(trimmed)) {
-        currentDelayLabels.add(trimmed);
+  /**
+   * 合并两种延期标签与本期四类延期原因标签的差异；两个分支各只增删自己拥有的标签。
+   *
+   * @param currentLabels 当前来源标签
+   * @param responseDelayed 响应延期判定
+   * @param resolveDelayed 解决延期判定
+   * @param deferralManaged 议题是否出现过新版回复（{@code false} 时不增删本期四标签）
+   * @param deferralReason 冻结延期原因枚举键；非申请延期、取消或旧版回复时为空
+   * @return 合并后的增删集合
+   */
+  LabelChange labelChange(
+      List<String> currentLabels,
+      boolean responseDelayed,
+      boolean resolveDelayed,
+      boolean deferralManaged,
+      String deferralReason) {
+    LinkedHashSet<String> current = normalized(currentLabels);
+    LinkedHashSet<String> addLabels = new LinkedHashSet<>();
+    LinkedHashSet<String> removeLabels = new LinkedHashSet<>();
+    collectLabelDiff(
+        current,
+        SLA_LABELS,
+        desiredSlaLabels(responseDelayed, resolveDelayed),
+        addLabels,
+        removeLabels);
+    if (deferralManaged) {
+      collectLabelDiff(
+          current, DEFERRAL_LABELS, desiredDeferralLabels(deferralReason), addLabels, removeLabels);
+    }
+    return new LabelChange(List.copyOf(addLabels), List.copyOf(removeLabels));
+  }
+
+  private LinkedHashSet<String> normalized(List<String> labels) {
+    LinkedHashSet<String> values = new LinkedHashSet<>();
+    for (String label : labels == null ? List.<String>of() : labels) {
+      if (StringUtils.hasText(label)) {
+        values.add(label.trim());
       }
     }
-    LinkedHashSet<String> desiredDelayLabels = new LinkedHashSet<>();
+    return values;
+  }
+
+  private LinkedHashSet<String> desiredSlaLabels(boolean responseDelayed, boolean resolveDelayed) {
+    LinkedHashSet<String> desired = new LinkedHashSet<>();
     if (responseDelayed) {
-      desiredDelayLabels.add(RESPONSE_DELAY_LABEL);
+      desired.add(RESPONSE_DELAY_LABEL);
     }
     if (resolveDelayed) {
-      desiredDelayLabels.add(RESOLVE_DELAY_LABEL);
+      desired.add(RESOLVE_DELAY_LABEL);
     }
-    LinkedHashSet<String> addLabels = new LinkedHashSet<>(desiredDelayLabels);
-    addLabels.removeAll(currentDelayLabels);
-    LinkedHashSet<String> removeLabels = new LinkedHashSet<>(currentDelayLabels);
-    removeLabels.removeAll(desiredDelayLabels);
-    return new LabelChange(List.copyOf(addLabels), List.copyOf(removeLabels));
+    return desired;
+  }
+
+  private LinkedHashSet<String> desiredDeferralLabels(String deferralReason) {
+    LinkedHashSet<String> desired = new LinkedHashSet<>();
+    String reasonLabel = deferralReason == null ? null : DEFERRAL_REASON_LABELS.get(deferralReason);
+    if (reasonLabel != null) {
+      desired.add(DEFERRAL_STATUS_LABEL);
+      desired.add(reasonLabel);
+    }
+    return desired;
+  }
+
+  /** 只在所属分支拥有的标签集合内比较：其他标签既不参与判断，也不会被本分支删除。 */
+  private void collectLabelDiff(
+      LinkedHashSet<String> current,
+      Set<String> owned,
+      LinkedHashSet<String> desired,
+      LinkedHashSet<String> addLabels,
+      LinkedHashSet<String> removeLabels) {
+    LinkedHashSet<String> currentOwned = new LinkedHashSet<>();
+    for (String label : current) {
+      if (owned.contains(label)) {
+        currentOwned.add(label);
+      }
+    }
+    LinkedHashSet<String> add = new LinkedHashSet<>(desired);
+    add.removeAll(currentOwned);
+    LinkedHashSet<String> remove = new LinkedHashSet<>(currentOwned);
+    remove.removeAll(desired);
+    addLabels.addAll(add);
+    removeLabels.addAll(remove);
   }
 
   /**

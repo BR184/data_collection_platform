@@ -211,6 +211,9 @@ export function evaluateCondition(
   if ('equals' in condition) {
     return equalsConditionValue(value, condition.equals);
   }
+  if ('notEquals' in condition) {
+    return !equalsConditionValue(value, condition.notEquals);
+  }
   return false;
 }
 
@@ -242,6 +245,19 @@ export function isFieldRequired(
   }
   return evaluateCondition(spec, field.requiredWhen, fields, severityLevel)
     || evaluateCondition(spec, conditionRule(spec, field.name, 'requiredWhen'), fields, severityLevel);
+}
+
+/** 字段是否应出现在填写区；未声明显示条件时始终可见。 */
+export function isFieldVisible(
+  spec: FormTemplateSpecView,
+  field: FormFieldSpecView,
+  fields: FieldValueMap,
+  severityLevel: string | null,
+): boolean {
+  if (!field.visibleWhen) {
+    return true;
+  }
+  return evaluateCondition(spec, field.visibleWhen, fields, severityLevel);
 }
 
 export function isFieldCleared(

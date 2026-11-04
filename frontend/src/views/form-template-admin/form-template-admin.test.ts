@@ -388,6 +388,75 @@ describe('form condition business model', () => {
     });
   });
 
+  it('round-trips not-equals conditions and preserves the field visibility rule', () => {
+    const source: FormTemplateSpecView = {
+      spec_version: 1,
+      template_key: 'issue_reply',
+      fields: [
+        {
+          name: 'fix_status',
+          apiKey: 'fixStatus',
+          label: '修复状态',
+          type: 'enum',
+          control: 'radio',
+          required: true,
+          options: [
+            { value: 'DEFERRED', label: '申请延期' },
+            { value: 'RESOLVED', label: '已解决' },
+          ],
+          storage: { column: 'fix_status', columnType: 'varchar(32)' },
+        },
+        {
+          name: 'deferral_reason',
+          apiKey: 'deferralReason',
+          label: '延期原因',
+          type: 'enum',
+          control: 'radio',
+          required: false,
+          options: [
+            { value: 'TECHNICAL_BLOCKER', label: '技术卡点' },
+            { value: 'RESOURCE_BLOCKER', label: '资源卡点' },
+          ],
+          requiredWhen: { field: 'fix_status', equals: 'DEFERRED' },
+          clearWhen: { field: 'fix_status', notEquals: 'DEFERRED' },
+          visibleWhen: { field: 'fix_status', equals: 'DEFERRED' },
+          storage: { column: 'deferral_reason', columnType: 'varchar(32)' },
+        },
+      ],
+      conditions: [
+        {
+          type: 'conditionalRequired',
+          target: 'deferral_reason',
+          requiredWhen: { field: 'fix_status', equals: 'DEFERRED' },
+          clearWhen: { field: 'fix_status', notEquals: 'DEFERRED' },
+        },
+      ],
+      dictionaries: [],
+    };
+
+    const rows = conditionRowsFromSpec(source, fieldRowsFromSpec(source));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].operator).toBe('equals');
+    expect(rows[0].clearWhenOff).toBe(true);
+
+    const applied = applyConditionRows(source, rows);
+    expect(applied.conditions?.[0]).toMatchObject({
+      target: 'deferral_reason',
+      requiredWhen: { field: 'fix_status', equals: 'DEFERRED' },
+      clearWhen: { field: 'fix_status', notEquals: 'DEFERRED' },
+    });
+    expect(applied.fields[1].visibleWhen).toEqual({ field: 'fix_status', equals: 'DEFERRED' });
+
+    rows[0].operator = 'notEquals';
+    rows[0].values = ['RESOLVED'];
+    const flipped = applyConditionRows(source, rows);
+    expect(flipped.conditions?.[0]).toMatchObject({
+      requiredWhen: { field: 'fix_status', notEquals: 'RESOLVED' },
+      clearWhen: { field: 'fix_status', equals: 'RESOLVED' },
+    });
+    expect(conditionSummaries(flipped, fieldRowsFromSpec(flipped))[0].text).toContain('不为');
+  });
+
   it('writes edited conditions back to root DSL and keeps unsupported rules', () => {
     const source = issueReplySpec();
     const unsupported = { type: 'futureRule', field: 'affected_kinds' };

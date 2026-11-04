@@ -59,7 +59,9 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     when(formIssueBuildInputService.current(any(), anyLong(), anyLong()))
         .thenReturn(
             new FormIssueBuildInputService.Snapshot(
-                FormIssueBuildInputService.Snapshot.Status.NONE, null));
+                FormIssueBuildInputService.Snapshot.Status.NONE,
+                null,
+                IssueBusinessInput.ReplySnapshot.absent()));
     workerService =
         new CustomerIssueDelayLabelWritebackWorkerService(
             properties,
@@ -136,7 +138,9 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     when(formIssueBuildInputService.current("default", 325L, 1001L))
         .thenReturn(
             new FormIssueBuildInputService.Snapshot(
-                FormIssueBuildInputService.Snapshot.Status.OK, "b".repeat(64)));
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "b".repeat(64),
+                IssueBusinessInput.ReplySnapshot.absent()));
 
     workerService.process(job);
 
@@ -150,7 +154,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackJob job = job(1, 0, 10);
     IssueFact fact = fact("响应已延期", true, false);
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of("响应已延期"), true, false))
+    when(writebackService.labelChange(List.of("响应已延期"), true, false, false, ""))
         .thenReturn(new CustomerIssueDelayLabelWritebackService.LabelChange(List.of(), List.of()));
 
     workerService.process(job);
@@ -165,7 +169,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change))
         .thenThrow(new IOException("timeout"));
 
@@ -183,7 +187,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(403, "forbidden");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -200,7 +204,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(429, "rate limited");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -215,7 +219,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
     when(queueService.markSucceeded(job)).thenReturn(true);
 
@@ -233,7 +237,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(502, "bad gateway");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -349,13 +353,97 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(queueService.renewLease(job, 120)).thenReturn(false);
 
     workerService.process(job);
 
     verify(writebackService, never())
         .sendLabelUpdate(any(GitlabSyncConfig.class), any(), any(), any());
+  }
+
+  @Test
+  void shouldSendMergedDeferralChangeWhenLatestReplyChangesReason() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("状态：申请延期, 技术卡点", false, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "a".repeat(64),
+                deferredReply("RESOURCE_BLOCKER")));
+    CustomerIssueDelayLabelWritebackService.LabelChange change =
+        new CustomerIssueDelayLabelWritebackService.LabelChange(
+            List.of("资源卡点"), List.of("技术卡点"));
+    when(writebackService.labelChange(
+            List.of("状态：申请延期", "技术卡点"), false, false, true, "RESOURCE_BLOCKER"))
+        .thenReturn(change);
+    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
+    when(queueService.markSucceeded(job)).thenReturn(true);
+
+    workerService.process(job);
+
+    verify(writebackService).sendLabelUpdate(config, 325L, 1001L, change);
+    verify(queueService).markSucceeded(job);
+  }
+
+  @Test
+  void shouldClearManagedLabelsWhenAllNewVersionRepliesWereVoided() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("状态：申请延期, 技术卡点, 资源卡点, 数据异常", false, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "a".repeat(64),
+                IssueBusinessInput.ReplySnapshot.absent(true)));
+    CustomerIssueDelayLabelWritebackService.LabelChange change =
+        new CustomerIssueDelayLabelWritebackService.LabelChange(
+            List.of(), List.of("状态：申请延期", "技术卡点", "资源卡点", "数据异常"));
+    when(writebackService.labelChange(
+            List.of("状态：申请延期", "技术卡点", "资源卡点", "数据异常"),
+            false,
+            false,
+            true,
+            ""))
+        .thenReturn(change);
+    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
+    when(queueService.markSucceeded(job)).thenReturn(true);
+
+    workerService.process(job);
+
+    verify(writebackService).sendLabelUpdate(config, 325L, 1001L, change);
+    verify(queueService).markSucceeded(job);
+  }
+
+  private IssueBusinessInput.ReplySnapshot deferredReply(String reason) {
+    return new IssueBusinessInput.ReplySnapshot(
+        true,
+        21L,
+        java.time.LocalDateTime.of(2026, 11, 12, 9, 0),
+        "u-jia",
+        "甲",
+        "DEFERRED",
+        List.of("standard_error"),
+        List.of("编码规范错误"),
+        "原因",
+        "方案",
+        false,
+        List.of("NONE"),
+        null,
+        null,
+        "NOT_APPLICABLE",
+        false,
+        null,
+        "NOT_APPLICABLE",
+        null,
+        reason,
+        true,
+        true);
   }
 
   private CustomerIssueDelayClosureProgress progress(Long authorizationRevision, Long factVersion) {

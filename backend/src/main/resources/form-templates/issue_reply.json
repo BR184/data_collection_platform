@@ -5,6 +5,12 @@
     {"name":"fix_status","apiKey":"fixStatus","label":"修复状态","type":"enum","control":"radio","required":true,
      "options":[{"value":"RESOLVED","label":"已解决"},{"value":"PARTIAL","label":"部分解决"},{"value":"DEFERRED","label":"申请延期"},{"value":"UNREPRODUCIBLE","label":"无法复现"}],
      "storage":{"column":"fix_status","columnType":"varchar(32)"}},
+    {"name":"deferral_reason","apiKey":"deferralReason","label":"延期原因","type":"enum","control":"radio","required":false,
+     "options":[{"value":"TECHNICAL_BLOCKER","label":"技术卡点"},{"value":"RESOURCE_BLOCKER","label":"资源卡点"},{"value":"DATA_ANOMALY","label":"数据异常"}],
+     "requiredWhen":{"field":"fix_status","equals":"DEFERRED"},
+     "clearWhen":{"field":"fix_status","notEquals":"DEFERRED"},
+     "visibleWhen":{"field":"fix_status","equals":"DEFERRED"},
+     "storage":{"column":"deferral_reason","columnType":"varchar(32)"}},
     {"name":"cause_keys","apiKey":"causeKeys","label":"缺陷原因","type":"enum-array","control":"multi-select","required":true,
      "dictionary":"DEFECT_CAUSE","maxItems":24,
      "storage":{"column":"cause_keys","columnType":"text[]"}},
@@ -44,7 +50,8 @@
     {"type":"mutuallyExclusive","field":"affected_kinds","whenContains":"NONE","withAnyOf":["KNOWN","NEW"]},
     {"type":"conditionalRequired","target":"known_affected_functions","requiredWhen":{"field":"affected_kinds","contains":"KNOWN"},"clearWhen":{"field":"affected_kinds","notContains":"KNOWN"}},
     {"type":"conditionalRequired","target":"new_affected_functions","requiredWhen":{"field":"affected_kinds","contains":"NEW"},"clearWhen":{"field":"affected_kinds","notContains":"NEW"}},
-    {"type":"conditionalRequired","target":"residual_impact_detail","requiredWhen":{"field":"has_residual_impact","equals":true},"clearWhen":{"field":"has_residual_impact","equals":false}}
+    {"type":"conditionalRequired","target":"residual_impact_detail","requiredWhen":{"field":"has_residual_impact","equals":true},"clearWhen":{"field":"has_residual_impact","equals":false}},
+    {"type":"conditionalRequired","target":"deferral_reason","requiredWhen":{"field":"fix_status","equals":"DEFERRED"},"clearWhen":{"field":"fix_status","notEquals":"DEFERRED"}}
   ],
   "dictionaries": [
     {"name":"DEFECT_CAUSE","version":"defect-cause-v20261020",

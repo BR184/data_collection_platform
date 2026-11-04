@@ -37,6 +37,7 @@ import {
   formatFieldValue,
   isFieldCleared,
   isFieldRequired,
+  isFieldVisible,
   type FieldValue,
 } from '../features/collect-forms/field-logic';
 import {
@@ -403,6 +404,17 @@ function fieldCleared(block: FormBlockState, field: FormFieldSpecView): boolean 
     return false;
   }
   return isFieldCleared(spec.value, field, block.fields, severityLevel.value);
+}
+
+function fieldVisible(block: FormBlockState, field: FormFieldSpecView): boolean {
+  if (!spec.value) {
+    return true;
+  }
+  return isFieldVisible(spec.value, field, block.fields, severityLevel.value);
+}
+
+function visibleFields(block: FormBlockState): FormFieldSpecView[] {
+  return blockFields(block).filter((field) => fieldVisible(block, field));
 }
 
 function fieldDisabled(block: FormBlockState): boolean {
@@ -1353,7 +1365,7 @@ onBeforeUnmount(() => {
                   @submit.prevent="submitBlock(block)"
                 >
                   <el-form-item
-                    v-for="field in blockFields(block)"
+                    v-for="field in visibleFields(block)"
                     :key="field.apiKey"
                     :label="field.label || field.name"
                     :required="fieldRequired(block, field)"

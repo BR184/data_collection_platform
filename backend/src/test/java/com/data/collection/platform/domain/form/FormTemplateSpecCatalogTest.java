@@ -18,7 +18,16 @@ class FormTemplateSpecCatalogTest {
     assertThat(catalog.all()).hasSize(3);
     assertThat(catalog.require("code_review").fields()).hasSize(8);
     assertThat(catalog.require("issue_response").fields()).hasSize(7);
-    assertThat(catalog.require("issue_reply").fields()).hasSize(13);
+    assertThat(catalog.require("issue_reply").fields()).hasSize(14);
+    assertThat(catalog.require("issue_reply").fieldByName("deferral_reason").orElseThrow())
+        .satisfies(
+            field -> {
+              assertThat(field.type()).isEqualTo("enum");
+              assertThat(field.control()).isEqualTo("radio");
+              assertThat(field.required()).isFalse();
+              assertThat(field.options()).extracting(FormFieldOption::label)
+                  .containsExactly("技术卡点", "资源卡点", "数据异常");
+            });
   }
 
   @Test
@@ -65,6 +74,10 @@ class FormTemplateSpecCatalogTest {
             + " or 'NEW' = any(affected_kinds))))")
         .contains("check (not ('KNOWN' = any(affected_kinds)) or (known_affected_functions is not null")
         .contains("check (('KNOWN' = any(affected_kinds)) or known_affected_functions is null)")
+        .contains(
+            "check (not (fix_status = 'DEFERRED') or (deferral_reason is not null"
+                + " and btrim(deferral_reason) <> ''))")
+        .contains("check ((fix_status = 'DEFERRED') or deferral_reason is null)")
         .contains("relation_table_updated varchar(16) not null");
   }
 

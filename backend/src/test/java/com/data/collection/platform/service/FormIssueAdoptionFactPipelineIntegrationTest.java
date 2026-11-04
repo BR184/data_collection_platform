@@ -7,6 +7,7 @@ import com.data.collection.platform.config.FormIssueLinkProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.domain.customerissue.CustomerIssueEfficiencyRules;
 import com.data.collection.platform.domain.form.FormScopeBinding;
+import com.data.collection.platform.domain.form.FormTemplateSpec;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
@@ -540,6 +541,71 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
     assertThat(deliveryCommentId(iid)).isNotNull();
     assertThat(postedNoteBodies).hasSize(2);
+  }
+
+  /** L1/L2：响应与回复两侧都必须在登记和发送时保持范围与当前版本有效。 */
+  @Test
+  void deliveryRequiresBothScopesAndCurrentVersionsAtRegistrationAndSend() throws Exception {
+    long iid = 81208L;
+    insertSourceIssue(93208L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    assertThat(registeredDeliveryCount()).isEqualTo(1);
+
+    resetDeliveryRegistration(iid);
+    setReplyScopeState("RETIRED", "PUBLISHED");
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    assertThat(registeredDeliveryCount()).as("回复范围退役时不得登记").isZero();
+
+    setReplyScopeState("ACTIVE", "PUBLISHED");
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    assertThat(registeredDeliveryCount()).isEqualTo(1);
+
+    pointSourceConfigAt(startFakeGitlab(201, 0L));
+    setReplyScopeState("ACTIVE", "INSTALLED");
+    assertThat(formIssueLinkService.dispatchPending(10))
+        .as("回复当前版本无效时不得发送")
+        .isZero();
+    assertThat(postedNoteBodies).isEmpty();
+    assertThat(deliveryCommentId(iid)).isNull();
+
+    setReplyScopeState("ACTIVE", "PUBLISHED");
+    assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
+    assertThat(deliveryCommentId(iid)).isNotNull();
+  }
+
+  private void resetDeliveryRegistration(long iid) {
+    jdbcTemplate.update(
+        """
+        update form_resource_authorities
+           set entry_registered_at = null, entry_comment_id = null
+         where project_id = ? and resource_type = 'issue' and resource_id = ?
+           and template_key = ? and authority = 'FORM'
+        """,
+        PROJECT_ID,
+        iid,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE);
+  }
+
+  private void setReplyScopeState(String scopeStatus, String versionStatus) {
+    jdbcTemplate.update(
+        "update form_template_scopes set status = ? where id = ?", scopeStatus, replyScopeId);
+    jdbcTemplate.update(
+        """
+        update form_template_versions
+           set version_status = ?,
+               published_at = case
+                   when ? = 'PUBLISHED' then coalesce(published_at, current_timestamp)
+                   else null
+                 end
+         where id = (select current_version_id from form_template_scopes where id = ?)
+        """,
+        versionStatus,
+        versionStatus,
+        replyScopeId);
   }
 
   /** L2：COMMENT 权威与其他项目的 FORM 议题都不投放。 */
@@ -1556,6 +1622,126 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(exportRow.get(18)).isEmpty();
   }
 
+  /**
+   * 真实保存路径按冻结规格拒绝缺失、残留与未知延期原因，解析层跟随最新有效回复。
+   */
+  @Test
+  void deferralReasonIsValidatedOnSaveAndFollowsLatestValidReply() {
+    long issueId = 93331L;
+    long iid = 81331L;
+    insertSourceIssue(issueId, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    registerFormAuthority(iid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId);
+
+    assertThatThrownBy(() -> createReplyRecord(iid, "DEFERRED", null))
+        .hasMessageContaining("延期原因");
+    assertThatThrownBy(() -> createReplyRecord(iid, "RESOLVED", "TECHNICAL_BLOCKER"))
+        .hasMessageContaining("延期原因");
+    assertThatThrownBy(() -> createReplyRecord(iid, "DEFERRED", "UNKNOWN_REASON"))
+        .hasMessageContaining("延期原因");
+
+    FormCreateResponse created = createReplyRecord(iid, "DEFERRED", "TECHNICAL_BLOCKER");
+    IssueBusinessInput.ReplySnapshot technical = replySnapshot(iid);
+    assertThat(technical.deferralTracked()).isTrue();
+    assertThat(technical.deferralFieldPresent()).isTrue();
+    assertThat(technical.deferralTargetReason()).isEqualTo("TECHNICAL_BLOCKER");
+
+    FormRecordView resource = updateReplyRecord(iid, created.record(), "DEFERRED", "RESOURCE_BLOCKER");
+    IssueBusinessInput.ReplySnapshot afterChange = replySnapshot(iid);
+    assertThat(afterChange.latestRecordId()).isEqualTo(Long.valueOf(resource.id()));
+    assertThat(afterChange.deferralTargetReason()).isEqualTo("RESOURCE_BLOCKER");
+
+    FormRecordView canceled = updateReplyRecord(iid, resource, "RESOLVED", null);
+    IssueBusinessInput.ReplySnapshot afterCancel = replySnapshot(iid);
+    assertThat(afterCancel.latestRecordId()).isEqualTo(Long.valueOf(canceled.id()));
+    assertThat(afterCancel.deferralFieldPresent()).isTrue();
+    assertThat(afterCancel.deferralTargetReason()).isEmpty();
+  }
+
+  @Test
+  void replyWrittenOnVersionWithoutDeferralFieldKeepsLabelsUnmanaged() {
+    long issueId = 93341L;
+    long iid = 81341L;
+    long oldProjectId = 326L;
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        oldProjectId,
+        "OLD_SPEC");
+    insertSourceIssue(issueId, iid, oldProjectId, LocalDateTime.of(2026, 11, 1, 10, 0));
+    long oldScope =
+        createScope(
+            FormTemplateSpecCatalog.ISSUE_REPLY,
+            "issue-reply-old-spec",
+            oldProjectId,
+            replySpecWithoutDeferralReason());
+    insertAuthority(
+        oldScope,
+        FormTemplateSpecCatalog.ISSUE_REPLY,
+        iid,
+        oldProjectId,
+        "FORM",
+        CANONICAL_URL);
+    createReplyRecord(oldProjectId, iid, oldScope, replyFields("RESOLVED", null, false));
+
+    IssueBusinessInput.ReplySnapshot snapshot = replySnapshot(oldProjectId, iid);
+    assertThat(snapshot.present()).isTrue();
+    assertThat(snapshot.deferralTracked()).isFalse();
+    assertThat(snapshot.deferralFieldPresent()).isFalse();
+    assertThat(snapshot.deferralReason()).isNull();
+    assertThat(snapshot.deferralTargetReason()).isEmpty();
+  }
+
+  @Test
+  void voidingOnlyNewVersionReplyKeepsEmptyManagedTarget() {
+    long issueId = 93351L;
+    long iid = 81351L;
+    insertSourceIssue(issueId, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    registerFormAuthority(iid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId);
+    FormCreateResponse created = createReplyRecord(iid, "DEFERRED", "DATA_ANOMALY");
+
+    voidFormRecord(
+        iid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId, created.record(), replyActor);
+
+    IssueBusinessInput.ReplySnapshot snapshot = replySnapshot(iid);
+    assertThat(snapshot.present()).isFalse();
+    assertThat(snapshot.deferralTracked()).isTrue();
+    assertThat(snapshot.deferralTargetReason()).isEmpty();
+  }
+
+  private IssueBusinessInput.ReplySnapshot replySnapshot(long iid) {
+    return replySnapshot(PROJECT_ID, iid);
+  }
+
+  private IssueBusinessInput.ReplySnapshot replySnapshot(long projectId, long iid) {
+    FormIssueInputResolver.IssueRef ref =
+        new FormIssueInputResolver.IssueRef(projectId, iid);
+    IssueBusinessInput input =
+        formIssueInputResolver.resolveAll(SOURCE_INSTANCE, List.of(ref)).inputs().get(ref);
+    assertThat(input).as("回复应已登记 FORM 权威").isNotNull();
+    return input.reply();
+  }
+
+  private String replySpecWithoutDeferralReason() {
+    try {
+      ObjectNode root = (ObjectNode) objectMapper.readTree(catalog.rawJson(
+          FormTemplateSpecCatalog.ISSUE_REPLY));
+      ArrayNode fields = (ArrayNode) root.get("fields");
+      for (int index = fields.size() - 1; index >= 0; index--) {
+        if ("deferral_reason".equals(fields.get(index).path("name").asText())) {
+          fields.remove(index);
+        }
+      }
+      ArrayNode conditions = (ArrayNode) root.get("conditions");
+      for (int index = conditions.size() - 1; index >= 0; index--) {
+        if ("deferral_reason".equals(conditions.get(index).path("target").asText())) {
+          conditions.remove(index);
+        }
+      }
+      return root.toString();
+    } catch (Exception error) {
+      throw new IllegalStateException("回复规格无法解析", error);
+    }
+  }
+
   private UUID currentIssuePublication() {
     List<UUID> ids = jdbcTemplate.queryForList(
         "select current_publication_id from read_publication_domains"
@@ -1704,18 +1890,52 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   private FormCreateResponse createReplyRecord(long iid) {
+    return createReplyRecord(iid, replyScopeId, replyFields());
+  }
+
+  private FormCreateResponse createReplyRecord(long iid, String fixStatus, String deferralReason) {
+    return createReplyRecord(iid, replyScopeId, replyFields(fixStatus, deferralReason, true));
+  }
+
+  private FormCreateResponse createReplyRecord(long iid, long scopeId, ObjectNode fields) {
+    return createReplyRecord(PROJECT_ID, iid, scopeId, fields);
+  }
+
+  private FormCreateResponse createReplyRecord(
+      long projectId, long iid, long scopeId, ObjectNode fields) {
     return formRecordService.create(
         new FormCreateRequest(
+            CANONICAL_URL,
+            projectId,
+            "issue",
+            Long.toString(iid),
+            FormTemplateSpecCatalog.ISSUE_REPLY,
+            Long.toString(scopeId),
+            Long.toString(currentVersionId(scopeId)),
+            UUID.randomUUID().toString(),
+            false,
+            formFields(fields)),
+        replyActor,
+        "127.0.0.1",
+        "JUnit");
+  }
+
+  private FormRecordView updateReplyRecord(
+      long iid, FormRecordView current, String fixStatus, String deferralReason) {
+    long versionId = currentVersionId(replyScopeId);
+    return formRecordService.update(
+        current.id(),
+        new FormUpdateRequest(
             CANONICAL_URL,
             PROJECT_ID,
             "issue",
             Long.toString(iid),
             FormTemplateSpecCatalog.ISSUE_REPLY,
             Long.toString(replyScopeId),
-            Long.toString(currentVersionId(replyScopeId)),
-            UUID.randomUUID().toString(),
-            false,
-            formFields(replyFields())),
+            Long.toString(versionId),
+            Long.toString(versionId),
+            current.recordVersion(),
+            formFields(replyFields(fixStatus, deferralReason, true))),
         replyActor,
         "127.0.0.1",
         "JUnit");
@@ -1781,8 +2001,20 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   private ObjectNode replyFields() {
+    return replyFields("RESOLVED", null, true);
+  }
+
+  private ObjectNode replyFields(
+      String fixStatus, String deferralReason, boolean includeDeferralField) {
     ObjectNode node = objectMapper.createObjectNode();
-    node.put("fixStatus", "RESOLVED");
+    node.put("fixStatus", fixStatus);
+    if (includeDeferralField) {
+      if (deferralReason == null) {
+        node.putNull("deferralReason");
+      } else {
+        node.put("deferralReason", deferralReason);
+      }
+    }
     node.set("causeKeys", array("standard_error"));
     node.put("specificReason", "编码规范错误");
     node.put("modificationPlan", "补充校验");
@@ -2058,6 +2290,12 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   private long createScope(String templateKey, String scopeKey, long projectId) {
+    return createScope(templateKey, scopeKey, projectId, catalog.rawJson(templateKey));
+  }
+
+  /** 使用指定冻结规格建范围；供旧版回复等结构差异用例复用同一正式生成器。 */
+  private long createScope(
+      String templateKey, String scopeKey, long projectId, String rawSpec) {
     String bindingHash =
         FormScopeBinding.hash(
             objectMapper,
@@ -2092,9 +2330,14 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     long versionId =
         jdbcTemplate.queryForObject(
             "select nextval(pg_get_serial_sequence('form_template_versions', 'id'))", Long.class);
+    FormTemplateSpec spec;
+    try {
+      spec = objectMapper.readValue(rawSpec, FormTemplateSpec.class);
+    } catch (Exception error) {
+      throw new IllegalStateException("测试规格无法解析", error);
+    }
     FormVersionSchema schema =
-        new FormVersionSchemaService(objectMapper)
-            .generate(scopeId, versionId, catalog.require(templateKey), false);
+        new FormVersionSchemaService(objectMapper).generate(scopeId, versionId, spec, false);
     jdbcTemplate.update(
         """
         insert into form_template_versions(
@@ -2106,7 +2349,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         scopeId,
         schema.instanceTable(),
         schema.recordTable(),
-        catalog.rawJson(templateKey),
+        rawSpec,
         Timestamp.valueOf(LocalDateTime.of(2026, 10, 1, 0, 0)));
     schema.statements().forEach(jdbcTemplate::execute);
     jdbcTemplate.update(

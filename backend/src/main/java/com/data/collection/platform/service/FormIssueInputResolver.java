@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -96,6 +97,8 @@ class FormIssueInputResolver {
     Map<IssueRef, List<LocatedRecord>> responses = new HashMap<>();
     Map<IssueRef, List<LocatedRecord>> replies = new HashMap<>();
     readAdoptedRecords(authorities, responses, replies);
+    Set<IssueRef> deferralTracked = loadDeferralTracked(authorities);
+    Map<Long, Boolean> deferralFieldByVersion = new HashMap<>();
     Map<IssueRef, Map<Long, Map<String, String>>> dictionaries = new HashMap<>();
     Map<IssueRef, IssueBusinessInput> inputs = new LinkedHashMap<>();
     Set<IssueRef> pending = new HashSet<>();
@@ -113,7 +116,11 @@ class FormIssueInputResolver {
                 replyAdopted,
                 replies.getOrDefault(ref, List.of()),
                 this::resolveAccountName,
-                record -> dictionaryFor(record, dictionaries.computeIfAbsent(ref, key -> new HashMap<>()))));
+                record -> dictionaryFor(record, dictionaries.computeIfAbsent(ref, key -> new HashMap<>())),
+                record ->
+                    deferralFieldByVersion.computeIfAbsent(
+                        record.storageVersionId(), this::versionDefinesDeferralReason),
+                deferralTracked.contains(ref)));
         continue;
       }
       if (hasCommentAuthority(byTemplate)) {
@@ -152,6 +159,8 @@ class FormIssueInputResolver {
    * @param replies 有效回复记录（可为空）
    * @param nameResolver 账号到姓名快照的解析
    * @param dictionaryResolver 记录承载版本的稳定原因 key→规范标签
+   * @param deferralFieldResolver 记录承载版本是否定义延期原因字段
+   * @param deferralTracked 该议题是否存在任一新版回复（含已作废）
    * @return 来源无关业务输入
    */
   static IssueBusinessInput select(
@@ -160,12 +169,15 @@ class FormIssueInputResolver {
       boolean replyAdopted,
       List<LocatedRecord> replies,
       Function<String, String> nameResolver,
-      Function<LocatedRecord, Map<String, String>> dictionaryResolver) {
+      Function<LocatedRecord, Map<String, String>> dictionaryResolver,
+      Function<LocatedRecord, Boolean> deferralFieldResolver,
+      boolean deferralTracked) {
     IssueBusinessInput.ResponseSnapshot response =
         responseAdopted ? responseSnapshot(responses) : IssueBusinessInput.ResponseSnapshot.absent();
     IssueBusinessInput.ReplySnapshot reply =
         replyAdopted
-            ? replySnapshot(replies, nameResolver, dictionaryResolver)
+            ? replySnapshot(
+                replies, nameResolver, dictionaryResolver, deferralFieldResolver, deferralTracked)
             : IssueBusinessInput.ReplySnapshot.absent();
     return new IssueBusinessInput(responseAdopted, response, replyAdopted, reply);
   }
@@ -195,9 +207,11 @@ class FormIssueInputResolver {
   private static IssueBusinessInput.ReplySnapshot replySnapshot(
       List<LocatedRecord> replies,
       Function<String, String> nameResolver,
-      Function<LocatedRecord, Map<String, String>> dictionaryResolver) {
+      Function<LocatedRecord, Map<String, String>> dictionaryResolver,
+      Function<LocatedRecord, Boolean> deferralFieldResolver,
+      boolean deferralTracked) {
     if (replies == null || replies.isEmpty()) {
-      return IssueBusinessInput.ReplySnapshot.absent();
+      return IssueBusinessInput.ReplySnapshot.absent(deferralTracked);
     }
     List<LocatedRecord> ordered = new ArrayList<>(replies);
     ordered.sort(RECORD_ORDER);
@@ -215,6 +229,14 @@ class FormIssueInputResolver {
     }
     String createdBy = latest.createdBy();
     String fixUser = createdBy == null ? null : nameResolver.apply(createdBy);
+    boolean deferralFieldPresent =
+        deferralFieldResolver != null && Boolean.TRUE.equals(deferralFieldResolver.apply(latest));
+    String deferralReason = null;
+    if (deferralFieldPresent) {
+      String raw = text(latest, "deferral_reason");
+      deferralReason =
+          raw != null && IssueBusinessInput.ReplySnapshot.DEFERRAL_REASONS.contains(raw) ? raw : "";
+    }
     return new IssueBusinessInput.ReplySnapshot(
         true,
         latest.recordId(),
@@ -234,7 +256,10 @@ class FormIssueInputResolver {
         bool(latest, "has_residual_impact"),
         text(latest, "residual_impact_detail"),
         text(latest, "relation_table_updated"),
-        text(latest, "supplement_note"));
+        text(latest, "supplement_note"),
+        deferralReason,
+        deferralFieldPresent,
+        deferralTracked);
   }
 
   /** 记录顺序：创建时间升序，同一时刻按记录 ID 升序；编辑时间不参与重排。 */
@@ -418,6 +443,80 @@ class FormIssueInputResolver {
         }
       }
     }
+  }
+
+  /**
+   * 该议题是否出现过新版回复（含已作废）：存在任一记录位置，其承载版本定义延期原因字段。
+   *
+   * <p>仅有旧版回复的议题不纳入本期延期标签规划；曾出现新版回复但当前无有效新版回复时，
+   * 由回复快照返回空目标以清除本期四标签。
+   */
+  private Set<IssueRef> loadDeferralTracked(
+      Map<IssueRef, Map<String, AuthorityRow>> authorities) {
+    Map<Long, Map<Long, List<Long>>> idsByScopeProject = new LinkedHashMap<>();
+    for (Map.Entry<IssueRef, Map<String, AuthorityRow>> entry : authorities.entrySet()) {
+      AuthorityRow reply = entry.getValue().get(FormTemplateSpecCatalog.ISSUE_REPLY);
+      if (!isForm(reply)) {
+        continue;
+      }
+      idsByScopeProject
+          .computeIfAbsent(reply.scopeId(), key -> new LinkedHashMap<>())
+          .computeIfAbsent(entry.getKey().projectId(), key -> new ArrayList<>())
+          .add(entry.getKey().issueIid());
+    }
+    if (idsByScopeProject.isEmpty()) {
+      return Set.of();
+    }
+    Set<IssueRef> tracked = new HashSet<>();
+    for (Map.Entry<Long, Map<Long, List<Long>>> scopeEntry : idsByScopeProject.entrySet()) {
+      for (Map.Entry<Long, List<Long>> projectEntry : scopeEntry.getValue().entrySet()) {
+        List<String> ids =
+            projectEntry.getValue().stream()
+                .map(String::valueOf)
+                .distinct()
+                .toList();
+        for (int offset = 0; offset < ids.size(); offset += RESOURCE_ID_CHUNK) {
+          List<String> chunk = ids.subList(offset, Math.min(offset + RESOURCE_ID_CHUNK, ids.size()));
+          String placeholders = String.join(", ", Collections.nCopies(chunk.size(), "?"));
+          List<Object> args = new ArrayList<>(chunk.size() + 2);
+          args.add(scopeEntry.getKey());
+          args.add(projectEntry.getKey());
+          args.addAll(chunk);
+          List<Long> iids =
+              jdbcTemplate.queryForList(
+                  """
+                  select distinct l.resource_id::bigint
+                    from form_record_locations l
+                    join form_template_versions v on v.id = l.storage_version_id
+                   where l.scope_id = ? and l.project_id = ? and l.resource_type = 'issue'
+                     and l.resource_id in (%s)
+                     and v.record_source_role = 'AUTHORITATIVE'
+                     and v.version_status in ('PUBLISHED', 'RETIRED')
+                     and jsonb_path_exists(
+                         v.field_spec, '$.fields[*] ? (@.name == "deferral_reason")')
+                  """
+                      .formatted(placeholders),
+                  Long.class,
+                  args.toArray());
+          for (Long iid : iids) {
+            tracked.add(new IssueRef(projectEntry.getKey(), iid));
+          }
+        }
+      }
+    }
+    return tracked;
+  }
+
+  /** 按承载版本的冻结规格判断是否定义延期原因字段；解析失败按不一致证据拒绝。 */
+  private boolean versionDefinesDeferralReason(long versionId) {
+    String raw =
+        jdbcTemplate.queryForObject(
+            "select field_spec::text from form_template_versions where id = ?",
+            String.class,
+            versionId);
+    FormTemplateSpec spec =
+        contextService.parseSpec(raw, FormTemplateSpecCatalog.ISSUE_REPLY);
+    return spec.fields().stream().anyMatch(field -> "deferral_reason".equals(field.name()));
   }
 
   private void requireSameSourceIdentity(LocatedRecord record, AuthorityRow authority) {

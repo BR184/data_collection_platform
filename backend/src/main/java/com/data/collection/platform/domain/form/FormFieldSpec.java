@@ -25,6 +25,7 @@ public record FormFieldSpec(
     String optionsSource,
     JsonNode requiredWhen,
     JsonNode clearWhen,
+    JsonNode visibleWhen,
     FormStorageSpec storage) {
 
   public boolean hasOptions() {

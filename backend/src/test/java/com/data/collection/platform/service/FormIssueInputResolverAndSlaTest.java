@@ -75,7 +75,9 @@ class FormIssueInputResolverAndSlaTest {
     IssueBusinessInput input = FormIssueInputResolver.select(
         true, List.of(), true, List.of(first, second),
         account -> account.equals("account-b") ? "甲" : "乙",
-        record -> CAUSE_LABELS);
+        record -> CAUSE_LABELS,
+        record -> false,
+        false);
 
     assertThat(input.reply().present()).isTrue();
     assertThat(input.reply().fixUser()).isEqualTo("甲");
@@ -285,7 +287,9 @@ class FormIssueInputResolverAndSlaTest {
 
     IssueBusinessInput input =
         FormIssueInputResolver.select(false, List.of(), true, List.of(), name -> name,
-            record -> CAUSE_LABELS);
+            record -> CAUSE_LABELS,
+            record -> false,
+            false);
 
     IssueSlaRules.Evaluation evaluation = IssueBusinessProjector.evaluate(
         fact, input, List.of(), LocalDateTime.of(2026, 11, 20, 12, 0));
@@ -295,10 +299,98 @@ class FormIssueInputResolverAndSlaTest {
         .isTrue();
   }
 
+  @Test
+  void deferralTargetFollowsLatestValidReplyForEachFrozenReason() {
+    for (String reason : IssueBusinessInput.ReplySnapshot.DEFERRAL_REASONS) {
+      IssueBusinessInput input =
+          select(List.of(), List.of(replyWithDeferral(21L, "DEFERRED", reason)), record -> true, true);
+
+      assertThat(input.reply().deferralFieldPresent()).isTrue();
+      assertThat(input.reply().deferralReason()).isEqualTo(reason);
+      assertThat(input.reply().deferralTargetReason()).isEqualTo(reason);
+    }
+  }
+
+  @Test
+  void deferralTargetIsEmptyWhenCancelledOrReasonIsUnknown() {
+    IssueBusinessInput cancelled =
+        select(List.of(), List.of(replyWithDeferral(21L, "RESOLVED", null)), record -> true, true);
+    assertThat(cancelled.reply().deferralFieldPresent()).isTrue();
+    assertThat(cancelled.reply().deferralTargetReason()).isEmpty();
+
+    IssueBusinessInput invalid =
+        select(
+            List.of(),
+            List.of(replyWithDeferral(22L, "DEFERRED", "UNKNOWN_REASON")),
+            record -> true,
+            true);
+    assertThat(invalid.reply().deferralReason()).isEmpty();
+    assertThat(invalid.reply().deferralTargetReason()).isEmpty();
+  }
+
+  @Test
+  void latestValidReplyDecidesReasonAndVoidFallsBackToPreviousRecord() {
+    LocatedRecord technical = replyWithDeferral(21L, "DEFERRED", "TECHNICAL_BLOCKER");
+    LocatedRecord resource = replyWithDeferral(22L, "DEFERRED", "RESOURCE_BLOCKER");
+
+    assertThat(
+            select(List.of(), List.of(technical, resource), record -> true, true)
+                .reply()
+                .deferralTargetReason())
+        .isEqualTo("RESOURCE_BLOCKER");
+    assertThat(
+            select(List.of(), List.of(technical), record -> true, true)
+                .reply()
+                .deferralTargetReason())
+        .as("新记录作废后由目录退回上一条有效记录")
+        .isEqualTo("TECHNICAL_BLOCKER");
+  }
+
+  @Test
+  void oldVersionReplyWithoutFieldStaysUnmanagedOrHasEmptyTarget() {
+    IssueBusinessInput oldOnly =
+        select(
+            List.of(),
+            List.of(reply(21L, LocalDateTime.of(2026, 11, 12, 9, 0), "account-a")),
+            record -> false,
+            false);
+    assertThat(oldOnly.reply().deferralTracked()).isFalse();
+    assertThat(oldOnly.reply().deferralTargetReason()).isEmpty();
+
+    IssueBusinessInput trackedButOldLatest =
+        select(
+            List.of(),
+            List.of(reply(22L, LocalDateTime.of(2026, 11, 12, 9, 0), "account-a")),
+            record -> false,
+            true);
+    assertThat(trackedButOldLatest.reply().deferralTracked()).isTrue();
+    assertThat(trackedButOldLatest.reply().deferralFieldPresent()).isFalse();
+    assertThat(trackedButOldLatest.reply().deferralReason()).isNull();
+    assertThat(trackedButOldLatest.reply().deferralTargetReason()).isEmpty();
+  }
+
+  @Test
+  void trackedTopicWithoutAnyValidNewVersionReplyKeepsEmptyTarget() {
+    IssueBusinessInput input = select(List.of(), List.of(), record -> true, true);
+
+    assertThat(input.reply().deferralTracked()).isTrue();
+    assertThat(input.reply().present()).isFalse();
+    assertThat(input.reply().deferralTargetReason()).isEmpty();
+  }
+
   private static IssueBusinessInput select(
       List<LocatedRecord> responses, List<LocatedRecord> replies) {
+    return select(responses, replies, record -> false, false);
+  }
+
+  private static IssueBusinessInput select(
+      List<LocatedRecord> responses,
+      List<LocatedRecord> replies,
+      java.util.function.Function<LocatedRecord, Boolean> deferralFieldResolver,
+      boolean deferralTracked) {
     return FormIssueInputResolver.select(
-        true, responses, true, replies, account -> "甲", record -> CAUSE_LABELS);
+        true, responses, true, replies, account -> "甲", record -> CAUSE_LABELS,
+        deferralFieldResolver, deferralTracked);
   }
 
   private static IssueSlaRules.SlaInput sla(IssueBusinessInput input) {
@@ -342,6 +434,19 @@ class FormIssueInputResolverAndSlaTest {
     Map<String, Object> fields = new LinkedHashMap<>();
     fields.put("fix_status", "PARTIAL");
     fields.put("cause_keys", causeKeys.toArray(String[]::new));
+    return located(
+        recordId, LocalDateTime.of(2026, 11, 12, 9, 0), LocalDateTime.of(2026, 11, 12, 9, 0),
+        "account-a", fields);
+  }
+
+  private static LocatedRecord replyWithDeferral(
+      long recordId, String fixStatus, String deferralReason) {
+    Map<String, Object> fields = new LinkedHashMap<>();
+    fields.put("fix_status", fixStatus);
+    fields.put("cause_keys", "standard_error");
+    if (deferralReason != null) {
+      fields.put("deferral_reason", deferralReason);
+    }
     return located(
         recordId, LocalDateTime.of(2026, 11, 12, 9, 0), LocalDateTime.of(2026, 11, 12, 9, 0),
         "account-a", fields);

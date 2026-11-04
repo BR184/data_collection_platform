@@ -38,8 +38,12 @@ class FormIssueBuildInputService {
   /** 输入冻结结果：议题签名与本次候选绑定的 FORM 证据数量。 */
   record BuildInputs(Map<FormIssueInputResolver.IssueRef, String> hashes, int evidenceCount) {}
 
-  /** 当前输入快照；PENDING 表示已覆盖范围但缺权威/head 证据，NONE 表示无表单权威且不在范围。 */
-  record Snapshot(Status status, String hash) {
+  /**
+   * 当前输入快照；PENDING 表示已覆盖范围但缺权威/head 证据，NONE 表示无表单权威且不在范围。
+   *
+   * <p>签名与业务快照来自同一次读取，供标签写回在发送前后复算目标；非 OK 时回复快照为空。
+   */
+  record Snapshot(Status status, String hash, IssueBusinessInput.ReplySnapshot reply) {
     enum Status {
       OK,
       PENDING,
@@ -169,6 +173,7 @@ class FormIssueBuildInputService {
       if (byTemplate.isEmpty()) {
         return new Snapshot(
             resolver.hasCoveringScope(scopes, ref) ? Snapshot.Status.PENDING : Snapshot.Status.NONE,
+            null,
             null);
       }
       Map<Long, FormIssueInputResolver.ScopeRow> scopesById = new HashMap<>();
@@ -199,14 +204,14 @@ class FormIssueBuildInputService {
         if (scope == null
             || scope.sourceSetRevision() == null
             || scope.sourceSetHash() == null) {
-          return new Snapshot(Snapshot.Status.PENDING, null);
+          return new Snapshot(Snapshot.Status.PENDING, null, null);
         }
         FormHeadCaptureService.HeadRow head =
             heads.get(
                 new FormHeadCaptureService.HeadKey(
                     projectId, issueIid, authority.templateKey()));
         if (head == null) {
-          return new Snapshot(Snapshot.Status.PENDING, null);
+          return new Snapshot(Snapshot.Status.PENDING, null, null);
         }
         sides.add(
             new FormInputHash.Side(
@@ -220,6 +225,10 @@ class FormIssueBuildInputService {
                 head.latestChangeVersion()));
       }
       FormIssueInputResolver.AuthorityRow first = byTemplate.values().iterator().next();
+      IssueBusinessInput input =
+          resolver.resolveAll(sourceInstance, List.of(ref)).inputs().get(ref);
+      IssueBusinessInput.ReplySnapshot reply =
+          input == null ? IssueBusinessInput.ReplySnapshot.absent() : input.reply();
       return new Snapshot(
           Snapshot.Status.OK,
           FormInputHash.issueHash(
@@ -229,9 +238,10 @@ class FormIssueBuildInputService {
               projectId,
               first.resourceType(),
               Long.toString(issueIid),
-              sides));
+              sides),
+          reply);
     } catch (FormConflictException error) {
-      return new Snapshot(Snapshot.Status.PENDING, null);
+      return new Snapshot(Snapshot.Status.PENDING, null, null);
     }
   }
 

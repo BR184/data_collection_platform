@@ -186,11 +186,6 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       queueService.markSkipped(job, "议题已不在延期标签写回范围内");
       return;
     }
-    CustomerIssueDelayLabelWritebackPlan plan = planner.plan(candidate.get());
-    if (!plan.hasChanges()) {
-      queueService.markSkipped(job, "GitLab 标签已与延期事实一致");
-      return;
-    }
     AuthorizationCheck finalCheck = authorize(job, config);
     if (!finalCheck.allowed()) {
       if (finalCheck.obsolete()) {
@@ -198,6 +193,12 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       } else {
         defer(job, finalCheck.reason());
       }
+      return;
+    }
+    CustomerIssueDelayLabelWritebackPlan plan =
+        planner.plan(candidate.get(), finalCheck.reply());
+    if (!plan.hasChanges()) {
+      queueService.markSkipped(job, "GitLab 标签已与延期事实一致");
       return;
     }
     if (!queueService.renewLease(job, properties.getCustomerIssueDelayWritebackLeaseSeconds())) {
@@ -338,7 +339,7 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     } else if (factHash != null) {
       return AuthorizationCheck.waitingFor("表单权威已移除但事实尚未刷新，等待消费完成后再发送");
     }
-    return AuthorizationCheck.granted();
+    return AuthorizationCheck.granted(snapshot.reply());
   }
 
   private void handleHttpFailure(
@@ -397,17 +398,21 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     return config;
   }
 
-  private record AuthorizationCheck(boolean allowed, boolean obsolete, String reason) {
-    static AuthorizationCheck granted() {
-      return new AuthorizationCheck(true, false, null);
+  private record AuthorizationCheck(
+      boolean allowed,
+      boolean obsolete,
+      String reason,
+      IssueBusinessInput.ReplySnapshot reply) {
+    static AuthorizationCheck granted(IssueBusinessInput.ReplySnapshot reply) {
+      return new AuthorizationCheck(true, false, null, reply);
     }
 
     static AuthorizationCheck waitingFor(String reason) {
-      return new AuthorizationCheck(false, false, reason);
+      return new AuthorizationCheck(false, false, reason, null);
     }
 
     static AuthorizationCheck obsoleteReason(String reason) {
-      return new AuthorizationCheck(false, true, reason);
+      return new AuthorizationCheck(false, true, reason, null);
     }
   }
 }

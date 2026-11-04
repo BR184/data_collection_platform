@@ -256,6 +256,9 @@ public class FormSpecValidator {
       if (field.clearWhen() != null && !field.clearWhen().isMissingNode()) {
         validateTrigger(spec, field.clearWhen(), "字段「" + label(field) + "」的清空条件", errors);
       }
+      if (field.visibleWhen() != null && !field.visibleWhen().isMissingNode()) {
+        validateTrigger(spec, field.visibleWhen(), "字段「" + label(field) + "」的显示条件", errors);
+      }
     }
   }
 
@@ -337,7 +340,8 @@ public class FormSpecValidator {
     boolean contains = trigger.hasNonNull("contains");
     boolean notContains = trigger.hasNonNull("notContains");
     boolean equals = trigger.has("equals");
-    if ((contains ? 1 : 0) + (notContains ? 1 : 0) + (equals ? 1 : 0) != 1) {
+    boolean notEquals = trigger.has("notEquals");
+    if ((contains ? 1 : 0) + (notContains ? 1 : 0) + (equals ? 1 : 0) + (notEquals ? 1 : 0) != 1) {
       errors.add(context + "必须且只能指定一种比较方式");
       return;
     }
@@ -358,7 +362,7 @@ public class FormSpecValidator {
       errors.add("多选字段「" + label(field) + "」请使用包含/不包含条件");
       return;
     }
-    JsonNode value = trigger.path("equals");
+    JsonNode value = trigger.path(equals ? "equals" : "notEquals");
     switch (field.type()) {
       case "boolean" -> {
         if (!value.isBoolean()) {

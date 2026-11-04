@@ -7,6 +7,7 @@ import {
   hasFieldContent,
   isFieldCleared,
   isFieldRequired,
+  isFieldVisible,
   normalizeFields,
   resolveFieldChange,
   validateFields,
@@ -27,6 +28,22 @@ const issueReplySpec: FormTemplateSpecView = {
         { value: 'RESOLVED', label: '已解决' },
         { value: 'DEFERRED', label: '申请延期' },
       ],
+    },
+    {
+      name: 'deferral_reason',
+      apiKey: 'deferralReason',
+      label: '延期原因',
+      type: 'enum',
+      control: 'radio',
+      required: false,
+      options: [
+        { value: 'TECHNICAL_BLOCKER', label: '技术卡点' },
+        { value: 'RESOURCE_BLOCKER', label: '资源卡点' },
+        { value: 'DATA_ANOMALY', label: '数据异常' },
+      ],
+      requiredWhen: { field: 'fix_status', equals: 'DEFERRED' },
+      clearWhen: { field: 'fix_status', notEquals: 'DEFERRED' },
+      visibleWhen: { field: 'fix_status', equals: 'DEFERRED' },
     },
     {
       name: 'cause_keys',
@@ -121,6 +138,7 @@ const issueReplySpec: FormTemplateSpecView = {
     { type: 'conditionalRequired', target: 'known_affected_functions', requiredWhen: { field: 'affected_kinds', contains: 'KNOWN' }, clearWhen: { field: 'affected_kinds', notContains: 'KNOWN' } },
     { type: 'conditionalRequired', target: 'new_affected_functions', requiredWhen: { field: 'affected_kinds', contains: 'NEW' }, clearWhen: { field: 'affected_kinds', notContains: 'NEW' } },
     { type: 'conditionalRequired', target: 'residual_impact_detail', requiredWhen: { field: 'has_residual_impact', equals: true }, clearWhen: { field: 'has_residual_impact', equals: false } },
+    { type: 'conditionalRequired', target: 'deferral_reason', requiredWhen: { field: 'fix_status', equals: 'DEFERRED' }, clearWhen: { field: 'fix_status', notEquals: 'DEFERRED' } },
   ],
   dictionaries: [
     {
@@ -195,6 +213,22 @@ const issueResponseSpec: FormTemplateSpecView = {
   dictionaries: [],
 };
 
+function validReplyFields() {
+  const fields = emptyFields(issueReplySpec);
+  Object.assign(fields, {
+    fixStatus: 'RESOLVED',
+    causeKeys: ['design_forget'],
+    specificReason: '原因',
+    modificationPlan: '方案',
+    causedByOtherDefect: false,
+    affectedKinds: ['NONE'],
+    impactTestStatus: 'YES',
+    hasResidualImpact: false,
+    relationTableUpdated: 'NO',
+  });
+  return fields;
+}
+
 describe('field logic', () => {
   it('normalizes typed defaults and compares independently of array order', () => {
     const fields = emptyFields(issueReplySpec);
@@ -263,7 +297,7 @@ describe('field logic', () => {
     expect(outcome.cleared).toHaveLength(1);
     expect(outcome.cleared[0].label).toBe('遗留问题或潜在影响说明');
     expect(outcome.cleared[0].previous).toBe('仍有潜在影响');
-    expect(isFieldCleared(issueReplySpec, issueReplySpec.fields[10], outcome.fields, null)).toBe(true);
+    expect(isFieldCleared(issueReplySpec, issueReplySpec.fields[11], outcome.fields, null)).toBe(true);
   });
 
   it('resolves mutually exclusive options and keeps details when no input would be lost', () => {
@@ -272,7 +306,7 @@ describe('field logic', () => {
     const switched = resolveFieldChange(issueReplySpec, fields, 'affectedKinds', ['NONE', 'KNOWN'], null);
     expect(switched.fields.affectedKinds).toEqual(['KNOWN']);
     expect(switched.cleared).toHaveLength(0);
-    expect(isFieldRequired(issueReplySpec, issueReplySpec.fields[6], switched.fields, null)).toBe(true);
+    expect(isFieldRequired(issueReplySpec, issueReplySpec.fields[7], switched.fields, null)).toBe(true);
 
     switched.fields.knownAffectedFunctions = '已有说明';
     const back = resolveFieldChange(issueReplySpec, switched.fields, 'affectedKinds', ['NONE'], null);
@@ -329,13 +363,64 @@ describe('field logic', () => {
     expect(result.errors.supplementNote).toBe('补充说明不能超过8个字符');
   });
 
+  it('requires one deferral reason only while deferral is selected', () => {
+    const fields = validReplyFields();
+    const deferralField = issueReplySpec.fields[1];
+    fields.fixStatus = 'DEFERRED';
+
+    let result = validateFields(issueReplySpec, fields, null);
+    expect(result.errors.deferralReason).toBe('延期原因不能为空');
+    expect(isFieldVisible(issueReplySpec, deferralField, fields, null)).toBe(true);
+
+    fields.deferralReason = 'TECHNICAL_BLOCKER';
+    result = validateFields(issueReplySpec, fields, null);
+    expect(result.errors.deferralReason).toBeUndefined();
+    expect(isFieldRequired(issueReplySpec, deferralField, fields, null)).toBe(true);
+
+    fields.fixStatus = 'RESOLVED';
+    result = validateFields(issueReplySpec, fields, null);
+    expect(result.errors.deferralReason).toBe('延期原因在当前条件下必须为空');
+    expect(isFieldVisible(issueReplySpec, deferralField, fields, null)).toBe(false);
+
+    fields.deferralReason = null;
+    result = validateFields(issueReplySpec, fields, null);
+    expect(result.errors.deferralReason).toBeUndefined();
+    expect(isFieldRequired(issueReplySpec, deferralField, fields, null)).toBe(false);
+  });
+
+  it('clears deferral reason when fix status leaves deferred and accepts single choice', () => {
+    const fields = validReplyFields();
+    fields.fixStatus = 'DEFERRED';
+    fields.deferralReason = 'DATA_ANOMALY';
+
+    const selected = resolveFieldChange(
+      issueReplySpec,
+      { ...fields, deferralReason: null },
+      'deferralReason',
+      'RESOURCE_BLOCKER',
+      null,
+    );
+    expect(selected.fields.deferralReason).toBe('RESOURCE_BLOCKER');
+
+    const outcome = resolveFieldChange(issueReplySpec, fields, 'fixStatus', 'RESOLVED', null);
+    expect(outcome.fields.deferralReason).toBeNull();
+    expect(outcome.cleared.map((item) => item.label)).toEqual(['延期原因']);
+    expect(isFieldVisible(issueReplySpec, issueReplySpec.fields[1], outcome.fields, null)).toBe(
+      false,
+    );
+
+    const withoutReason = { ...fields, deferralReason: null };
+    const kept = resolveFieldChange(issueReplySpec, withoutReason, 'fixStatus', 'DEFERRED', null);
+    expect(kept.cleared).toHaveLength(0);
+  });
+
   it('formats dictionary and boolean values for read-only display', () => {
-    const causeField = issueReplySpec.fields[1];
+    const causeField = issueReplySpec.fields[2];
     expect(formatFieldValue(issueReplySpec, causeField, ['logic_flow_control_error', 'design_forget'])).toBe(
       '功能设计遗漏、流程控制错误',
     );
-    expect(formatFieldValue(issueReplySpec, issueReplySpec.fields[2], '说明')).toBe('说明');
-    const booleanField = issueReplySpec.fields[4];
+    expect(formatFieldValue(issueReplySpec, issueReplySpec.fields[3], '说明')).toBe('说明');
+    const booleanField = issueReplySpec.fields[5];
     expect(formatFieldValue(issueReplySpec, booleanField, true)).toBe('是');
     expect(formatFieldValue(issueReplySpec, booleanField, false)).toBe('否');
     expect(formatFieldValue(issueReplySpec, booleanField, null)).toBe('—');

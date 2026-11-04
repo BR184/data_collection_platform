@@ -291,6 +291,9 @@ public class FormFieldValueService {
     if (condition.has("equals")) {
       return equalsValue(value, condition.path("equals"));
     }
+    if (condition.has("notEquals")) {
+      return !equalsValue(value, condition.path("notEquals"));
+    }
     throw new IllegalStateException("Unsupported form condition: " + condition);
   }
 
