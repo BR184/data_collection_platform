@@ -458,6 +458,35 @@ describe('表单管理单页工作区', () => {
     expect(mocks.messageBox.confirm).not.toHaveBeenCalled();
   });
 
+  it('creates a range with a derived key on an insecure origin', async () => {
+    vi.stubGlobal('crypto', { randomUUID: undefined });
+    const created = detail();
+    created.scope = { ...created.scope, id: 9 };
+    mocks.api.createFormScope.mockResolvedValue(created);
+    const view = await mountView();
+    await view.find('.new-range').trigger('click');
+    await flushPromises();
+    await view.find('input[placeholder="例如：CCProduct"]').setValue('CCProduct');
+    await button(view, '创建').trigger('click');
+    await flushPromises();
+    expect(mocks.api.createFormScope).toHaveBeenCalledWith({
+      templateKey: 'issue_reply',
+      scopeKey: expect.stringMatching(/^form-[0-9a-f]{16}$/),
+    });
+  });
+
+  it('publishes with a valid UUID request key on an insecure origin', async () => {
+    vi.stubGlobal('crypto', { randomUUID: undefined });
+    mocks.api.createFormPublication.mockResolvedValue(publication('FAILED'));
+    mocks.api.getFormPublication.mockResolvedValue(publication('FAILED'));
+    const view = await mountView();
+    await fieldLabelInputs(view)[0].setValue('处理状态');
+    await publish(view);
+    expect(mocks.api.createFormPublication).toHaveBeenCalledWith(7, expect.objectContaining({
+      requestKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+    }));
+  });
+
   it('explains empty-structure publishing and polls v2 stages to completion', async () => {
     const view=await mountView();
     await button(view,'发布').trigger('click'); await flushPromises();

@@ -10,6 +10,7 @@ import { hasPermission } from '../feature-manifest';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
+import { createUuid } from '../utils/uuid';
 import type { RecordTableFilterOption } from '../types/record-table';
 import type {
   FormAdminBindingOption,
@@ -1020,7 +1021,7 @@ async function confirmPublication() {
   if (!pendingRequest.value || pendingRequest.value.draftRevision !== intent.target.draftRevision
     || pendingRequest.value.previewId !== intent.target.id
     || pendingRequest.value.expectedCurrentVersionId !== expectedCurrentVersionId) {
-    pendingRequest.value = { draftRevision: intent.target.draftRevision, previewId: intent.target.id, expectedCurrentVersionId, key: crypto.randomUUID() };
+    pendingRequest.value = { draftRevision: intent.target.draftRevision, previewId: intent.target.id, expectedCurrentVersionId, key: createUuid() };
   }
   publishing.value = true;
   try {
@@ -1163,7 +1164,7 @@ async function createScope() {
   try {
     const created = await collectFormsApi.createFormScope({
       templateKey: createTemplateKey.value,
-      scopeKey: `form-${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`,
+      scopeKey: `form-${createUuid().replaceAll('-', '').slice(0, 16)}`,
     });
     createVisible.value = false;
     const displayName = createScopeKey.value.trim();

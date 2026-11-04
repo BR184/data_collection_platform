@@ -217,21 +217,22 @@ export function evaluateCondition(
   return false;
 }
 
-function conditionRule(
+function conditionRules(
   spec: FormTemplateSpecView,
   targetName: string,
   rule: 'requiredWhen' | 'clearWhen',
-): FormConditionView | null {
+): FormConditionView[] {
+  const rules: FormConditionView[] = [];
   for (const condition of spec.conditions ?? []) {
     if (condition.type !== 'conditionalRequired' || String(condition.target ?? '') !== targetName) {
       continue;
     }
     const configured = condition[rule];
     if (configured && typeof configured === 'object') {
-      return configured as FormConditionView;
+      rules.push(configured as FormConditionView);
     }
   }
-  return null;
+  return rules;
 }
 
 export function isFieldRequired(
@@ -244,7 +245,9 @@ export function isFieldRequired(
     return true;
   }
   return evaluateCondition(spec, field.requiredWhen, fields, severityLevel)
-    || evaluateCondition(spec, conditionRule(spec, field.name, 'requiredWhen'), fields, severityLevel);
+    || conditionRules(spec, field.name, 'requiredWhen').some((rule) =>
+      evaluateCondition(spec, rule, fields, severityLevel),
+    );
 }
 
 /** 字段是否应出现在填写区；未声明显示条件时始终可见。 */
@@ -267,7 +270,9 @@ export function isFieldCleared(
   severityLevel: string | null,
 ): boolean {
   return evaluateCondition(spec, field.clearWhen, fields, severityLevel)
-    || evaluateCondition(spec, conditionRule(spec, field.name, 'clearWhen'), fields, severityLevel);
+    || conditionRules(spec, field.name, 'clearWhen').some((rule) =>
+      evaluateCondition(spec, rule, fields, severityLevel),
+    );
 }
 
 function resolveMutuallyExclusive(

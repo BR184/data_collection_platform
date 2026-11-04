@@ -398,11 +398,15 @@ public class FormFieldValueService {
       errors.add(label(field) + "必须是整数");
       return empty();
     }
-    long value = node.asLong();
+    // asLong() 会把超出 long 范围的整数截断（例如 18446744073709551617 变成 1），
+    // 必须先确认可无损转入 int，再比较业务上下限。
+    if (!node.canConvertToInt()) {
+      errors.add(label(field) + "超出整数范围");
+      return empty();
+    }
+    int value = node.intValue();
     if ((field.min() != null && value < field.min())
-        || (field.max() != null && value > field.max())
-        || value < Integer.MIN_VALUE
-        || value > Integer.MAX_VALUE) {
+        || (field.max() != null && value > field.max())) {
       errors.add(
           label(field)
               + "必须在"
@@ -412,7 +416,7 @@ public class FormFieldValueService {
               + "之间");
       return empty();
     }
-    int normalized = (int) value;
+    int normalized = value;
     return new NormalizedValue(
         objectMapper.getNodeFactory().numberNode(normalized),
         normalized,

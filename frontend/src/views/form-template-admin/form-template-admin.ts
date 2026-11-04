@@ -442,6 +442,26 @@ function conditionSignature(row: ConditionRow): string {
   return [row.kind, row.triggerField, row.operator, row.values.join('\u0001'), row.target].join('|');
 }
 
+/** 条件结构比较；数组按集合比较，其余按键值与字面量类型比较。 */
+function sameConditionNode(left: unknown, right: unknown): boolean {
+  const normalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return [...value].map((item) => String(item)).sort();
+    }
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      return Object.keys(record)
+        .sort()
+        .reduce<Record<string, unknown>>((result, key) => {
+          result[key] = normalize(record[key]);
+          return result;
+        }, {});
+    }
+    return value;
+  };
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
 /**
  * 从冻结规格提取可编辑条件；字段级与根级重复条件按同一业务条件合并。
  *
@@ -473,7 +493,7 @@ export function conditionRowsFromSpec(
       if (!shape || !fieldNames.has(target)) {
         return;
       }
-      push({
+      const row: ConditionRow = {
         key: `root-${index}`,
         kind: 'required',
         origin: 'root',
@@ -482,12 +502,16 @@ export function conditionRowsFromSpec(
         operator: shape.operator,
         values: shape.values,
         target,
-        clearWhenOff: Boolean(condition.clearWhen && triggerShape(condition.clearWhen)),
+        clearWhenOff: false,
         conflictValues: [],
         snapshotColumn:
           typeof condition.snapshotColumn === 'string' ? condition.snapshotColumn : null,
         supported: true,
-      });
+      };
+      row.clearWhenOff = Boolean(
+        condition.clearWhen && sameConditionNode(buildClearWhen(row, spec), condition.clearWhen),
+      );
+      push(row);
       return;
     }
     if (condition.type === 'mutuallyExclusive') {
@@ -517,7 +541,7 @@ export function conditionRowsFromSpec(
     if (!shape) {
       return;
     }
-    push({
+    const row: ConditionRow = {
       key: `field-${index}`,
       kind: 'required',
       origin: 'field',
@@ -526,11 +550,15 @@ export function conditionRowsFromSpec(
       operator: shape.operator,
       values: shape.values,
       target: field.name,
-      clearWhenOff: Boolean(field.clearWhen && triggerShape(field.clearWhen)),
+      clearWhenOff: false,
       conflictValues: [],
       snapshotColumn: null,
       supported: true,
-    });
+    };
+    row.clearWhenOff = Boolean(
+      field.clearWhen && sameConditionNode(buildClearWhen(row, spec), field.clearWhen),
+    );
+    push(row);
   });
   return result;
 }
@@ -643,40 +671,93 @@ export function canClearWhen(row: ConditionRow, spec: FormTemplateSpecView): boo
 /**
  * 将编辑行写回规格。
  *
- * <p>保留未支持类型；字段级条件统一写回根级`conditionalRequired`，避免同一规则在字段与根级各存一份。
+ * <p>只移除编辑界面能完整表示并接管的条件：由必填行导出的清空规则、可编辑的根级条件。
+ * 字段级仅有清空规则、清空与必填由不同字段触发等无法在界面表达的规则原样保留。
  */
 export function applyConditionRows(
   spec: FormTemplateSpecView,
   rows: ConditionRow[],
 ): FormTemplateSpecView {
-  const fields = spec.fields.map((field) => {
-    if (!triggerShape(field.requiredWhen) && !triggerShape(field.clearWhen)) {
+  const fieldNames = new Set(spec.fields.map((field) => field.name));
+  const fieldRows = new Map<number, ConditionRow>();
+  rows.forEach((row) => {
+    if (row.supported && row.kind === 'required' && row.origin === 'field' && row.originIndex >= 0) {
+      fieldRows.set(row.originIndex, row);
+    }
+  });
+  const fields = spec.fields.map((field, index) => {
+    const shape = triggerShape(field.requiredWhen);
+    const requiredRepresentable = Boolean(shape && fieldNames.has(field.name));
+    if (!requiredRepresentable) {
       return field;
     }
     const next = { ...field };
     delete next.requiredWhen;
-    delete next.clearWhen;
+    if (field.clearWhen) {
+      const probe: ConditionRow = {
+        key: `field-${index}`,
+        kind: 'required',
+        origin: 'field',
+        originIndex: index,
+        triggerField: shape!.triggerField,
+        operator: shape!.operator,
+        values: shape!.values,
+        target: field.name,
+        clearWhenOff: true,
+        conflictValues: [],
+        snapshotColumn: null,
+        supported: true,
+      };
+      const derived = buildClearWhen(probe, spec);
+      const derivedRepresentable = Boolean(
+        derived && sameConditionNode(derived, field.clearWhen),
+      );
+      if (derivedRepresentable || (fieldRows.get(index)?.clearWhenOff ?? false)) {
+        delete next.clearWhen;
+      }
+    }
     return next;
   });
+  const preservedClearWhen = new Map<ConditionRow, Record<string, unknown>>();
   const kept: FormSpecConditionView[] = [];
-  (spec.conditions ?? []).forEach((condition) => {
+  (spec.conditions ?? []).forEach((condition, index) => {
     if (!condition || !condition.type) {
       return;
     }
     if (condition.type === 'conditionalRequired') {
-      if (!triggerShape(condition.requiredWhen) || !condition.target) {
-        kept.push(condition);
+      const shape = triggerShape(condition.requiredWhen);
+      const target = String(condition.target ?? '');
+      if (shape && fieldNames.has(target)) {
+        const owned = rows.find(
+          (row) =>
+            row.supported
+            && row.kind === 'required'
+            && row.origin === 'root'
+            && row.originIndex === index,
+        );
+        if (
+          owned
+          && condition.clearWhen
+          && !owned.clearWhenOff
+          && !sameConditionNode(buildClearWhen(owned, spec), condition.clearWhen)
+        ) {
+          preservedClearWhen.set(owned, condition.clearWhen as Record<string, unknown>);
+        }
+        return;
       }
+      kept.push(condition);
       return;
     }
     if (condition.type === 'mutuallyExclusive') {
       if (
-        typeof condition.field !== 'string'
-        || !condition.whenContains
-        || !stringList(condition.withAnyOf).length
+        typeof condition.field === 'string'
+        && fieldNames.has(condition.field)
+        && condition.whenContains
+        && stringList(condition.withAnyOf).length
       ) {
-        kept.push(condition);
+        return;
       }
+      kept.push(condition);
       return;
     }
     kept.push(condition);
@@ -700,7 +781,9 @@ export function applyConditionRows(
       target: row.target,
       requiredWhen: buildRequiredWhen(row, spec),
     };
-    const clearWhen = row.clearWhenOff ? buildClearWhen(row, spec) : null;
+    const clearWhen = row.clearWhenOff
+      ? buildClearWhen(row, spec)
+      : preservedClearWhen.get(row) ?? null;
     if (clearWhen) {
       condition.clearWhen = clearWhen;
     }

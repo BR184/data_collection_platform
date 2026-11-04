@@ -490,4 +490,142 @@ describe('form condition business model', () => {
       ),
     ).toContain('暂不支持');
   });
+
+  it('keeps a clear-only field rule that the editor cannot represent', () => {
+    const source: FormTemplateSpecView = {
+      spec_version: 1,
+      template_key: 'issue_reply',
+      fields: [
+        {
+          name: 'has_residual',
+          apiKey: 'hasResidual',
+          label: '有无遗留问题',
+          type: 'boolean',
+          control: 'radio',
+          required: false,
+          storage: { column: 'has_residual', columnType: 'boolean' },
+        },
+        {
+          name: 'detail',
+          apiKey: 'detail',
+          label: '说明',
+          type: 'string',
+          control: 'textarea',
+          required: false,
+          clearWhen: { field: 'has_residual', equals: false },
+          storage: { column: 'detail', columnType: 'text' },
+        },
+      ],
+      conditions: [],
+      dictionaries: [],
+    };
+
+    const applied = applyConditionRows(
+      source,
+      conditionRowsFromSpec(source, fieldRowsFromSpec(source)),
+    );
+
+    expect(applied.fields.find((field) => field.name === 'detail')?.clearWhen).toEqual({
+      field: 'has_residual',
+      equals: false,
+    });
+    expect(applied.conditions).toEqual([]);
+  });
+
+  it('keeps required and clear rules driven by different fields when only names change', () => {
+    const source: FormTemplateSpecView = {
+      spec_version: 1,
+      template_key: 'issue_reply',
+      fields: [
+        {
+          name: 'flag_a',
+          apiKey: 'flagA',
+          label: '条件 A',
+          type: 'boolean',
+          control: 'radio',
+          required: false,
+          storage: { column: 'flag_a', columnType: 'boolean' },
+        },
+        {
+          name: 'flag_b',
+          apiKey: 'flagB',
+          label: '条件 B',
+          type: 'boolean',
+          control: 'radio',
+          required: false,
+          storage: { column: 'flag_b', columnType: 'boolean' },
+        },
+        {
+          name: 'detail',
+          apiKey: 'detail',
+          label: '说明',
+          type: 'string',
+          control: 'textarea',
+          required: false,
+          requiredWhen: { field: 'flag_a', equals: true },
+          clearWhen: { field: 'flag_b', equals: false },
+          storage: { column: 'detail', columnType: 'text' },
+        },
+      ],
+      conditions: [
+        {
+          type: 'conditionalRequired',
+          target: 'detail',
+          requiredWhen: { field: 'flag_a', equals: true },
+          clearWhen: { field: 'flag_b', equals: false },
+        },
+      ],
+      dictionaries: [],
+    };
+    const renamed: FormTemplateSpecView = {
+      ...source,
+      fields: source.fields.map((field) =>
+        field.name === 'detail' ? { ...field, label: '详细说明' } : field,
+      ),
+    };
+
+    const rows = conditionRowsFromSpec(source, fieldRowsFromSpec(source));
+    expect(rows[0].clearWhenOff).toBe(false);
+    const applied = applyConditionRows(renamed, rows);
+
+    expect(applied.fields.find((field) => field.name === 'detail')).toMatchObject({
+      label: '详细说明',
+      clearWhen: { field: 'flag_b', equals: false },
+    });
+    expect(applied.fields.find((field) => field.name === 'detail')?.requiredWhen).toBeUndefined();
+    expect(applied.conditions).toEqual([
+      expect.objectContaining({
+        type: 'conditionalRequired',
+        target: 'detail',
+        requiredWhen: { field: 'flag_a', equals: true },
+        clearWhen: { field: 'flag_b', equals: false },
+      }),
+    ]);
+  });
+
+  it('keeps derived clear rules stable across a rename round-trip', () => {
+    const source = issueReplySpec();
+    const renamed: FormTemplateSpecView = {
+      ...source,
+      fields: source.fields.map((field) =>
+        field.name === 'residual_impact_detail' ? { ...field, label: '遗留影响说明' } : field,
+      ),
+    };
+
+    const once = applyConditionRows(renamed, conditionRowsFromSpec(source, fieldRowsFromSpec(source)));
+    const twice = applyConditionRows(once, conditionRowsFromSpec(once, fieldRowsFromSpec(once)));
+
+    expect(twice.conditions).toEqual(once.conditions);
+    expect(twice.fields.every((field) => !field.requiredWhen && !field.clearWhen)).toBe(true);
+    expect(
+      (once.conditions ?? []).find(
+        (condition) =>
+          condition.type === 'conditionalRequired'
+          && condition.target === 'residual_impact_detail',
+      ),
+    ).toMatchObject({
+      requiredWhen: { field: 'has_residual_impact', equals: true },
+      clearWhen: { field: 'has_residual_impact', equals: false },
+    });
+  });
 });

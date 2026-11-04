@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FormTemplateSpecView } from '../../types/api';
+import type { FieldValueMap } from './field-logic';
 import {
   emptyFields,
   formatFieldValue,
@@ -386,6 +387,71 @@ describe('field logic', () => {
     result = validateFields(issueReplySpec, fields, null);
     expect(result.errors.deferralReason).toBeUndefined();
     expect(isFieldRequired(issueReplySpec, deferralField, fields, null)).toBe(false);
+  });
+
+  it('evaluates every root condition that targets the same field', () => {
+    const spec: FormTemplateSpecView = {
+      spec_version: 1,
+      template_key: 'issue_reply',
+      fields: [
+        {
+          name: 'flag_a',
+          apiKey: 'flagA',
+          label: '条件 A',
+          type: 'boolean',
+          control: 'radio',
+          required: false,
+          storage: { column: 'flag_a', columnType: 'boolean' },
+        },
+        {
+          name: 'flag_b',
+          apiKey: 'flagB',
+          label: '条件 B',
+          type: 'boolean',
+          control: 'radio',
+          required: false,
+          storage: { column: 'flag_b', columnType: 'boolean' },
+        },
+        {
+          name: 'detail',
+          apiKey: 'detail',
+          label: '说明',
+          type: 'string',
+          control: 'textarea',
+          required: false,
+          storage: { column: 'detail', columnType: 'text' },
+        },
+      ],
+      conditions: [
+        {
+          type: 'conditionalRequired',
+          target: 'detail',
+          requiredWhen: { field: 'flag_a', equals: true },
+          clearWhen: { field: 'flag_a', equals: true },
+        },
+        {
+          type: 'conditionalRequired',
+          target: 'detail',
+          requiredWhen: { field: 'flag_b', equals: true },
+          clearWhen: { field: 'flag_b', equals: true },
+        },
+      ],
+      dictionaries: [],
+    };
+    const detail = spec.fields[2];
+    const fields: FieldValueMap = { flagA: false, flagB: true, detail: null };
+
+    expect(isFieldRequired(spec, detail, fields, null)).toBe(true);
+    expect(validateFields(spec, fields, null).errors.detail).toBe('说明不能为空');
+
+    fields.flagB = false;
+    expect(isFieldRequired(spec, detail, fields, null)).toBe(false);
+    expect(validateFields(spec, fields, null).errors.detail).toBeUndefined();
+
+    fields.flagB = true;
+    fields.detail = '填写内容';
+    expect(isFieldCleared(spec, detail, fields, null)).toBe(true);
+    expect(validateFields(spec, fields, null).errors.detail).toBe('说明在当前条件下必须为空');
   });
 
   it('clears deferral reason when fix status leaves deferred and accepts single choice', () => {

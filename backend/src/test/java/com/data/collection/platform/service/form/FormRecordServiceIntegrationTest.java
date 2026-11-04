@@ -904,6 +904,74 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void shouldRejectOutOfRangeRawIntegersWithoutWriting() throws Exception {
+    ObjectNode huge = codeReviewFields("w2-reviewer-1");
+    huge.set("reviewDurationMinutes", objectMapper.readTree("18446744073709551617"));
+    assertThatThrownBy(
+            () ->
+                formRecordService.create(
+                    new FormCreateRequest(
+                        GITLAB_URL,
+                        PROJECT_ID,
+                        "merge_request",
+                        Long.toString(MR_IID),
+                        FormTemplateSpecCatalog.CODE_REVIEW,
+                        Long.toString(codeReviewScopeId),
+                        Long.toString(codeReviewVersionId),
+                        UUID.randomUUID().toString(),
+                        false,
+                        toFields(huge)),
+                    actorA,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("超出整数范围");
+    assertThat(count(codeReviewRecordTable)).isZero();
+    assertThat(count("form_s" + codeReviewScopeId + "_v" + codeReviewVersionId + "_instances"))
+        .isZero();
+    assertThat(count("form_record_audit_logs")).isZero();
+    assertThat(count("form_change_heads")).isZero();
+
+    FormRecordView created = createCodeReview("w2-reviewer-1", UUID.randomUUID().toString()).record();
+    ObjectNode beyond = codeReviewFields("w2-reviewer-1");
+    beyond.put("specificationCount", 2147483648L);
+    assertThatThrownBy(
+            () ->
+                formRecordService.update(
+                    created.id(),
+                    updateRequest(codeReviewScopeId, codeReviewVersionId, 1, beyond),
+                    actorA,
+                    "127.0.0.1",
+                    "JUnit"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("超出整数范围");
+    assertThat(count(codeReviewRecordTable)).isEqualTo(1);
+    assertThat(count("form_record_audit_logs")).isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select record_version from " + codeReviewRecordTable, Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select latest_change_version from form_change_heads"
+                    + " where template_key = 'code_review' and resource_id = ?",
+                Long.class,
+                MR_IID))
+        .isEqualTo(1L);
+
+    ObjectNode atLimit = codeReviewFields("w2-reviewer-1");
+    atLimit.put("specificationCount", 2147483647);
+    FormRecordView updated =
+        formRecordService.update(
+            created.id(),
+            updateRequest(codeReviewScopeId, codeReviewVersionId, 1, atLimit),
+            actorA,
+            "127.0.0.1",
+            "JUnit");
+    assertThat(updated.fields().get("specificationCount")).isEqualTo(2147483647);
+  }
+
+  @Test
   void shouldValidateNotificationPayloadExternalContract() {
     CollectFormNotificationPayloadResponse payload =
         formRecordService.notificationPayload(
