@@ -174,6 +174,23 @@ public class FormDirectoryEventCursorService {
    * FACT_REFRESH 运行合并规则，不新增补投任务类型。
    */
   private List<WokenResource> unpublishedFormFactResources() {
+    // 首次采集前 ODS 表尚未创建；只有持久 FORM 事实头确实待补投时才需要回查来源编号。
+    Boolean pending = jdbcTemplate.queryForObject(
+        """
+        select exists(
+          select 1 from fact_change_heads h
+          join form_resource_authorities a
+            on a.source_instance = h.source_instance
+           and a.project_id = h.project_id
+           and a.authority = 'FORM'
+           and ((h.fact_type = 'ISSUE' and a.resource_type = 'issue')
+             or (h.fact_type = 'MERGE_REQUEST' and a.resource_type = 'merge_request'))
+          where h.latest_change_version > h.published_version)
+        """,
+        Boolean.class);
+    if (!Boolean.TRUE.equals(pending)) {
+      return List.of();
+    }
     List<Map<String, Object>> rows =
         jdbcTemplate.queryForList(
             """

@@ -163,7 +163,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
   @Autowired private com.data.collection.platform.config.GitlabMirrorProperties mirrorProperties;
   @Autowired private FormIssueLinkProperties linkProperties;
-  @Autowired private FormIssueLinkService formIssueLinkService;
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private FormIssueLinkService formIssueLinkService;
   @Autowired private com.data.collection.platform.service.GitlabConfigService gitlabConfigService;
   @Autowired private FormRecordService formRecordService;
   @Autowired private CustomerIssueRecordService customerIssueRecordService;
@@ -495,12 +496,12 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     long iid = 81203L;
     insertSourceIssue(93203L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
     enableLinkDelivery();
-    rebuildAllIssueFacts();
-    awaitPlatformTasksSettled();
-
     pointSourceConfigAt(startFakeGitlab(201, 0L));
-
-    assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
+    rebuildAllIssueFacts();
+    org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> {
+      assertThat(deliveryCommentId(iid)).isNotNull();
+      assertThat(postedNoteBodies).hasSize(1);
+    });
     assertThat(postedNoteBodies).hasSize(1);
     String body = postedNoteBodies.getFirst();
     assertThat(body)
@@ -518,6 +519,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   /** L2：并发触发只发送一条评论，行锁使后来者读到已保存的编号。 */
   @Test
   void concurrentDispatchPostsExactlyOneComment() throws Exception {
+    controlDeliveryTriggers();
     long iid = 81204L;
     insertSourceIssue(93204L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
     enableLinkDelivery();
@@ -557,6 +559,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   /** L2：HTTP 明确失败时编号保持为空，下一轮补发成功并写入编号。 */
   @Test
   void explicitHttpFailureKeepsCommentIdEmptyAndNextRoundSucceeds() throws Exception {
+    controlDeliveryTriggers();
     long iid = 81205L;
     insertSourceIssue(93205L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
     enableLinkDelivery();
@@ -576,6 +579,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   /** R06：长期不就绪的登记不占据队首，后续就绪议题仍能在本批发出；恢复后就绪者可继续补发。 */
   @Test
   void notReadyRegistrationsDoNotStarveLaterReadyIssues() throws Exception {
+    controlDeliveryTriggers();
     long firstIid = 81300L;
     for (int offset = 0; offset < 21; offset++) {
       insertSourceIssue(95300L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
@@ -615,6 +619,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   /** R06：持续失败的候选按稳定键推进游标，后续就绪议题在有界轮次内发出。 */
   @Test
   void persistedHttpFailuresAdvanceCursorAndLaterReadyIssueStillSends() throws Exception {
+    controlDeliveryTriggers();
     long firstIid = 81330L;
     for (int offset = 0; offset < 21; offset++) {
       insertSourceIssue(95400L + offset, firstIid + offset, LocalDateTime.of(2026, 11, 1, 10, 0));
@@ -655,6 +660,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   /** L1/L2：响应与回复两侧都必须在登记和发送时保持范围与当前版本有效。 */
   @Test
   void deliveryRequiresBothScopesAndCurrentVersionsAtRegistrationAndSend() throws Exception {
+    // 本例分别控制登记与发送边界；自动投放由独立用例验证，避免发布回调抢在版本失效前发送。
+    controlDeliveryTriggers();
     long iid = 81208L;
     insertSourceIssue(93208L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
     enableLinkDelivery();
@@ -684,6 +691,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     setReplyScopeState("ACTIVE", "PUBLISHED");
     assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
     assertThat(deliveryCommentId(iid)).isNotNull();
+  }
+
+  /** 手动驱动发送的用例隔离发布后自动触发；自动触发由双入口评论用例保留真实链路覆盖。 */
+  private void controlDeliveryTriggers() {
+    org.mockito.Mockito.doNothing().when(formIssueLinkService).dispatchPendingAsync();
   }
 
   private void resetDeliveryRegistration(long iid) {

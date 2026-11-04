@@ -182,6 +182,41 @@ class FormHeadCaptureIntegrationTest {
   }
 
   @Test
+  void emptyDirectoryPollingBeforeFirstSyncDoesNotRequireOdsTables() {
+    TransactionTemplate transaction =
+        new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+    transaction.executeWithoutResult(status -> {
+      status.setRollbackOnly();
+      jdbc.execute("alter table ods_gitlab_issues rename to first_sync_pending_issues");
+      jdbc.execute("alter table ods_gitlab_merge_requests rename to first_sync_pending_mrs");
+      FormDirectoryEventCursorService.Consumption result =
+          new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+      assertThat(result.consumed()).isZero();
+      assertThat(result.woken()).isEmpty();
+      assertThat(result.retry()).isEmpty();
+    });
+  }
+
+  @Test
+  void pendingFormFactStillRejectsMissingOdsTable() {
+    seedWokenMergeRequestHead();
+    jdbc.update(
+        "insert into fact_change_heads(source_instance, fact_type, root_id, project_id,"
+            + " latest_change_version, published_version)"
+            + " values ('default', 'MERGE_REQUEST', 9001, ?, 1, 0)",
+        PROJECT_ID);
+    TransactionTemplate transaction =
+        new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+    transaction.executeWithoutResult(status -> {
+      status.setRollbackOnly();
+      jdbc.execute("alter table ods_gitlab_merge_requests rename to missing_pending_mrs");
+      assertThatThrownBy(() ->
+          new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10))
+          .isInstanceOf(org.springframework.jdbc.BadSqlGrammarException.class);
+    });
+  }
+
+  @Test
   void directoryEventCursorWakesOnlyResourcesInPublishedVersion() {
     jdbc.update(
         "update form_change_heads set latest_change_version = 1, consumed_change_version = 1,"
