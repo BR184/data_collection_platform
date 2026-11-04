@@ -9,7 +9,8 @@ import java.util.List;
  * <p>响应与回复分别按持久权威决定是否采用表单：采用时按 {@code (createdAt, recordId)} 选“最新整份
  * 响应、最早响应、最新有效回复”，整份取用；未采用时该侧保持评论列，不把表单与评论拼成一份输入。
  * 回复侧同时保留类型化详情与稳定原因 ID 集合，供原因/合规投影与后续导出消费；不解析 Markdown、
- * 不逐字段向更早记录回退。
+ * 不逐字段向更早记录回退。延期标签目标是唯一例外：先筛具备延期原因字段的有效新版回复再取最新，
+ * 其余业务列仍取全体最新记录。
  */
 record IssueBusinessInput(
     boolean responseAdopted,
@@ -95,6 +96,7 @@ record IssueBusinessInput(
       String relationTableUpdated,
       String supplementNote,
       String deferralReason,
+      String deferralFixStatus,
       boolean deferralFieldPresent,
       boolean deferralTracked) {
 
@@ -120,17 +122,19 @@ record IssueBusinessInput(
     static ReplySnapshot absent(boolean deferralTracked) {
       return new ReplySnapshot(
           false, null, null, null, null, null, List.of(), List.of(), null, null, null,
-          List.of(), null, null, null, null, null, null, null, null, false, deferralTracked);
+          List.of(), null, null, null, null, null, null, null, null, null, false, deferralTracked);
     }
 
     /**
-     * 最新有效回复给出的延期标签目标原因；仅当本期受管、状态为申请延期且原因合法时非空。
+     * 最新有效新版回复给出的延期标签目标原因；仅当本期受管、存在有效新版回复且状态为申请延期时非空。
      *
-     * @return 稳定枚举键；受管但取消延期、非申请延期或无新版回复时返回空串；旧版回复返回 {@code null}
+     * <p>延期目标只由具备该字段的最新版记录决定；其他回复业务列仍取全体最新记录，两者互不覆盖。
+     *
+     * @return 稳定枚举键；无新版回复、取消延期、非申请延期或无有效原因时返回空串
      */
     String deferralTargetReason() {
-      if (!deferralTracked || !present || !deferralFieldPresent
-          || !"DEFERRED".equals(fixStatus)) {
+      if (!deferralTracked || !deferralFieldPresent
+          || !"DEFERRED".equals(deferralFixStatus)) {
         return "";
       }
       return deferralReason == null ? "" : deferralReason;

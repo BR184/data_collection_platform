@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
+import com.data.collection.platform.service.read.FactReadVisibility;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -481,6 +482,9 @@ public class CustomerIssueDelayLabelWritebackQueueService {
          where f.source_system = ?
            and f.source_instance = ?
            and f.deleted = false
+           and """
+            + FactReadVisibility.liveRevisionPredicate("f")
+            + """
            and f.project_id = ?
            and lower(coalesce(f.issue_state, 'opened')) <> 'closed'
            and f.created_at_source >= ?

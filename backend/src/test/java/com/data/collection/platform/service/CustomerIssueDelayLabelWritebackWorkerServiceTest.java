@@ -442,6 +442,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         "NOT_APPLICABLE",
         null,
         reason,
+        "DEFERRED",
         true,
         true);
   }

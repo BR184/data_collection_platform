@@ -2,6 +2,11 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 
 import com.data.collection.platform.config.FormIssueLinkProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
@@ -64,6 +69,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -158,6 +169,15 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private BusinessDateProvider businessDateProvider;
   @Autowired private ApplicationEventPublisher applicationEventPublisher;
   @Autowired private PlatformTransactionManager transactionManager;
+  @Autowired private CustomerIssueDelayLabelWritebackQueueService labelWritebackQueueService;
+  @Autowired private CustomerIssueDelayLabelWritebackWorkerService labelWritebackWorkerService;
+  @Autowired private CustomerIssueDelayClosureProgressRepository delayProgressRepository;
+
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private CustomerIssueDelaySourceReadinessService delayReadinessService;
+
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private FormIssueInputResolver formIssueInputResolverSpy;
 
   @Autowired
   @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR)
@@ -1707,6 +1727,143 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(snapshot.deferralTargetReason()).isEmpty();
   }
 
+  /**
+   * R2 真实业务链：A 读取 H1 后暂停，B 经正式写入口只把技术卡点改为资源卡点；
+   * A 继续时输入证据推进为 PENDING，旧作业不发送；真实重算事实后新作业只摘技术、加资源。
+   */
+  @Test
+  void realWriteDuringSendCheckRejectsOldJobThenNewFactReplacesOnlyReason() throws Exception {
+    long issueId = 93361L;
+    long iid = 81361L;
+    insertSourceIssue(issueId, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    registerFormAuthority(iid, FormTemplateSpecCatalog.ISSUE_REPLY, replyScopeId);
+    FormCreateResponse created = createReplyRecord(iid, "DEFERRED", "TECHNICAL_BLOCKER");
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    assertThat(liveFact(issueId).get("form_input_hash")).isNotNull();
+
+    GitlabSyncConfig config = delayWritebackConfig();
+    jdbcTemplate.update(
+        "update gitlab_sync_configs set source_enabled = true,"
+            + " delay_label_writeback_enabled = true, api_token = 'token' where id = ?",
+        SOURCE_CONFIG_ID);
+    delayProgressRepository.requestRound(config, "real-chain");
+    CustomerIssueDelayClosureProgressClaim claim =
+        delayProgressRepository
+            .claimBySource(SOURCE_INSTANCE, "real-chain-owner", "real-chain-token", 120)
+            .orElseThrow();
+    delayProgressRepository.bindMirror(claim, 77L).orElseThrow();
+    delayProgressRepository.moveToFactWait(claim, "wait").orElseThrow();
+    CustomerIssueDelayClosureProgress progress =
+        delayProgressRepository.authorizeEnqueue(claim, 42L).orElseThrow();
+    doReturn(
+            new CustomerIssueDelaySourceReadinessService.AuthorizationCheck(true, null, 42L))
+        .when(delayReadinessService)
+        .validateRoundAuthorization(any(), any(), any());
+
+    String fakeGitlabUrl = startFakeGitlab(200, 0L);
+    CustomerIssueDelayLabelWritebackQueueService.PageResult enqueued =
+        labelWritebackQueueService.enqueuePage(
+            config,
+            progress.authorizationRevision(),
+            progress.authorizedFactVersion(),
+            null,
+            null,
+            10);
+    assertThat(enqueued.enqueued()).isEqualTo(1);
+    CustomerIssueDelayLabelWritebackJob oldJob =
+        labelWritebackQueueService.claimNext("old-worker", 120);
+    assertThat(oldJob).isNotNull();
+    assertThat(oldJob.addLabels()).containsExactly("状态：申请延期", "技术卡点");
+
+    CountDownLatch h1Read = new CountDownLatch(1);
+    CountDownLatch resume = new CountDownLatch(1);
+    AtomicBoolean firstRead = new AtomicBoolean(true);
+    doAnswer(
+            invocation -> {
+              if (firstRead.compareAndSet(true, false)) {
+                h1Read.countDown();
+                assertThat(resume.await(30, TimeUnit.SECONDS)).isTrue();
+              }
+              return invocation.callRealMethod();
+            })
+        .when(formIssueInputResolverSpy)
+        .resolveAll(anyString(), anyCollection());
+
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    try {
+      Future<?> running = pool.submit(() -> labelWritebackWorkerService.process(oldJob));
+      assertThat(h1Read.await(30, TimeUnit.SECONDS))
+          .as("A 必须已读取 H1 并停在回复读取前")
+          .isTrue();
+      updateReplyRecord(iid, created.record(), "DEFERRED", "RESOURCE_BLOCKER");
+      resume.countDown();
+      running.get(60, TimeUnit.SECONDS);
+    } finally {
+      resume.countDown();
+      pool.shutdownNow();
+    }
+
+    Map<String, Object> oldRow = writebackJobRow(issueId);
+    assertThat(oldRow.get("status")).isEqualTo("PENDING");
+    assertThat((String) oldRow.get("last_error")).contains("表单输入证据待登记");
+    assertThat(postedNoteBodies).as("旧作业发送前已作废，未发出 HTTP 请求").isEmpty();
+
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    addIssueLabel(issueId, 831L, "状态：申请延期");
+    addIssueLabel(issueId, 832L, "技术卡点");
+    pointSourceConfigAt(fakeGitlabUrl);
+
+    CustomerIssueDelayLabelWritebackQueueService.PageResult next =
+        labelWritebackQueueService.enqueuePage(
+            config,
+            progress.authorizationRevision(),
+            progress.authorizedFactVersion(),
+            null,
+            null,
+            10);
+    assertThat(next.enqueued()).isEqualTo(1);
+    CustomerIssueDelayLabelWritebackJob newJob =
+        labelWritebackQueueService.claimNext("new-worker", 120);
+    assertThat(newJob).isNotNull();
+    assertThat(writebackJobRow(issueId).get("add_labels")).isEqualTo("资源卡点");
+    assertThat(writebackJobRow(issueId).get("remove_labels")).isEqualTo("技术卡点");
+    assertThat(newJob.addLabels()).containsExactly("资源卡点");
+    assertThat(newJob.removeLabels()).containsExactly("技术卡点");
+
+    labelWritebackWorkerService.process(newJob);
+
+    Map<String, Object> sent = writebackJobRow(issueId);
+    assertThat(sent.get("status")).as("新作业结算：%s", sent).isEqualTo("SUCCEEDED");
+    assertThat(postedNoteBodies).hasSize(1);
+    assertThat(postedNoteBodies.getFirst())
+        .isEqualTo("add_labels=资源卡点&remove_labels=技术卡点");
+    assertThat(writebackJobRow(issueId).get("status")).isEqualTo("SUCCEEDED");
+  }
+
+  private GitlabSyncConfig delayWritebackConfig() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(SOURCE_CONFIG_ID);
+    config.setSourceInstance(SOURCE_INSTANCE);
+    config.setSourceEnabled(true);
+    config.setDelayLabelWritebackEnabled(true);
+    config.setWebBaseUrl(CANONICAL_URL);
+    config.setApiToken("token");
+    return config;
+  }
+
+  private Map<String, Object> writebackJobRow(long issueId) {
+    return jdbcTemplate.queryForMap(
+        """
+        select status, add_labels, remove_labels, form_input_hash, last_error
+          from customer_issue_delay_label_writeback_jobs
+         where project_id = ? and issue_id = ?
+        """,
+        PROJECT_ID,
+        issueId);
+  }
+
   private IssueBusinessInput.ReplySnapshot replySnapshot(long iid) {
     return replySnapshot(PROJECT_ID, iid);
   }
@@ -2784,6 +2941,12 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   private void cleanSourceAndFacts() {
+    jdbcTemplate.update(
+        "delete from customer_issue_delay_label_writeback_jobs where project_id = ?",
+        PROJECT_ID);
+    jdbcTemplate.update(
+        "delete from customer_issue_delay_closure_requests where source_instance = ?",
+        SOURCE_INSTANCE);
     jdbcTemplate.update("delete from issue_fact_customer_members");
     jdbcTemplate.update("delete from issue_fact");
     jdbcTemplate.update("delete from module_dictionary");

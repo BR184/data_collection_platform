@@ -161,7 +161,7 @@ class FormIssueInputResolver {
    * @param dictionaryResolver 记录承载版本的稳定原因 key→规范标签
    * @param deferralFieldResolver 记录承载版本是否定义延期原因字段
    * @param deferralTracked 该议题是否存在任一新版回复（含已作废）
-   * @return 来源无关业务输入
+   * @return 来源无关业务输入；延期目标取最新有效新版回复，其他业务列取最新有效回复
    */
   static IssueBusinessInput select(
       boolean responseAdopted,
@@ -229,11 +229,20 @@ class FormIssueInputResolver {
     }
     String createdBy = latest.createdBy();
     String fixUser = createdBy == null ? null : nameResolver.apply(createdBy);
-    boolean deferralFieldPresent =
-        deferralFieldResolver != null && Boolean.TRUE.equals(deferralFieldResolver.apply(latest));
+    LocatedRecord deferralRecord = null;
+    for (int index = ordered.size() - 1; index >= 0; index--) {
+      LocatedRecord candidate = ordered.get(index);
+      if (Boolean.TRUE.equals(
+          deferralFieldResolver == null ? false : deferralFieldResolver.apply(candidate))) {
+        deferralRecord = candidate;
+        break;
+      }
+    }
     String deferralReason = null;
-    if (deferralFieldPresent) {
-      String raw = text(latest, "deferral_reason");
+    String deferralFixStatus = null;
+    if (deferralRecord != null) {
+      deferralFixStatus = text(deferralRecord, "fix_status");
+      String raw = text(deferralRecord, "deferral_reason");
       deferralReason =
           raw != null && IssueBusinessInput.ReplySnapshot.DEFERRAL_REASONS.contains(raw) ? raw : "";
     }
@@ -258,7 +267,8 @@ class FormIssueInputResolver {
         text(latest, "relation_table_updated"),
         text(latest, "supplement_note"),
         deferralReason,
-        deferralFieldPresent,
+        deferralFixStatus,
+        deferralRecord != null,
         deferralTracked);
   }
 

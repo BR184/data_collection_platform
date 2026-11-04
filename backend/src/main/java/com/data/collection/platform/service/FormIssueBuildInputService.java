@@ -154,12 +154,16 @@ class FormIssueBuildInputService {
   }
 
   /**
-   * 计算议题当前输入签名；只读权威/集合/head 修订，不读取业务值。
+   * 计算议题当前输入签名与业务快照。
+   *
+   * <p>先读取已提交证据 H1，再读取回复业务值，最后重新读取证据 H2；H1 与 H2 不一致说明读取期间
+   * 来源、权威、集合或 head 已推进，返回 {@code PENDING} 等待原事实链收敛，绝不返回旧签名搭配
+   * 新原因的组合。只读权威/集合/head 修订，不读取业务值以外的写状态。
    *
    * @param sourceInstance 来源实例
    * @param projectId 项目
    * @param issueIid 议题 IID
-   * @return 当前快照；缺失或冲突返回 PENDING
+   * @return 当前快照；缺失、冲突或读取期间推进返回 PENDING
    */
   Snapshot current(String sourceInstance, long projectId, long issueIid) {
     FormIssueInputResolver.IssueRef ref =
@@ -180,69 +184,88 @@ class FormIssueBuildInputService {
       for (FormIssueInputResolver.ScopeRow scope : scopes) {
         scopesById.put(scope.scopeId(), scope);
       }
-      Map<FormHeadCaptureService.HeadKey, FormHeadCaptureService.HeadRow> heads =
-          loadFormHeads(sourceInstance, Map.of(ref, byTemplate));
-      List<FormInputHash.Side> sides = new ArrayList<>();
-      for (FormIssueInputResolver.AuthorityRow authority :
-          byTemplate.values().stream()
-              .sorted(Comparator.comparing(FormIssueInputResolver.AuthorityRow::templateKey))
-              .toList()) {
-        FormIssueInputResolver.ScopeRow scope = scopesById.get(authority.scopeId());
-        if (!"FORM".equals(authority.authority())) {
-          sides.add(
-              new FormInputHash.Side(
-                  authority.templateKey(),
-                  "COMMENT",
-                  authority.authorityRevision(),
-                  authority.scopeId(),
-                  scope == null ? null : scope.sourceSetRevision(),
-                  scope == null ? null : scope.sourceSetHash(),
-                  null,
-                  null));
-          continue;
-        }
-        if (scope == null
-            || scope.sourceSetRevision() == null
-            || scope.sourceSetHash() == null) {
-          return new Snapshot(Snapshot.Status.PENDING, null, null);
-        }
-        FormHeadCaptureService.HeadRow head =
-            heads.get(
-                new FormHeadCaptureService.HeadKey(
-                    projectId, issueIid, authority.templateKey()));
-        if (head == null) {
-          return new Snapshot(Snapshot.Status.PENDING, null, null);
-        }
-        sides.add(
-            new FormInputHash.Side(
-                authority.templateKey(),
-                "FORM",
-                authority.authorityRevision(),
-                authority.scopeId(),
-                scope.sourceSetRevision(),
-                scope.sourceSetHash(),
-                head.id(),
-                head.latestChangeVersion()));
+      String before = evidenceHash(sourceInstance, ref, byTemplate, scopesById);
+      if (before == null) {
+        return new Snapshot(Snapshot.Status.PENDING, null, null);
       }
-      FormIssueInputResolver.AuthorityRow first = byTemplate.values().iterator().next();
       IssueBusinessInput input =
           resolver.resolveAll(sourceInstance, List.of(ref)).inputs().get(ref);
+      String after = evidenceHash(sourceInstance, ref, byTemplate, scopesById);
+      if (after == null || !before.equals(after)) {
+        return new Snapshot(Snapshot.Status.PENDING, null, null);
+      }
       IssueBusinessInput.ReplySnapshot reply =
           input == null ? IssueBusinessInput.ReplySnapshot.absent() : input.reply();
-      return new Snapshot(
-          Snapshot.Status.OK,
-          FormInputHash.issueHash(
-              first.sourceConfigId(),
-              first.sourceInstance(),
-              first.canonicalUrl(),
-              projectId,
-              first.resourceType(),
-              Long.toString(issueIid),
-              sides),
-          reply);
+      return new Snapshot(Snapshot.Status.OK, before, reply);
     } catch (FormConflictException error) {
       return new Snapshot(Snapshot.Status.PENDING, null, null);
     }
+  }
+
+  /**
+   * 读取一次已提交证据并计算输入签名。
+   *
+   * <p>范围集合、来源、权威修订与 head 证据均进入签名；范围/集合/head 缺失时返回 {@code null}，
+   * 由调用方按 PENDING 处理。
+   */
+  private String evidenceHash(
+      String sourceInstance,
+      FormIssueInputResolver.IssueRef ref,
+      Map<String, FormIssueInputResolver.AuthorityRow> byTemplate,
+      Map<Long, FormIssueInputResolver.ScopeRow> scopesById) {
+    Map<FormHeadCaptureService.HeadKey, FormHeadCaptureService.HeadRow> heads =
+        loadFormHeads(sourceInstance, Map.of(ref, byTemplate));
+    List<FormInputHash.Side> sides = new ArrayList<>();
+    for (FormIssueInputResolver.AuthorityRow authority :
+        byTemplate.values().stream()
+            .sorted(Comparator.comparing(FormIssueInputResolver.AuthorityRow::templateKey))
+            .toList()) {
+      FormIssueInputResolver.ScopeRow scope = scopesById.get(authority.scopeId());
+      if (!"FORM".equals(authority.authority())) {
+        sides.add(
+            new FormInputHash.Side(
+                authority.templateKey(),
+                "COMMENT",
+                authority.authorityRevision(),
+                authority.scopeId(),
+                scope == null ? null : scope.sourceSetRevision(),
+                scope == null ? null : scope.sourceSetHash(),
+                null,
+                null));
+        continue;
+      }
+      if (scope == null
+          || scope.sourceSetRevision() == null
+          || scope.sourceSetHash() == null) {
+        return null;
+      }
+      FormHeadCaptureService.HeadRow head =
+          heads.get(
+              new FormHeadCaptureService.HeadKey(
+                  ref.projectId(), ref.issueIid(), authority.templateKey()));
+      if (head == null) {
+        return null;
+      }
+      sides.add(
+          new FormInputHash.Side(
+              authority.templateKey(),
+              "FORM",
+              authority.authorityRevision(),
+              authority.scopeId(),
+              scope.sourceSetRevision(),
+              scope.sourceSetHash(),
+              head.id(),
+              head.latestChangeVersion()));
+    }
+    FormIssueInputResolver.AuthorityRow first = byTemplate.values().iterator().next();
+    return FormInputHash.issueHash(
+        first.sourceConfigId(),
+        first.sourceInstance(),
+        first.canonicalUrl(),
+        ref.projectId(),
+        first.resourceType(),
+        Long.toString(ref.issueIid()),
+        sides);
   }
 
   /** 当前构建的 worker 身份；同一候选内重复冻结可复用捕获，其他候选不能复用。 */

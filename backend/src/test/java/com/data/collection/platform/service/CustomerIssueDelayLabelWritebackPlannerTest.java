@@ -85,6 +85,7 @@ class CustomerIssueDelayLabelWritebackPlannerTest {
         "NOT_APPLICABLE",
         null,
         reason,
+        fixStatus,
         fieldPresent,
         tracked);
   }

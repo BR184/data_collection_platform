@@ -370,6 +370,37 @@ class FormIssueInputResolverAndSlaTest {
   }
 
   @Test
+  void deferralTargetUsesLatestNewVersionEvenWhenOldVersionSortsLater() {
+    LocatedRecord newVersion = replyWithDeferral(21L, "DEFERRED", "TECHNICAL_BLOCKER");
+    Map<String, Object> oldFields = new LinkedHashMap<>();
+    oldFields.put("fix_status", "RESOLVED");
+    oldFields.put("cause_keys", "design_forget");
+    LocatedRecord oldLatest =
+        located(
+            22L,
+            LocalDateTime.of(2026, 11, 13, 9, 0),
+            LocalDateTime.of(2026, 11, 13, 9, 0),
+            "account-b",
+            oldFields);
+
+    IssueBusinessInput input =
+        select(
+            List.of(),
+            List.of(newVersion, oldLatest),
+            record -> record.recordId() == 21L,
+            true);
+
+    assertThat(input.reply().latestRecordId())
+        .as("其他业务列仍取全体最新回复")
+        .isEqualTo(22L);
+    assertThat(input.reply().fixStatus()).isEqualTo("RESOLVED");
+    assertThat(input.reply().deferralFieldPresent()).isTrue();
+    assertThat(input.reply().deferralTargetReason())
+        .as("延期目标先筛新版再取最新，不受排序更后的旧版影响")
+        .isEqualTo("TECHNICAL_BLOCKER");
+  }
+
+  @Test
   void trackedTopicWithoutAnyValidNewVersionReplyKeepsEmptyTarget() {
     IssueBusinessInput input = select(List.of(), List.of(), record -> true, true);
 

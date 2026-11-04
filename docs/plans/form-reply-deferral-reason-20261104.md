@@ -6,12 +6,16 @@
 
 | 阶段 | 状态 | 恢复入口 |
 | --- | --- | --- |
-| R1 字段与条件 | 已实施并验证 | `issue_reply.json` 的 `deferral_reason`＋`notEquals`/`visibleWhen` |
-| R2 四标签写回 | 已实施并验证 | `ReplySnapshot`/`FormIssueInputResolver`/Planner/Queue/Worker |
+| R1 字段与条件 | 已实施并验证（含桌面四动作） | `issue_reply.json` 的 `deferral_reason`＋`notEquals`/`visibleWhen` |
+| R2 四标签写回 | 已实施，复核两项修正已复验 | `FormIssueBuildInputService`/`FormIssueInputResolver`/Planner/Queue/Worker |
 | R3 真实六步 | 待外部前置 | 需专属本地325样本、写回开关与 ci_robot |
 
-- 自动验证：后端定向 78/78（含真实PG：保存拒绝缺失/残留/未知、改原因与取消、旧版缺字段、全部作废空目标、技术→资源作业目标变化与旧修订拒绝）；前端 `field-logic` 9/9、模板管理 14/14、typecheck 通过。
-- 桌面四动作（出现、单选互斥、缺值拦截、取消隐藏）未执行：当前可连接实例分别属于共享开发库与未确认归属的旧夹具库，按共用环境写入规则未启动/改库；留待专属评审环境按原布局核对。
+- 自动验证：复核修正后受影响范围 115/115（`FormIssueBuildInputServiceTest` 2、`FormIssueInputResolverAndSlaTest` 21、Planner 4、Worker 21、Service 14、`CustomerIssueDelayLabelWritebackEnqueueIntegrationTest` 6、`FormIssueAdoptionFactPipelineIntegrationTest` 37、`FormConditionContractTest` 4、`FormTemplateSpecCatalogTest` 6）。含真实PG：保存拒绝缺失/残留/未知、改原因与取消、旧版缺字段、全部作废空目标、技术→资源作业目标变化与旧修订拒绝。
+- 复核修正一（签名与业务值一致）：`FormIssueBuildInputService.current` 改为读证据H1→读回复→重读证据H2，H1/H2缺失或不一致返回PENDING，由worker转入延期等待；未加锁或新队列，事务合同不变。`FormIssueBuildInputServiceTest` 用两次head读取分别覆盖一致与漂移。
+- 复核修正二（新版选择）：`FormIssueInputResolver` 对SLA/其他业务列仍取全部版本最新回复，延期目标改为从最新版本向前找“定义延期字段”的有效新版回复；新增新旧混合单测，证明旧版排序更晚也不影响延期目标。
+- 真实业务链用例：`realWriteDuringSendCheckRejectsOldJobThenNewFactReplacesOnlyReason` 用真实PG+HTTP替身，A在`resolveAll`读H1后暂停，B经正式`updateReplyRecord`只改技术→资源并提交；A恢复后旧任务发送前被拒（HTTP 0）；随后真实重建并发布新事实生成新作业，仅摘`技术卡点`、加`资源卡点`。
+- 顺带修正（真实链暴露）：写回队列候选SQL缺少活动修订谓词，多修订下入队与发送前复核可能取到不同事实行；`CustomerIssueDelayLabelWritebackQueueService.candidateSql` 增加 `FactReadVisibility.liveRevisionPredicate`，真实链入队数回到1。
+- 桌面四动作（出现、单选互斥、缺值拦截、取消隐藏）已在本轮自有隔离环境核对：容器 `dcp-form-w4-r1-pg-20261104`（`127.0.0.1:15619`）、后端18098、前端18198，专用空库按正式API建范围并发布新版；证据 `.tmp-logs/r1-desktop-20261104/`（`r1-desktop-actions.json`＋6张截图）。核对后容器按名删除、端口与后端进程已回收。
 - 被测范围：CCProduct（325）FORM 回复；未新增持久表、队列或独立业务类。
 
 开工先同步当前AGENTS与本方案，定点吸收审批状态，保留员工既有交付；不整体合并审核树。范围限原R1—R3，链接侧独立修正见对应计划。
