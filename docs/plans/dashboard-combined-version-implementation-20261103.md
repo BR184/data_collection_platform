@@ -2,45 +2,42 @@
 
 ## 当前状态与待办
 
-结论：2026-11-04审核输入 `8c3d1c9f6c0b3f7776d67327025fcf8d17b5245c`。首次严格黄金比较205项为8失败、2错误，发布门禁未通过。用户已确认5份更新、2份新增的快照范围，并要求员工完成后先由审核方审批再继续。现在准入两处修复、定向回归和限定范围快照生成；生成结果送审，通过后再执行严格复比。main、打包及部署尚未准入。
+结论：2026-11-04审核输入 `b8ff53803812034f81937ee59ed220bd23c85186`，两处修复和用户确认的7份快照生成结果审批通过。现在只准入一次 `golden.update=false` 全量严格复比，完成后送审核方审批。update运行205项通过只证明生成完成，当前尚无修复后的严格比较结论；main、打包及部署尚未准入。
 
 | 现在可做的任务 | 负责人/执行约束 | 交付物 |
 | --- | --- | --- |
-| 修复规则说明 | 员工修改QualityRdAnalyticsDashboardProvider.loadRules及相应说明生成方法 | 普通CC2026R3恢复“CC2026R3 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录”；组合范围明确列实际成员阶段，不能替换为不存在的组合阶段。公式和筛选不变 |
-| 收回内部字段 | 员工修改QualityRdAnalyticsDetailQueryService.issueRows的输出边界 | is_fixed仍供isNewIssueFixed计算；enricher完成后不将内部isFixed返回客户端。同一共享投影的所有调用一并检查。新发明细保留fixState，原明细字段集合保持原样 |
-| 最小回归 | 员工沿用原任务树与分支，先复现再修复，只跑QualityRdAnalyticsDashboardProviderTest及QualityRdAnalyticsDetailQueryServiceTest | 普通与组合规则说明正确；原两种议题明细及新发明细不含isFixed；新发fixState仍识别关闭且is_fixed=true等既有样本。不重复默认全量、58项、页面矩阵或突变自证 |
-| 快照生成与审阅 | 用户已确认下表7份范围；员工完成上述修复和定向回归后可生成，完成即送审核方审批 | 冻结候选提交，展示实际快照差异及两个新JSON。若出现第8份业务快照变化或额外字段/数值变化，先查明并送审，不扩大授权范围 |
-| 严格复比 | 审核方审阅生成结果并批准后，再去掉update执行严格compare | 全部205项通过、无缺失快照；同一修复状态在update前无需为重新列出已知差异再跑一次完整compare。保留原夹具、掩码、EXCLUDED和比较器 |
+| 严格复比 | 员工沿原任务树与分支，在已审候选b8ff5380上显式使用golden.update=false；专属Testcontainers与现有冻结链路 | 全部205项通过、0失败/错误/跳过，无缺失快照；保留快照、目录、夹具、掩码、EXCLUDED和比较器 |
+| 比较结果送审 | 员工记录实际运行提交、命令、结果和日志，回填当前状态并按职责提交双远端 | 若仅回填文档，确认生产代码/快照与运行状态一致；通过后由审核方另裁定下一步。不重复23项、默认套件或页面矩阵 |
 | 生产来源核对 | 员工整理，用户提供现场只读结果 | 第7节缺口仍保留；不以空本地库或隔离夹具代替现场事实 |
 
 恢复：员工目录 `D:/projects/dcp-dashboard-combined-20261103`，分支 `看板合并版本范围-20261103`，原main基线f74fdef7；资料准备和整改复用。只吸收本审批状态，不整体合入包含表单记录的审核分支。
 
 | 已核验范围 | 当前结论 |
 | --- | --- |
-| 身份 | 员工树干净，本地/origin/gitlab25任务分支均为8c3d1c9f；main三端为f74fdef7。aa62d219至本次HEAD生产代码差异为空，两个case已登记 |
-| 技术验收 | R01-a/b/c及R02均关闭，经理原独立编译及58/58（含PG5项，0跳过）结论保留；本轮只读复核实际失败摘录、新响应与源码，未另跑测试 |
-| 黄金覆盖 | 目录护栏2项通过；首次严格比较205项为5项预期差异、3项意外差异和2项新快照缺失。3项意外差异来自两处根因。现有夹具无2027组合成员，合并范围沿用已通过PG/页面证据 |
+| 身份 | 员工树干净，本地/origin/gitlab25均为b8ff5380；main三端仍f74fdef7。a80b116e仅两处生产修复，dd050341仅7份快照，b8ff5380回填文档 |
+| 技术验收 | 原58/58结论保持。源码确认普通规则恢复原说明、组合列实际成员，enricher后移除内部isFixed。员工定向Provider10+Detail13为23/0/0/0；测试覆盖原明细字段集合及is_fixed=true仍可派生fixState。本轮审核未重跑测试 |
+| 黄金覆盖 | 员工update为205/0/0/0；经理独立JSON结构比较确认5份既有快照的业务变化仅下表条目，2份新响应数据正确，另259份与运行前备份逐字节相同。冻结夹具/目录/掩码/比较器未变；严格复比待本轮执行 |
 | 来源掩码 | BI目录忽略generatedAt/sourceVersion/snapshotId，没有忽略ruleVersion；质量其他看板响应未直接输出Provider规则版本，不凭版本升级就断言其JSON必变 |
 
 ### 快照差异裁定与用户已确认范围
 
-以下按实际失败摘录、两个新JSON与源码核对。用户已确认5份更新和2份新增；另外3份既有快照通过修实现恢复，保持文件原样。用户将生成结果的下一步审批交给审核方，不自动授权合main或出包。
+以下7份生成结果已按用户确认范围审阅通过。原规则说明和两份旧议题明细快照保持原文件；BI三项既有易变字段generatedAt/sourceVersion/snapshotId的生成变化沿现有掩码处理。用户将后续审批交给审核方，当前只准入严格复比。
 
 | 快照 | 裁定 |
 | --- | --- |
-| bi/get___requirements__default.json、bi/get___design__default.json | 拟更新：仅$.data.ruleVersion从bi-review-v3到bi-review-v4 |
-| bi/get___coding__day-all.json | 拟更新：仅$.data.ruleVersion从bi-coding-v5到bi-coding-v6 |
-| bi/get___system-test__default.json | 拟更新：仅$.data.ruleVersion从bi-system-test-v3到bi-system-test-v4 |
-| analytics-dashboards/get___{dashboardKey}__quality-rd.json | 拟更新：需求/设计及新发修复率动作的viewKey、参数改变；原指标值保持 |
-| analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-quality-review-records.json | 拟新增：total=18，当前页18条、11列，problemCount合计212、reviewScalePages合计0；与密度0.0一致 |
-| analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-new-issue-defects.json | 拟新增：total=30，当前页20条、13列，fixState为16条已修复/未复现及4条未修复。生成前去掉所有行中的内部isFixed；当前页计数不能单独证明全体26/30 |
+| bi/get___requirements__default.json、bi/get___design__default.json | 已审更新：仅$.data.ruleVersion从bi-review-v3到bi-review-v4 |
+| bi/get___coding__day-all.json | 已审更新：仅$.data.ruleVersion从bi-coding-v5到bi-coding-v6 |
+| bi/get___system-test__default.json | 已审更新：仅$.data.ruleVersion从bi-system-test-v3到bi-system-test-v4 |
+| analytics-dashboards/get___{dashboardKey}__quality-rd.json | 已审更新：需求/设计及新发修复率动作的viewKey、参数改变；原指标值保持 |
+| analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-quality-review-records.json | 已审新增：total=18，当前页18条、11列，problemCount合计212、reviewScalePages合计0；与密度0.0一致 |
+| analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-new-issue-defects.json | 已审新增：total=30，当前页20条、13列，fixState为16条已修复/未复现及4条未修复，无内部isFixed；当前页计数不能单独证明全体26/30 |
 | analytics-dashboards/get___{dashboardKey}_rules__quality-rd.json | 不更新：修复普通版本规则说明，恢复原响应 |
 | analytics-dashboards/get___{dashboardKey}_details_{viewKey}__quality-rd-release-leakage-defects.json、对应quality-rd-fix-user-defects.json | 不更新：移除响应中意外新增的isFixed，恢复原字段集合 |
 | 其余既有快照 | 保持；CAT设置/映射仍沿现有EXCLUDED登记，不借本轮改夹具、掩码或比较规则 |
 
-执行入口：员工backend目录、已验证的JDK21和 `D:/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin/mvn.cmd`。本轮先 `test -Dtest=QualityRdAnalyticsDashboardProviderTest,QualityRdAnalyticsDetailQueryServiceTest`；修复通过后使用 `test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=true`。生成结果交审核方审阅，获批后再以相同入口改为 `-Dgolden.update=false` 严格复比。
+执行入口：员工backend目录、已验证的JDK21和 `D:/projects/data_collection_platform/tools/maven/apache-maven-3.9.9/bin/mvn.cmd test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.update=false`。本轮不再update或重跑不变代码的定向测试。
 
-现有update会重写全部用例快照，未提供按case生成的过滤入口。运行前在自有.tmp保存原快照，生成后仅接收上表7份；其他生成文件若只有既有掩码覆盖的易变差异，按运行前原文件完整恢复，不手工编辑JSON。发现额外业务差异则保留生成证据并送审，不能只为满足7份清单而丢弃差异。比较器、目录case、夹具、掩码和EXCLUDED本轮保持。
+严格复比若失败，保留实际差异并查明根因；不以追加快照、掩码或重跑代替判断。此前生成过的其他响应已恢复原文件，正由本次严格复比核验全部既有契约。
 
 运行使用现有黄金隔离恢复/真实同步链，保护其他会话服务，结束后恢复自己调整过的入口。第一次严格运行及正文见员工.tmp/golden-strict-20261104.log、.tmp/golden-failures-utf8.txt与.tmp/golden-actual/，过程不再逐轮复制进正文。员工同步当前状态、差异分类与稳定key契约，正文中残留“显示名作请求值”的旧表述须纠正；不为文档整理另起审批轮次。
 
