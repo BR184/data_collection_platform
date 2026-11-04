@@ -1492,7 +1492,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 )
 
                 self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-                expected_message = "Compose application image identity mismatch" if case == "backend-image" else "candidate Compose changes project, volume, network, port, or mount identity"
+                expected_message = "Compose application image identity mismatch" if case == "backend-image" else "candidate Compose changes project, volume, network, service, port, or mount identity"
                 self.assertIn(expected_message, result.stderr)
                 self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
                 self.assertFalse(mutation_log.exists())
@@ -1597,7 +1597,6 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q frontend'* ]]; then [[ -f \"$state/frontend.running\" ]] && printf '%s\\n' \"$(cat \"$state/frontend.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
             "  sql=\"${@: -1}\"\n"
-            "  if [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
             "  if [[ \"$sql\" == *flyway_schema_history* && \"$sql\" == *checksum* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_HISTORY\";\n"
             "  elif [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
             "  elif [[ \"$sql\" == *string_agg* ]]; then printf '\\n';\n"
