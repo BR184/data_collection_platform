@@ -59,6 +59,7 @@ public class FactTargetPublicationService {
   private final CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService;
   private final com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts;
   private final com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
+  private final com.data.collection.platform.service.form.FormIssueLinkService formIssueLinkService;
   private final org.springframework.context.ApplicationEventPublisher events;
 
   public FactTargetPublicationService(
@@ -78,6 +79,7 @@ public class FactTargetPublicationService {
       CustomerIssueMilestoneCatalogReconciliationService catalogReconciliationService,
       com.data.collection.platform.service.read.CandidateProjectionArtifactService projectionArtifacts,
       com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService,
+      com.data.collection.platform.service.form.FormIssueLinkService formIssueLinkService,
       org.springframework.context.ApplicationEventPublisher events) {
     this.jdbcTemplate = jdbcTemplate;
     this.scopeResolver = scopeResolver;
@@ -94,6 +96,7 @@ public class FactTargetPublicationService {
     this.catalogReconciliationService = catalogReconciliationService;
     this.projectionArtifacts = projectionArtifacts;
     this.formHeadCaptureService = formHeadCaptureService;
+    this.formIssueLinkService = formIssueLinkService;
     this.events = events;
   }
 
@@ -397,7 +400,14 @@ public class FactTargetPublicationService {
     }
     readPublicationRepository.requireProjectionProofs(ready);
     try {
-      return publicationTransaction.commitCandidate(() -> publishPreparedInternal(publicationId, runLeaseToken));
+      ReadPublication published =
+          publicationTransaction.commitCandidate(
+              () -> publishPreparedInternal(publicationId, runLeaseToken));
+      // 登记随发布事务提交；评论在提交后异步发出，失败保留空编号交补偿调度重试。
+      if (isIssueDomain(ready)) {
+        formIssueLinkService.dispatchPendingAsync();
+      }
+      return published;
     } catch (FactTaskLeaseLostException error) {
       throw error;
     } catch (RuntimeException error) {
@@ -405,6 +415,13 @@ public class FactTargetPublicationService {
           () -> readPublicationService.abort(publicationId, "统一发布失败：" + error.getMessage()));
       throw error;
     }
+  }
+
+  private boolean isIssueDomain(ReadPublication publication) {
+    return readPublicationRepository
+        .findDomain(publication.domainId())
+        .map(domain -> domain.key().factType().equals(FactType.ISSUE.name()))
+        .orElse(false);
   }
 
   private void abortPreservingFailure(UUID publicationId, RuntimeException original, Runnable abort) {
@@ -451,6 +468,10 @@ public class FactTargetPublicationService {
             && formHeadCaptureService.hasNewlyConsumedFormEvidence(publicationId);
     // 表单捕获与公开指针同一事务结算：复核 head/集合/权威/租约，任一漂移回滚本次公开。
     formHeadCaptureService.settleForPublication(publicationId);
+    if (key.factType().equals(FactType.ISSUE.name())) {
+      // 投放登记只作记账，随发布事务提交或回滚；未开启或未就绪时不写任何行。
+      formIssueLinkService.registerPublishedIssues(publicationId);
+    }
     jdbcTemplate.update("update statistic_board_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",
         publicationId);
     jdbcTemplate.update("update page_record_snapshots set status = 'READY' where publication_id = ? and status = 'PREPARED'",

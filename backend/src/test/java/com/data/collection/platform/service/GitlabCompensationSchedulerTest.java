@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncTriggerType;
+import com.data.collection.platform.service.form.FormIssueLinkService;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import java.time.Clock;
 import java.time.Instant;
@@ -23,6 +24,7 @@ class GitlabCompensationSchedulerTest {
   private GitlabMirrorSyncService syncService;
   private GitlabConfigService configService;
   private SyncRunSubmissionService submissionService;
+  private FormIssueLinkService formIssueLinkService;
   private GitlabCompensationScheduler scheduler;
 
   @BeforeEach
@@ -32,7 +34,28 @@ class GitlabCompensationSchedulerTest {
     syncService = mock(GitlabMirrorSyncService.class);
     configService = mock(GitlabConfigService.class);
     submissionService = mock(SyncRunSubmissionService.class);
-    scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService);
+    formIssueLinkService = mock(FormIssueLinkService.class);
+    scheduler =
+        new GitlabCompensationScheduler(
+            properties, syncService, configService, submissionService, formIssueLinkService);
+  }
+
+  @Test
+  void shouldRetryPendingFormIssueLinksEachRound() {
+    when(configService.listConfigs()).thenReturn(List.of());
+
+    scheduler.run();
+
+    verify(formIssueLinkService).dispatchPendingAsync();
+  }
+
+  @Test
+  void shouldNotRetryPendingFormIssueLinksWhenSchedulerDisabled() {
+    properties.setSchedulerEnabled(false);
+
+    scheduler.run();
+
+    verify(formIssueLinkService, never()).dispatchPendingAsync();
   }
 
   @Test
@@ -73,7 +96,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:01:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig config = config(13L, true, true, LocalDateTime.of(2026, 8, 5, 11, 40));
     config.setCompensationIntervalMinutes(10);
     when(configService.listConfigs()).thenReturn(List.of(config));
@@ -97,7 +120,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:00:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig config = config(14L, true, true, LocalDateTime.of(2026, 8, 5, 11, 30));
     config.setCompensationIntervalMinutes(10);
     when(configService.listConfigs()).thenReturn(List.of(config));
@@ -152,7 +175,7 @@ class GitlabCompensationSchedulerTest {
   @Test
   void shouldSubmitDailyIncrementalSyncOnlyAtConfiguredMinute() {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:30:00Z"), ZoneId.of("UTC"));
-    scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, clock);
+    scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig due = config(5L, true, true, LocalDateTime.of(2026, 6, 1, 3, 30));
     due.setCompensationScheduleMode("DAILY_TIME");
     due.setCompensationTime("03:30");
@@ -182,7 +205,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:31:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig config =
         config(12L, true, true, LocalDateTime.of(2026, 6, 2, 3, 30));
     config.setCompensationScheduleMode("DAILY_TIME");
@@ -205,7 +228,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-08-05T12:01:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig config = config(15L, true, true, LocalDateTime.of(2026, 8, 5, 11, 40));
     config.setCompensationIntervalMinutes(10);
     config.setIncrementalRerunRequestedAt(LocalDateTime.of(2026, 8, 5, 12, 0, 30));
@@ -230,7 +253,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:30:30Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig config = config(16L, true, true, LocalDateTime.of(2026, 6, 1, 3, 30));
     config.setCompensationScheduleMode("DAILY_TIME");
     config.setCompensationTime("03:30");
@@ -253,7 +276,7 @@ class GitlabCompensationSchedulerTest {
   @Test
   void shouldApplyIntervalOnlyInsideConfiguredCompensationWindow() {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T10:00:00Z"), ZoneId.of("UTC"));
-    scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, clock);
+    scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, formIssueLinkService, clock);
     GitlabSyncConfig insideWindow = config(7L, true, true, LocalDateTime.of(2026, 6, 2, 9, 40));
     insideWindow.setCompensationScheduleMode("WINDOWED_INTERVAL");
     insideWindow.setCompensationIntervalMinutes(10);
@@ -287,7 +310,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-08-05T08:00:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     properties.setDeleteReconciliationEnabled(true);
     properties.setDeleteReconciliationIntervalMinutes(45);
     GitlabSyncConfig config = config(10L, true, true, LocalDateTime.now(clock));
@@ -313,7 +336,7 @@ class GitlabCompensationSchedulerTest {
     Clock clock = Clock.fixed(Instant.parse("2026-08-05T08:00:00Z"), ZoneId.of("UTC"));
     scheduler =
         new GitlabCompensationScheduler(
-            properties, syncService, configService, submissionService, clock);
+            properties, syncService, configService, submissionService, formIssueLinkService, clock);
     properties.setDeleteReconciliationEnabled(true);
     GitlabSyncConfig config = config(11L, true, true, LocalDateTime.now(clock));
     when(configService.listConfigs()).thenReturn(List.of(config));

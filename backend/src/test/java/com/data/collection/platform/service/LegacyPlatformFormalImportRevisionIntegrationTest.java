@@ -103,6 +103,7 @@ class LegacyPlatformFormalImportRevisionIntegrationTest {
                 com.data.collection.platform.service.FactRevisionFixture.projectionArtifacts(
                     jdbcTemplate, readPublicationService, readPublicationRepository),
                 mock(com.data.collection.platform.service.form.FormHeadCaptureService.class),
+                mock(com.data.collection.platform.service.form.FormIssueLinkService.class),
                 mock(org.springframework.context.ApplicationEventPublisher.class)));
     CodeReviewMatchModeConfigService configService = mock(CodeReviewMatchModeConfigService.class);
     service =

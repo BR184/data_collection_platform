@@ -41,6 +41,8 @@ class FactPublicationFailurePreservationTest {
         guard, null, null, new GitlabMirrorProperties(), lifecycle, repository, null, null,
         org.mockito.Mockito.mock(
             com.data.collection.platform.service.form.FormHeadCaptureService.class),
+        org.mockito.Mockito.mock(
+            com.data.collection.platform.service.form.FormIssueLinkService.class),
         org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class));
   }
 

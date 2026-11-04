@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.data.collection.platform.config.FormIssueLinkProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.domain.customerissue.CustomerIssueEfficiencyRules;
 import com.data.collection.platform.domain.form.FormScopeBinding;
@@ -27,6 +28,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.security.PlatformPermissionCodes;
+import com.data.collection.platform.service.form.FormIssueLinkService;
 import com.data.collection.platform.service.form.FormRecordService;
 import com.data.collection.platform.service.form.FormVersionSchemaService;
 import com.data.collection.platform.service.read.BypassPublicationRequest;
@@ -41,10 +43,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -139,6 +147,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private com.data.collection.platform.service.form.FormHeadCaptureService
       formHeadCaptureService;
   @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
+  @Autowired private FormIssueLinkProperties linkProperties;
+  @Autowired private FormIssueLinkService formIssueLinkService;
   @Autowired private FormRecordService formRecordService;
   @Autowired private CustomerIssueRecordService customerIssueRecordService;
   @Autowired private CustomerIssueDefectCauseBoardService defectCauseBoardService;
@@ -162,6 +172,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   private long replyScopeId;
   private String responseSpec;
   private boolean delayRoundsSuppressed;
+  private HttpServer fakeGitlab;
+  private final List<String> postedNoteBodies =
+      java.util.Collections.synchronizedList(new ArrayList<>());
+  private volatile int fakeGitlabStatus = 201;
+  private volatile long fakeGitlabLatencyMillis;
 
   private static final Set<String> FORM_RECORD_PERMISSIONS =
       Set.of(
@@ -176,6 +191,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @BeforeEach
   void setUp() {
     adoptionProperties.setIssueEnabledAt(SWITCH_AT);
+    linkProperties.setEnabled(false);
+    linkProperties.setExternalBaseUrl(null);
     org.mockito.Mockito.doReturn(true)
         .when(qualification)
         .canBuildReadCandidate(
@@ -233,6 +250,17 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @AfterEach
   void restoreDelayRounds() {
     resumeDelayRounds();
+  }
+
+  @AfterEach
+  void stopFakeGitlabAndDisableLinkDelivery() {
+    if (fakeGitlab != null) {
+      fakeGitlab.stop(0);
+      fakeGitlab = null;
+    }
+    postedNoteBodies.clear();
+    linkProperties.setEnabled(false);
+    linkProperties.setExternalBaseUrl(null);
   }
 
   @Test
@@ -355,6 +383,206 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(delayClosureProgress())
         .as("事实发布回滚后不登记也不唤醒延期轮次")
         .isEmpty();
+  }
+
+  /** L1：就绪议题发布成功后只登记响应权威行一次；重复登记与回复行都不新增任务行。 */
+  @Test
+  void readyIssuePublicationRegistersOneDeliveryRowWithoutExtraTaskRows() {
+    enableLinkDelivery();
+    long iid = 81201L;
+    insertSourceIssue(93201L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+
+    rebuildAllIssueFacts();
+
+    assertThat(authorityOf(iid, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isEqualTo("FORM");
+    assertThat(authorityOf(iid, FormTemplateSpecCatalog.ISSUE_REPLY)).isEqualTo("FORM");
+    assertThat(deliveryRegistered(iid, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isTrue();
+    assertThat(deliveryRegistered(iid, FormTemplateSpecCatalog.ISSUE_REPLY))
+        .as("投放只记账在响应权威行，回复行不重复登记")
+        .isFalse();
+    assertThat(authorityRowCount(iid))
+        .as("只复用既有权威行，不新增任务行")
+        .isEqualTo(2L);
+    assertThat(formIssueLinkService.registerPublishedIssues(currentIssuePublication()))
+        .as("同一发布身份重复登记不再写入")
+        .isZero();
+    assertThat(registeredDeliveryCount()).isEqualTo(1L);
+  }
+
+  /** L1：发布事务回滚时登记一并回滚，候选保持未发布且不留投放记账。 */
+  @Test
+  void rolledBackIssuePublicationRegistersNoDeliveryRow() {
+    enableLinkDelivery();
+    long iid = 81202L;
+    insertSourceIssue(93202L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    ensureCertifiedIssueBaseline();
+    List<Long> roots =
+        jdbcTemplate.queryForList("select id from ods_gitlab_issues order by id", Long.class);
+    factTargetPublicationService.publishWithinCandidate(
+        new BypassPublicationRequest(
+            ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+            "GITLAB",
+            SEAL,
+            0L,
+            "form-issue-link-rollback-test",
+            null,
+            Instant.now(),
+            true),
+        target -> factBuildService.rebuildIssueFactsByRootIds(target, roots));
+    FactRevisionFixture.prepareRequiredProjections(
+        jdbcTemplate,
+        ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
+        null);
+    UUID candidateId =
+        jdbcTemplate.queryForObject(
+            """
+            select p.id from read_publications p join read_publication_domains d on d.id = p.domain_id
+             where d.fact_type = 'ISSUE' and p.state in ('PROJECTING', 'READY_TO_PUBLISH')
+             order by p.id desc limit 1
+            """,
+            UUID.class);
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              factTargetPublicationService.publishPreparedCandidate(candidateId, null);
+              status.setRollbackOnly();
+            });
+
+    assertThat(registeredDeliveryCount())
+        .as("发布回滚不得保留投放登记")
+        .isZero();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select state from read_publications where id = ?", String.class, candidateId))
+        .isEqualTo("PROJECTING");
+  }
+
+  /** L2：就绪议题只收到一条同时包含响应与回复入口的评论；已有编号后重复触发不再发送。 */
+  @Test
+  void readyIssueReceivesOneCommentWithBothEntriesAndRepeatDispatchIsNoop() throws Exception {
+    long iid = 81203L;
+    insertSourceIssue(93203L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+
+    pointSourceConfigAt(startFakeGitlab(201, 0L));
+
+    assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
+    assertThat(postedNoteBodies).hasSize(1);
+    String body = postedNoteBodies.getFirst();
+    assertThat(body)
+        .as("一条评论承载响应、回复两个入口")
+        .contains("issue_response", "issue_reply", "projectId=325", "resourceId=" + iid)
+        .contains("platform.test/external/forms");
+    assertThat(deliveryCommentId(iid)).isNotNull();
+
+    assertThat(formIssueLinkService.dispatchPending(10))
+        .as("已有评论编号的登记不再发送")
+        .isZero();
+    assertThat(postedNoteBodies).hasSize(1);
+  }
+
+  /** L2：并发触发只发送一条评论，行锁使后来者读到已保存的编号。 */
+  @Test
+  void concurrentDispatchPostsExactlyOneComment() throws Exception {
+    long iid = 81204L;
+    insertSourceIssue(93204L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    pointSourceConfigAt(startFakeGitlab(201, 300L));
+    long authorityId = deliveryAuthorityId(iid);
+
+    java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(2);
+    java.util.concurrent.ExecutorService pool =
+        java.util.concurrent.Executors.newFixedThreadPool(2);
+    java.util.concurrent.Future<Boolean> first;
+    java.util.concurrent.Future<Boolean> second;
+    try {
+      first =
+          pool.submit(
+              () -> {
+                barrier.await();
+                return formIssueLinkService.sendOne(authorityId);
+              });
+      second =
+          pool.submit(
+              () -> {
+                barrier.await();
+                return formIssueLinkService.sendOne(authorityId);
+              });
+      boolean firstSent = first.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      boolean secondSent = second.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      assertThat(firstSent ^ secondSent).as("恰好一个线程发出评论").isTrue();
+    } finally {
+      pool.shutdownNow();
+    }
+    assertThat(postedNoteBodies).hasSize(1);
+    assertThat(deliveryCommentId(iid)).isNotNull();
+  }
+
+  /** L2：HTTP 明确失败时编号保持为空，下一轮补发成功并写入编号。 */
+  @Test
+  void explicitHttpFailureKeepsCommentIdEmptyAndNextRoundSucceeds() throws Exception {
+    long iid = 81205L;
+    insertSourceIssue(93205L, iid, LocalDateTime.of(2026, 11, 1, 10, 0));
+    enableLinkDelivery();
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    pointSourceConfigAt(startFakeGitlab(500, 0L));
+
+    assertThat(formIssueLinkService.dispatchPending(10)).isZero();
+    assertThat(deliveryCommentId(iid)).as("HTTP 明确失败时编号保持为空").isNull();
+
+    fakeGitlabStatus = 201;
+    assertThat(formIssueLinkService.dispatchPending(10)).isEqualTo(1);
+    assertThat(deliveryCommentId(iid)).isNotNull();
+    assertThat(postedNoteBodies).hasSize(2);
+  }
+
+  /** L2：COMMENT 权威与其他项目的 FORM 议题都不投放。 */
+  @Test
+  void commentAuthorityAndForeignProjectReceiveNoDelivery() {
+    enableLinkDelivery();
+    long commentIssueId = 93206L;
+    long commentIid = 81206L;
+    insertSourceIssue(commentIssueId, commentIid, LocalDateTime.of(2026, 10, 1, 10, 0));
+    long foreignProjectId = 777L;
+    long foreignIid = 81207L;
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        foreignProjectId,
+        "FOREIGN");
+    insertSourceIssue(93207L, foreignIid, foreignProjectId, LocalDateTime.of(2026, 11, 1, 10, 0));
+    long foreignResponseScope =
+        createScope(FormTemplateSpecCatalog.ISSUE_RESPONSE, "foreign-response-scope", foreignProjectId);
+    long foreignReplyScope =
+        createScope(FormTemplateSpecCatalog.ISSUE_REPLY, "foreign-reply-scope", foreignProjectId);
+    insertAuthority(
+        foreignResponseScope,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE,
+        foreignIid,
+        foreignProjectId,
+        "FORM",
+        CANONICAL_URL);
+    insertAuthority(
+        foreignReplyScope,
+        FormTemplateSpecCatalog.ISSUE_REPLY,
+        foreignIid,
+        foreignProjectId,
+        "FORM",
+        CANONICAL_URL);
+
+    rebuildAllIssueFacts();
+
+    assertThat(authorityOf(commentIid, FormTemplateSpecCatalog.ISSUE_RESPONSE))
+        .as("启用点之前的议题保持 COMMENT")
+        .isEqualTo("COMMENT");
+    assertThat(postedNoteBodies).isEmpty();
+    assertThat(registeredDeliveryCount()).isZero();
+    assertThat(formIssueLinkService.dispatchPending(10)).isZero();
   }
 
   private Map<String, Object> awaitDelayClosureSettled() {
@@ -1364,6 +1592,16 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   private void insertAuthority(
       long scopeId, String templateKey, long iid, String authority, String canonicalUrl) {
+    insertAuthority(scopeId, templateKey, iid, PROJECT_ID, authority, canonicalUrl);
+  }
+
+  private void insertAuthority(
+      long scopeId,
+      String templateKey,
+      long iid,
+      long projectId,
+      String authority,
+      String canonicalUrl) {
     jdbcTemplate.update(
         """
         insert into form_resource_authorities(
@@ -1379,7 +1617,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         SOURCE_CONFIG_ID,
         SOURCE_INSTANCE,
         canonicalUrl,
-        PROJECT_ID,
+        projectId,
         iid,
         templateKey,
         scopeId,
@@ -1722,7 +1960,104 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .orElseThrow(() -> new AssertionError("看板缺少列 " + columnKey));
   }
 
+  private void enableLinkDelivery() {
+    linkProperties.setEnabled(true);
+    linkProperties.setExternalBaseUrl("https://platform.test");
+  }
+
+  /** 指向本地替身 GitLab 并在来源配置中注入令牌；事实构建在此前后均只读 ODS。 */
+  private void pointSourceConfigAt(String baseUrl) {
+    jdbcTemplate.update(
+        "update gitlab_sync_configs set web_base_url = ?, api_token = 'ci-robot-token' where id = ?",
+        baseUrl,
+        SOURCE_CONFIG_ID);
+  }
+
+  /** 本地替身 GitLab：记录评论请求体，按可切换状态码作答，可选延迟制造并发窗口。 */
+  private String startFakeGitlab(int status, long latencyMillis) throws IOException {
+    fakeGitlabStatus = status;
+    fakeGitlabLatencyMillis = latencyMillis;
+    postedNoteBodies.clear();
+    fakeGitlab = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+    fakeGitlab.createContext(
+        "/api/v4/projects/",
+        exchange -> {
+          byte[] request = exchange.getRequestBody().readAllBytes();
+          postedNoteBodies.add(
+              URLDecoder.decode(new String(request, StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+          if (fakeGitlabLatencyMillis > 0L) {
+            try {
+              Thread.sleep(fakeGitlabLatencyMillis);
+            } catch (InterruptedException error) {
+              Thread.currentThread().interrupt();
+            }
+          }
+          int code = fakeGitlabStatus;
+          byte[] body =
+              (code >= 200 && code < 300
+                      ? "{\"id\":" + (100 + postedNoteBodies.size()) + "}"
+                      : "{\"message\":\"failed\"}")
+                  .getBytes(StandardCharsets.UTF_8);
+          exchange.getResponseHeaders().add("Content-Type", "application/json");
+          exchange.sendResponseHeaders(code, body.length);
+          exchange.getResponseBody().write(body);
+          exchange.close();
+        });
+    fakeGitlab.start();
+    return "http://127.0.0.1:" + fakeGitlab.getAddress().getPort();
+  }
+
+  private boolean deliveryRegistered(long iid, String templateKey) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            """
+            select exists(select 1 from form_resource_authorities
+             where project_id = ? and resource_type = 'issue' and resource_id = ?
+               and template_key = ? and entry_registered_at is not null)
+            """,
+            Boolean.class,
+            PROJECT_ID,
+            iid,
+            templateKey));
+  }
+
+  private Long deliveryCommentId(long iid) {
+    return jdbcTemplate.query(
+        "select entry_comment_id from form_resource_authorities"
+            + " where project_id = ? and resource_type = 'issue' and resource_id = ?"
+            + " and template_key = ?",
+        rs -> rs.next() ? rs.getObject(1, Long.class) : null,
+        PROJECT_ID,
+        iid,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE);
+  }
+
+  private long deliveryAuthorityId(long iid) {
+    return jdbcTemplate.queryForObject(
+        "select id from form_resource_authorities where project_id = ? and resource_type = 'issue'"
+            + " and resource_id = ? and template_key = ?",
+        Long.class,
+        PROJECT_ID,
+        iid,
+        FormTemplateSpecCatalog.ISSUE_RESPONSE);
+  }
+
+  private long registeredDeliveryCount() {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from form_resource_authorities where entry_registered_at is not null",
+        Long.class);
+  }
+
+  private long authorityRowCount(long iid) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from form_resource_authorities where resource_id = ?", Long.class, iid);
+  }
+
   private long createScope(String templateKey, String scopeKey) {
+    return createScope(templateKey, scopeKey, PROJECT_ID);
+  }
+
+  private long createScope(String templateKey, String scopeKey, long projectId) {
     String bindingHash =
         FormScopeBinding.hash(
             objectMapper,
@@ -1732,8 +2067,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
                 SOURCE_CONFIG_ID,
                 SOURCE_INSTANCE,
                 CANONICAL_URL,
-                List.of(PROJECT_ID),
-                PROJECT_ID,
+                List.of(projectId),
+                projectId,
                 "issue"));
     long scopeId =
         jdbcTemplate.queryForObject(
@@ -1751,8 +2086,8 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
             SOURCE_CONFIG_ID,
             SOURCE_INSTANCE,
             CANONICAL_URL,
-            "[" + PROJECT_ID + "]",
-            PROJECT_ID,
+            "[" + projectId + "]",
+            projectId,
             bindingHash);
     long versionId =
         jdbcTemplate.queryForObject(
@@ -2067,6 +2402,11 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   }
 
   private void insertSourceIssue(long issueId, long iid, LocalDateTime createdAt) {
+    insertSourceIssue(issueId, iid, PROJECT_ID, createdAt);
+  }
+
+  private void insertSourceIssue(
+      long issueId, long iid, long projectId, LocalDateTime createdAt) {
     jdbcTemplate.update(
         """
         insert into ods_gitlab_issues(
@@ -2076,7 +2416,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         """,
         issueId,
         iid,
-        PROJECT_ID,
+        projectId,
         "表单接管议题 " + iid,
         Timestamp.valueOf(createdAt),
         Timestamp.valueOf(createdAt.plusHours(1)),

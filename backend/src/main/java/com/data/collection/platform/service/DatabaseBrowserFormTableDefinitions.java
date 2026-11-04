@@ -248,6 +248,8 @@ final class DatabaseBrowserFormTableDefinitions {
                 column("authority_revision", "权威修订"),
                 column("cutover_manifest_id", "切换清单 ID"),
                 column("effective_at", "生效时间"),
+                column("entry_registered_at", "投放登记时间"),
+                column("entry_comment_id", "投放评论编号"),
                 column("created_at", "创建时间"),
                 column("updated_at", "更新时间"))),
         Map.entry(

@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncTriggerType;
+import com.data.collection.platform.service.form.FormIssueLinkService;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import java.time.Clock;
 import java.time.Duration;
@@ -22,6 +23,7 @@ public class GitlabCompensationScheduler {
   private final GitlabMirrorSyncService syncService;
   private final GitlabConfigService configService;
   private final SyncRunSubmissionService submissionService;
+  private final FormIssueLinkService formIssueLinkService;
   private final Clock clock;
 
   @Autowired
@@ -29,8 +31,10 @@ public class GitlabCompensationScheduler {
       GitlabMirrorProperties properties,
       GitlabMirrorSyncService syncService,
       GitlabConfigService configService,
-      SyncRunSubmissionService submissionService) {
-    this(properties, syncService, configService, submissionService, Clock.systemDefaultZone());
+      SyncRunSubmissionService submissionService,
+      FormIssueLinkService formIssueLinkService) {
+    this(properties, syncService, configService, submissionService, formIssueLinkService,
+        Clock.systemDefaultZone());
   }
 
   GitlabCompensationScheduler(
@@ -38,11 +42,13 @@ public class GitlabCompensationScheduler {
       GitlabMirrorSyncService syncService,
       GitlabConfigService configService,
       SyncRunSubmissionService submissionService,
+      FormIssueLinkService formIssueLinkService,
       Clock clock) {
     this.properties = properties;
     this.syncService = syncService;
     this.configService = configService;
     this.submissionService = submissionService;
+    this.formIssueLinkService = formIssueLinkService;
     this.clock = clock;
   }
 
@@ -51,6 +57,8 @@ public class GitlabCompensationScheduler {
     if (!properties.isSchedulerEnabled()) {
       return;
     }
+    // 已登记但评论编号为空就绪议题由同一轮次补发；未开启投放时为空操作。
+    formIssueLinkService.dispatchPendingAsync();
     syncService.recoverTimedOutTasks();
     LocalDateTime now = LocalDateTime.now(clock);
     for (GitlabSyncConfig config : configService.listConfigs()) {

@@ -1,3 +1,13 @@
+## 2026-11-04 CCProduct表单就绪后投放：L1/L2实施并完成真实PG验证，L3待外部前置
+
+| 功能 | 当前阶段 | 功能主分支 | 下一步 |
+| --- | --- | --- | --- |
+| 统一表单系统 | 就绪后投放 L1/L2 已实施：发布事务内登记、提交后异步发送、补偿调度补发；真实 PG 新增6项与相关套件全绿 | 表单多版本与填写功能开发-20261026 | 取得 CI_ROBOT 安全注入、平台对外地址与专属 GitLab/325 样本后执行[L3本地联验](plans/form-issue-ready-link-delivery-20261104.md)；黄金/update、main、出包与生产启用仍禁止 |
+
+- 实现：`form_resource_authorities` 响应行新增 `entry_registered_at`/`entry_comment_id`（迁移 `V20261104_01`，索引仅覆盖待发）；`FactTargetPublicationService` 在 ISSUE 发布事务内登记，提交后经 `platformAsyncExecutor` 异步发送；`GitlabCompensationScheduler` 每轮补发已登记且编号为空的 325 议题；`FormIssueLinkService` 独立事务锁响应权威行、复查编号与就绪、带超时发一条含响应/回复两个入口的评论并保存编号。投放默认关闭，需 `platform.form-issue-link.enabled` 与 `external-base-url`。
+- 验证：`FormIssueAdoptionFactPipelineIntegrationTest` 32/32（新增6项：发布回滚0行、成功1行且不新增任务行、重复登记0行、单条评论含两入口、并发仅1条、HTTP 500后编号为空且下一轮成功、COMMENT/非325为0）；`GitlabCompensationSchedulerTest` 14/14、`FactPublicationFailurePreservationTest` 5/5、`FactTargetPublicationServiceIntegrationTest` 19/19、`LegacyPlatformFormalImportRevisionIntegrationTest` 5/5、`DatabaseBrowserFormTableDefinitionsTest` 1/1。
+- 边界：未生成/更新黄金快照、未合main、未出包、未升级现场、未生产启用；FORM/COMMENT 权威、生产MR评论与非法页旧源未改。L3 的10分钟采集间隔属本地来源配置，尚未调整。
+
 ## 2026-11-04 表单T2夹具与首次严格compare：34份差异全部归因，0需修复
 
 | 功能 | 当前阶段 | 功能主分支 | 下一步 |

@@ -172,5 +172,6 @@
   "V20261102_05__merge_request_fact_form_authority_evidence.sql": "5b965485f6e30a3c4cbac8b004e7b34c19a28ffd8e7a17d9e22c80faab59ab7b",
   "V20261102_06__form_project_candidates.sql": "abd005621f4af2562a7ce7a484ef8e493dbba1cc500e255e573439ae34125de9",
   "V20261102_07__code_review_formal_records_business_identity.sql": "7aa9720e116fe6c744582b659d14d3b35759e4039088d35c236e61995e7bbf72",
-  "V20261102_08__form_project_candidate_state.sql": "4e90c4a8e5d655e451380bc5e5f0c35611a22a01af7e28c2474bc45be6e4f664"
+  "V20261102_08__form_project_candidate_state.sql": "4e90c4a8e5d655e451380bc5e5f0c35611a22a01af7e28c2474bc45be6e4f664",
+  "V20261104_01__form_issue_link_delivery.sql": "55fbfc8d4369ccbce2dbbc4d4f9ed47d94835afc221bcfac31dc28683e0a7bed"
 }
