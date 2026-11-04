@@ -9,9 +9,16 @@ public record BiProductVersionScope(
     String businessKey,
     String displayName,
     int sortOrder,
-    List<RoundScope> rounds) {
+    List<RoundScope> rounds,
+    List<String> memberBusinessKeys,
+    String fingerprint) {
   public BiProductVersionScope {
     rounds = rounds == null ? List.of() : List.copyOf(rounds);
+    memberBusinessKeys =
+        memberBusinessKeys == null ? List.of() : List.copyOf(memberBusinessKeys);
+    if (memberBusinessKeys.isEmpty()) {
+      throw new IllegalArgumentException("BI 产品版本范围必须包含至少一个成员");
+    }
   }
 
   /** 议题测试阶段定义中的稳定轮次成员。 */

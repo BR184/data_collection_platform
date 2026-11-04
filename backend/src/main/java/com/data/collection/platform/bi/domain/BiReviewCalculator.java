@@ -21,7 +21,7 @@ public final class BiReviewCalculator {
   private static final BigDecimal MAX_DENSITY = new BigDecimal("0.60");
   private static final BigDecimal DESIGN_MIN_DENSITY = new BigDecimal("0.30");
   private static final BigDecimal DESIGN_MAX_DENSITY = new BigDecimal("0.80");
-  private static final String RULE_VERSION = "bi-review-v3";
+  private static final String RULE_VERSION = "bi-review-v4";
 
   /** 计算需求或设计页面；冲突、缺失和非法输入不会进入任何标记为完整的统计。 */
   public BiPageResponse<BiReviewPageData> calculate(String pageKey, BiReviewSource source) {

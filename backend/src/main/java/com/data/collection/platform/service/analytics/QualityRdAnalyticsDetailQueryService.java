@@ -3,12 +3,16 @@ package com.data.collection.platform.service.analytics;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
+import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
+import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.TextQuerySupport;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -50,16 +54,19 @@ public class QualityRdAnalyticsDetailQueryService {
       "mergeRequestState", QualityRdAnalyticsDetailQueryService::displayMergeRequestState);
 
   private final JdbcTemplate jdbcTemplate;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
+  private final DashboardVersionScopeService versionScopeService;
+  private final QualityBoardRdService rdService;
 
   public QualityRdAnalyticsDetailQueryService(
       JdbcTemplate jdbcTemplate,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
-      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport,
+      DashboardVersionScopeService versionScopeService,
+      QualityBoardRdService rdService) {
     this.jdbcTemplate = jdbcTemplate;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.codeReviewReadSupport = codeReviewReadSupport;
+    this.versionScopeService = versionScopeService;
+    this.rdService = rdService;
   }
 
   DetailPage load(String viewKey, AnalyticsDashboardQueryContext context) {
@@ -68,6 +75,8 @@ public class QualityRdAnalyticsDetailQueryService {
       case "release-leakage-defects" -> releaseLeakageDefects(context);
       case "development-leakage-defects" -> developmentLeakageDefects(context);
       case "fix-user-defects" -> fixUserDefects(context);
+      case "quality-review-records" -> reviewRecords(context);
+      case "new-issue-defects" -> newIssueDefects(context);
       case "assignee-remaining-defects" -> assigneeRemainingSummary(context);
       case "quality-code-review-records" -> codeReviewRecords(context);
       default -> throw new BizException("研发质量看板不支持该详情: " + viewKey);
@@ -75,10 +84,10 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   List<OptionItemResponse> phaseOptions() {
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
-        .filter(TextQuerySupport::hasText)
-        .distinct()
-        .map(value -> new OptionItemResponse(value, value))
+    return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE)
+        .stream()
+        .map(option -> new OptionItemResponse(option.displayName(), option.value()))
+        .filter(option -> TextQuerySupport.hasText(option.value()))
         .toList();
   }
 
@@ -194,6 +203,15 @@ public class QualityRdAnalyticsDetailQueryService {
       return DetailPage.empty();
     }
     String projectName = projectName(context);
+    List<String> testingPhases = integrationPhases(projectName);
+    if (testingPhases.isEmpty()) {
+      return DetailPage.empty();
+    }
+    String placeholders = String.join(",", testingPhases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(testingPhases);
     List<Map<String, Object>> rows = jdbcTemplate.query(
         """
         select source_instance, project_name, issue_iid, title, issue_state,
@@ -204,8 +222,8 @@ public class QualityRdAnalyticsDetailQueryService {
          where deleted = false
            and lower(coalesce(source_instance, '')) = ?
            and project_id = ?
-           and testing_phase = ?
-        """,
+           and testing_phase in (%s)
+        """.formatted(placeholders),
         (rs, rowNumber) -> {
           Integer executeCase = integer(rs.getObject("execute_case"));
           Integer passCase = integer(rs.getObject("pass_case"));
@@ -228,9 +246,7 @@ public class QualityRdAnalyticsDetailQueryService {
           row.put("updatedAt", rs.getObject("updated_at_source"));
           return row;
         },
-        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-        CROWN_CAD_PROJECT_ID,
-        projectName + "集成测试");
+        args.toArray());
     return page(rows, context, "updatedAt", true, "issueIid");
   }
 
@@ -248,7 +264,13 @@ public class QualityRdAnalyticsDetailQueryService {
   private DetailPage developmentLeakageDefects(AnalyticsDashboardQueryContext context) {
     String projectName = projectName(context);
     List<Map<String, Object>> rows = new ArrayList<>();
-    if (tableExists("integration_test_fact")) {
+    List<String> testingPhases = integrationPhases(projectName);
+    if (tableExists("integration_test_fact") && !testingPhases.isEmpty()) {
+      String placeholders = String.join(",", testingPhases.stream().map(ignored -> "?").toList());
+      List<Object> args = new ArrayList<>();
+      args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+      args.add(CROWN_CAD_PROJECT_ID);
+      args.addAll(testingPhases);
       rows.addAll(jdbcTemplate.query(
           """
           select project_name, issue_iid, title, testing_phase, module_name,
@@ -257,8 +279,8 @@ public class QualityRdAnalyticsDetailQueryService {
            where deleted = false
              and lower(coalesce(source_instance, '')) = ?
              and project_id = ?
-             and testing_phase = ?
-          """,
+             and testing_phase in (%s)
+          """.formatted(placeholders),
           (rs, rowNumber) -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("recordType", "集成测试未通过用例");
@@ -272,9 +294,7 @@ public class QualityRdAnalyticsDetailQueryService {
             row.put("updatedAt", rs.getObject("updated_at_source"));
             return row;
           },
-          GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
-          CROWN_CAD_PROJECT_ID,
-          projectName + "集成测试"));
+          args.toArray()));
     }
     rows.addAll(issueRows(
         phases(projectName),
@@ -302,6 +322,51 @@ public class QualityRdAnalyticsDetailQueryService {
         filters,
         ignored -> {});
     return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
+  }
+
+  private DetailPage reviewRecords(AnalyticsDashboardQueryContext context) {
+    String reviewType = context.parameter("reviewType").orElse(null);
+    List<Map<String, Object>> rows = rdService.reviewRecords(projectName(context), reviewType)
+        .stream()
+        .map(this::reviewRecord)
+        .toList();
+    return page(rows, context, "reviewDate", true, "title");
+  }
+
+  private Map<String, Object> reviewRecord(ReviewDataRecordRowResponse source) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("projectName", source.projectName());
+    row.put("title", source.title());
+    row.put("moduleName", source.moduleName());
+    row.put("reviewType", source.reviewType());
+    row.put("reviewDate", source.reviewDate());
+    row.put("reviewOwner", source.reviewOwner());
+    row.put("reviewExperts", source.reviewExpertsSummary());
+    row.put("authorName", source.authorName());
+    row.put("reviewVersion", source.reviewVersion());
+    row.put("reviewScalePages", source.reviewScalePages());
+    row.put("problemCount", source.problemCount());
+    return row;
+  }
+
+  private DetailPage newIssueDefects(AnalyticsDashboardQueryContext context) {
+    List<Map<String, Object>> rows = issueRows(
+        phases(projectName(context)),
+        rdService.newIssueValidPredicate(),
+        Map.of(),
+        row -> row.put("fixState", isNewIssueFixed(row) ? "已修复/未复现" : "未修复"));
+    return detailPage(rows, context, "updatedAt", true, "issueIid", ISSUE_DETAIL_LABELS);
+  }
+
+  private static boolean isNewIssueFixed(Map<String, Object> row) {
+    Object issueState = row.get("issueState");
+    Object bugStatus = row.get("bugStatus");
+    String state = issueState == null ? "" : issueState.toString().trim();
+    String status = bugStatus == null ? "" : bugStatus.toString();
+    return "CLOSED".equalsIgnoreCase(state)
+        && (status.contains("已修复/完成")
+            || status.contains("未复现")
+            || Boolean.TRUE.equals(row.get("isFixed")));
   }
 
   private DetailPage assigneeRemainingSummary(AnalyticsDashboardQueryContext context) {
@@ -402,7 +467,7 @@ public class QualityRdAnalyticsDetailQueryService {
                testing_phase, module_name, module_names, function_name,
                author_name, assignee_name, fix_user, severity_level,
                priority_level, urgency, bug_status, category, delay_cause,
-               created_at_source, updated_at_source
+               is_fixed, created_at_source, updated_at_source
           from issue_fact
          where deleted = false
            and project_id = ?
@@ -434,9 +499,12 @@ public class QualityRdAnalyticsDetailQueryService {
           row.put("bugStatus", rs.getString("bug_status"));
           row.put("category", rs.getString("category"));
           row.put("delayCause", rs.getString("delay_cause"));
+          row.put("isFixed", rs.getObject("is_fixed"));
           row.put("createdAt", rs.getObject("created_at_source"));
           row.put("updatedAt", rs.getObject("updated_at_source"));
           enricher.enrich(row);
+          // isFixed 仅供内部计算，不进入客户端字段集合。
+          row.remove("isFixed");
           return row;
         },
         args.toArray());
@@ -582,8 +650,18 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   private List<String> phases(String requestedProjectName) {
-    return phaseScopeResolver.resolvePhases(
-        CROWN_CAD_PROJECT_ID, canonicalProjectName(requestedProjectName));
+    return resolveScope(requestedProjectName).phases().stream()
+        .map(DashboardVersionScope.PhaseMember::sourceValue)
+        .toList();
+  }
+
+  private DashboardVersionScope resolveScope(String requestedProjectName) {
+    return versionScopeService.resolve(
+        CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requestedProjectName);
+  }
+
+  private List<String> integrationPhases(String requestedProjectName) {
+    return resolveScope(requestedProjectName).integrationTestPhases();
   }
 
   private SqlScope issueScope(List<String> phases) {
@@ -600,14 +678,9 @@ public class QualityRdAnalyticsDetailQueryService {
   }
 
   String canonicalProjectName(String requestedProjectName) {
-    String normalized = TextQuerySupport.trimToNull(requestedProjectName);
-    if (normalized != null) {
-      return TextQuerySupport.normalizeDisplay(normalized);
-    }
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID).stream()
-        .filter(TextQuerySupport::hasText)
-        .findFirst()
-        .orElseGet(() -> phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID));
+    return versionScopeService
+        .resolve(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requestedProjectName)
+        .businessKey();
   }
 
   private void validateCrownCadProject(String projectId) {

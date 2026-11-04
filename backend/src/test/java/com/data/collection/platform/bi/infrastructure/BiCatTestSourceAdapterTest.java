@@ -64,6 +64,8 @@ class BiCatTestSourceAdapterTest {
   }
 
   private BiProductVersionScope scope() {
-    return new BiProductVersionScope(10L, 9L, "CC2026R4", "CC2026R4", 1, List.of());
+    return new BiProductVersionScope(
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp");
   }
 }

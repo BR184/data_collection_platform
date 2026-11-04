@@ -75,12 +75,13 @@ public final class BiPlatformReviewSourceAdapter implements BiReviewSourcePort {
         stage.reviewType());
     // 阶段二：先按产品版本筛选，再转换为领域记录；产品版本匹配不下沉到计算器。
     List<BiReviewSource.ReviewRecord> records = rows.stream()
-        .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
+        .filter(row -> versionMatcher.matchesAny(row.projectName(), scope.memberBusinessKeys()))
         .map(this::toSourceRecord)
         .toList();
     // 阶段三：读取结束后复核版本，阻止一半旧数据和一半新数据进入同一页面。
     verifyStableVersion(stage.pageKey(), sourceVersion, snapshotService.reviewDataSourceVersion());
-    return new BiReviewSource(sourceVersion, sourceVersion, records);
+    String scopedVersion = sourceVersion + "|scope:" + scope.fingerprint();
+    return new BiReviewSource(scopedVersion, scopedVersion, records);
   }
 
   private ReviewRow mapRow(ResultSet rs, int rowNumber) throws SQLException {

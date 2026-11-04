@@ -14,13 +14,15 @@ import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
+import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
 import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.ReviewDataRecordReadRepository;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,8 +37,16 @@ class QualityRdAnalyticsDashboardProviderTest {
   private final QualityBoardRdService rdService = mock(QualityBoardRdService.class);
   private final QualityBoardWorkbookExportService workbookExportService =
       mock(QualityBoardWorkbookExportService.class);
+  private final DashboardVersionScopeService versionScopeService =
+      DashboardVersionScopeTestSupport.service(
+          DashboardVersionScopeTestSupport.group(
+              40L,
+              "CC2026R4",
+              1,
+              DashboardVersionScopeTestSupport.member(401L, "CC2026R4系统测试", 1)));
   private final QualityRdAnalyticsDashboardProvider provider =
-      new QualityRdAnalyticsDashboardProvider(rdService, workbookExportService);
+      new QualityRdAnalyticsDashboardProvider(
+          rdService, workbookExportService, versionScopeService);
 
   @Test
   void exposesEightMetricsFiveChartsRulesActionsAndPointFilters() {
@@ -59,7 +69,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         .containsExactlyInAnyOrder("projectName", "codeReviewSource");
     assertThat(provider.readModeSource())
         .isEqualTo(AnalyticsDashboardProvider.ReadModeSource.CODE_REVIEW_SETTING);
-    assertThat(provider.ruleVersion(context)).isEqualTo("quality-rd-rules@2");
+    assertThat(provider.ruleVersion(context)).isEqualTo("quality-rd-rules@3");
     assertThat(provider.sourceVersion(context)).contains("match-mode");
     assertThat(dashboard.metrics()).hasSize(8);
     assertThat(dashboard.charts()).hasSize(5);
@@ -67,12 +77,16 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(rules.rules())
         .allSatisfy(rule -> assertThat(String.valueOf(rule.description()))
             .doesNotContain("兼容模式", "Match mode", "老平台"));
+    assertThat(scopeOf(rules, "quality-rd.integration-pass-rate"))
+        .isEqualTo("CC2026R4集成测试；逐条通过率先保留两位小数后再取算术平均");
+    assertThat(scopeOf(rules, "quality-rd.development-leakage-rate"))
+        .isEqualTo("CC2026R4 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录");
 
     var demandMetric = dashboard.metrics().stream()
         .filter(metric -> metric.key().equals("demand-review-density"))
         .findFirst()
         .orElseThrow();
-    assertThat(demandMetric.detail().viewKey()).isEqualTo("review-data-records");
+    assertThat(demandMetric.detail().viewKey()).isEqualTo("quality-review-records");
     assertThat(demandMetric.detail().params())
         .containsEntry("projectName", "CC2026R4")
         .containsEntry("reviewType", "需求说明书评审");
@@ -90,8 +104,10 @@ class QualityRdAnalyticsDashboardProviderTest {
         .filter(metric -> metric.key().equals("new-issue-fix-rate"))
         .findFirst()
         .orElseThrow();
-    assertThat(newIssueMetric.detail().viewKey()).isEqualTo("system-test-defect-summary");
-    assertThat(newIssueMetric.detail().params()).containsEntry("testingPhase", "CC2026R4");
+    assertThat(newIssueMetric.detail().viewKey()).isEqualTo("new-issue-defects");
+    assertThat(newIssueMetric.detail().params())
+        .containsEntry("projectName", "CC2026R4")
+        .doesNotContainKey("testingPhase");
 
     var authorChart = dashboard.charts().stream()
         .filter(chart -> chart.key().equals("author-defect-density"))
@@ -175,6 +191,49 @@ class QualityRdAnalyticsDashboardProviderTest {
         List.of());
   }
 
+  @Test
+  void combinedVersionRulesDescribeActualMemberIntegrationPhases() {
+    var combinedService = DashboardVersionScopeTestSupport.service(
+        List.of(
+            DashboardVersionScopeTestSupport.group(
+                10L,
+                "CC2027R1",
+                2,
+                DashboardVersionScopeTestSupport.member(101L, "CC2027R1第一轮系统测试", 1)),
+            DashboardVersionScopeTestSupport.group(
+                20L,
+                "CC2027R2",
+                3,
+                DashboardVersionScopeTestSupport.member(201L, "CC2027R2第一轮系统测试", 1))),
+        List.of(DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "CC2027R1&R2",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of("2027R1&R2"),
+            List.of("CC2027R1集成测试", "CC2027R2集成测试"))));
+    var combinedProvider = new QualityRdAnalyticsDashboardProvider(
+        rdService, workbookExportService, combinedService);
+    when(rdService.normalizeProjectName("cc-2027-r1-r2")).thenReturn("cc-2027-r1-r2");
+    when(rdService.displayProjectName("cc-2027-r1-r2")).thenReturn("CC2027R1&R2");
+
+    var rules = combinedProvider.loadRules(
+        AnalyticsDashboardQueryContext.of(Map.of("projectName", "cc-2027-r1-r2")));
+
+    assertThat(scopeOf(rules, "quality-rd.integration-pass-rate"))
+        .isEqualTo("CC2027R1集成测试、CC2027R2集成测试；逐条通过率先保留两位小数后再取算术平均");
+    assertThat(scopeOf(rules, "quality-rd.development-leakage-rate"))
+        .isEqualTo("CC2027R1集成测试、CC2027R2集成测试 与系统测试阶段；系统测试有效缺陷排除已拒绝记录");
+  }
+
+  private static String scopeOf(AnalyticsDashboardRulesResponse rules, String key) {
+    return rules.rules().stream()
+        .filter(rule -> rule.key().equals(key))
+        .findFirst()
+        .orElseThrow()
+        .scope();
+  }
+
   private String statusOf(AnalyticsDashboardResponse dashboard, String key) {
     return dashboard.metrics().stream()
         .filter(metric -> metric.key().equals(key))
@@ -209,7 +268,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     var detailWorkbook = mock(QualityRdAnalyticsWorkbookService.class);
     when(detailQuery.htgcDataReady()).thenReturn(false);
     var fullProvider = new QualityRdAnalyticsDashboardProvider(
-        rdService, workbookExportService, detailQuery, detailWorkbook);
+        rdService, workbookExportService, detailQuery, detailWorkbook, versionScopeService);
 
     assertThatThrownBy(() -> fullProvider.export(
             "assignee-remaining-htgc-detail",
@@ -221,13 +280,9 @@ class QualityRdAnalyticsDashboardProviderTest {
   @Test
   void serviceExcludesRejectedIssuesFromRemainingAssigneeChartAndDropsBlankAssignees() {
     var jdbc = new CapturingJdbcTemplate();
-    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
-        .thenReturn(List.of("CC2026R4系统测试"));
-    when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
     when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
         .thenReturn(List.of());
     when(codeReview.configuredReadMode()).thenReturn(CodeReviewDataReadMode.FORMAL);
@@ -250,7 +305,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     when(codeReview.frequencyRows("cc", "CC2026R4", CodeReviewDataReadMode.FORMAL))
         .thenReturn(List.of());
     var service = new QualityBoardRdService(
-        jdbc, phaseScopeResolver, formalReviews, matchReviews, codeReview);
+        jdbc, formalReviews, matchReviews, codeReview, versionScopeService);
 
     service.getRdDashboard("CC2026R4", "cc");
 
@@ -269,11 +324,9 @@ class QualityRdAnalyticsDashboardProviderTest {
   @Test
   void reviewDensityAlwaysCombinesFormalAndHistoricalSnapshotRecords() {
     var jdbc = new CapturingJdbcTemplate();
-    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var formalReviews = mock(ReviewDataRecordReadRepository.class);
     var matchReviews = mock(ReviewDataMatchModeRecordRepository.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.listEnabledParentNames(9L)).thenReturn(List.of("CC2026R4"));
     when(formalReviews.loadRecords(null, "CC2026R4", null, null, null, null, null, null))
         .thenReturn(
             List.of(
@@ -285,7 +338,7 @@ class QualityRdAnalyticsDashboardProviderTest {
                 reviewRow(-3L, "需求说明书评审", 10, 3),
                 reviewRow(-4L, "设计说明书评审", 10, 4)));
     var service = new QualityBoardRdService(
-        jdbc, phaseScopeResolver, formalReviews, matchReviews, codeReview);
+        jdbc, formalReviews, matchReviews, codeReview, versionScopeService);
 
     QualityBoardRdOverviewResponse overview =
         service.getOverview("CC2026R4", CodeReviewDataReadMode.FORMAL);
@@ -297,11 +350,9 @@ class QualityRdAnalyticsDashboardProviderTest {
   @Test
   void assigneeRemainingSummaryExcludesRejectedIssuesLikeTheOldPlatform() {
     var jdbc = new CapturingJdbcTemplate();
-    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
-        .thenReturn(List.of("CC2026R4系统测试"));
-    var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
+    var service = new QualityRdAnalyticsDetailQueryService(
+        jdbc, codeReview, versionScopeService, mock(QualityBoardRdService.class));
 
     service.assigneeSummaryRows("CC2026R4", null);
 
@@ -320,7 +371,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     when(detailWorkbook.assigneeSummary(List.of())).thenReturn(new byte[] {1});
     when(detailWorkbook.ccDetails(List.of())).thenReturn(new byte[] {2});
     var fullProvider = new QualityRdAnalyticsDashboardProvider(
-        rdService, workbookExportService, detailQuery, detailWorkbook);
+        rdService, workbookExportService, detailQuery, detailWorkbook, versionScopeService);
     var context = AnalyticsDashboardQueryContext.of(
         Map.of("projectName", "CC2026R4", "assigneeName", "张三"));
 
@@ -338,11 +389,9 @@ class QualityRdAnalyticsDashboardProviderTest {
         issue("模块A", "处理人1"),
         issue("模块A", "处理人3"),
         issue("模块B", "处理人4")));
-    var phaseScopeResolver = mock(SystemTestPhaseScopeResolver.class);
     var codeReview = mock(QualityBoardCodeReviewReadSupport.class);
-    when(phaseScopeResolver.resolvePhases(9L, "CC2026R4"))
-        .thenReturn(List.of("CC2026R4系统测试"));
-    var service = new QualityRdAnalyticsDetailQueryService(jdbc, phaseScopeResolver, codeReview);
+    var service = new QualityRdAnalyticsDetailQueryService(
+        jdbc, codeReview, versionScopeService, mock(QualityBoardRdService.class));
 
     var rows = service.ccAssigneeDetailRows("CC2026R4", null);
 

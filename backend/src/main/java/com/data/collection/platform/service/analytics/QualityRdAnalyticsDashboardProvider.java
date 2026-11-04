@@ -10,8 +10,12 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
 import com.data.collection.platform.service.CodeReviewDataReadMode;
+import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardRdService;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,24 +48,28 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   private final QualityBoardWorkbookExportService workbookExportService;
   private final QualityRdAnalyticsDetailQueryService detailQueryService;
   private final QualityRdAnalyticsWorkbookService analyticsWorkbookService;
+  private final DashboardVersionScopeService versionScopeService;
 
   @Autowired
   public QualityRdAnalyticsDashboardProvider(
       QualityBoardRdService rdService,
       QualityBoardWorkbookExportService workbookExportService,
       QualityRdAnalyticsDetailQueryService detailQueryService,
-      QualityRdAnalyticsWorkbookService analyticsWorkbookService) {
+      QualityRdAnalyticsWorkbookService analyticsWorkbookService,
+      DashboardVersionScopeService versionScopeService) {
     this.rdService = rdService;
     this.workbookExportService = workbookExportService;
     this.detailQueryService = detailQueryService;
     this.analyticsWorkbookService = analyticsWorkbookService;
+    this.versionScopeService = versionScopeService;
   }
 
   /** Kept for the focused provider unit fixture; production wiring always uses the full constructor. */
   QualityRdAnalyticsDashboardProvider(
       QualityBoardRdService rdService,
-      QualityBoardWorkbookExportService workbookExportService) {
-    this(rdService, workbookExportService, null, null);
+      QualityBoardWorkbookExportService workbookExportService,
+      DashboardVersionScopeService versionScopeService) {
+    this(rdService, workbookExportService, null, null, versionScopeService);
   }
 
   @Override
@@ -71,12 +79,17 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public String ruleVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-rules@2";
+    return "quality-rd-rules@3";
   }
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return "quality-rd-facts@1:" + context.readMode().key();
+    String fingerprint = versionScopeService.resolve(
+            IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+            IssueScopeDimension.TESTING_PHASE,
+            context.parameter("projectName").orElse(null))
+        .fingerprint();
+    return "quality-rd-facts@2:" + context.readMode().key() + "|scope:" + fingerprint;
   }
 
   @Override
@@ -93,8 +106,9 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
   @Override
   public AnalyticsDashboardResponse loadDashboard(AnalyticsDashboardQueryContext context) {
     CodeReviewDataReadMode readMode = CodeReviewAnalyticsReadMode.from(context.readMode());
+    String projectKey = rdService.normalizeProjectName(context.parameter("projectName").orElse(null));
     QualityBoardRdDashboardResponse legacy = rdService.getRdDashboard(
-        rdService.normalizeProjectName(context.parameter("projectName").orElse(null)),
+        projectKey,
         context.parameter("codeReviewSource").orElse(DEFAULT_CODE_REVIEW_SOURCE),
         readMode);
     QualityBoardRdOverviewResponse overview = legacy.summary();
@@ -111,7 +125,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.demandReviewReportDensity(),
             "",
             "quality-rd.demand-review-density",
-            detail("review-data-records", projectName, Map.of("reviewType", "需求说明书评审")),
+            detail("quality-review-records", projectKey, Map.of("reviewType", "需求说明书评审")),
             null),
         metric(
             "design-review-density",
@@ -119,7 +133,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.designReviewReportDensity(),
             "",
             "quality-rd.design-review-density",
-            detail("review-data-records", projectName, Map.of("reviewType", "设计说明书评审")),
+            detail("quality-review-records", projectKey, Map.of("reviewType", "设计说明书评审")),
             null),
         metric(
             "code-review-density-cc",
@@ -148,7 +162,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.integrationPassRate(),
             "%",
             "quality-rd.integration-pass-rate",
-            detail("integration-test-results", projectName, Map.of()),
+            detail("integration-test-results", projectKey, Map.of()),
             null),
         metric(
             "release-leakage-rate",
@@ -156,7 +170,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.defectLeakageRate(),
             "%",
             "quality-rd.release-leakage-rate",
-            detail("release-leakage-defects", projectName, Map.of()),
+            detail("release-leakage-defects", projectKey, Map.of()),
             null),
         metric(
             "development-leakage-rate",
@@ -164,7 +178,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             overview.defectEliminationRate(),
             "%",
             "quality-rd.development-leakage-rate",
-            detail("development-leakage-defects", projectName, Map.of()),
+            detail("development-leakage-defects", projectKey, Map.of()),
             null),
         metric(
             "new-issue-fix-rate",
@@ -173,16 +187,16 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             "%",
             "quality-rd.new-issue-fix-rate",
             new AnalyticsDashboardResponse.DetailAction(
-                "system-test-defect-summary",
-                Map.of("testingPhase", projectName)),
+                "new-issue-defects",
+                Map.of("projectName", projectKey)),
             null));
 
     Map<String, String> reviewerDetailParams =
-        codeReviewDetailParams(projectName, codeReviewSource, "reviewer-density");
+        codeReviewDetailParams(projectKey, codeReviewSource, "reviewer-density");
     Map<String, String> authorDetailParams =
-        codeReviewDetailParams(projectName, codeReviewSource, "author-density");
+        codeReviewDetailParams(projectKey, codeReviewSource, "author-density");
     Map<String, String> submissionDetailParams =
-        codeReviewDetailParams(projectName, codeReviewSource, "submission-frequency");
+        codeReviewDetailParams(projectKey, codeReviewSource, "submission-frequency");
     List<AnalyticsDashboardResponse.Chart> charts = List.of(
         new AnalyticsDashboardResponse.Chart(
             "assignee-defect-density",
@@ -219,7 +233,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             QualityRdDashboardChartOptions.stackedSeverity(
                 legacy.fixUserSeverityRows(), projectName),
             "quality-rd.fix-user-severity",
-            detail("fix-user-defects", projectName, Map.of()),
+            detail("fix-user-defects", projectKey, Map.of()),
             exportAction("fix-user-severity")),
         new AnalyticsDashboardResponse.Chart(
             "frequency-code-submission",
@@ -245,12 +259,12 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "#dc5360",
                 new QualityRdDashboardChartOptions.PointParameters(
                     "remaining-defects",
-                    Map.of("projectId", "9", "projectName", projectName),
+                    Map.of("projectId", "9", "projectName", projectKey),
                     "assigneeName")),
             "quality-rd.defect-repair-user",
             new AnalyticsDashboardResponse.DetailAction(
                 "assignee-remaining-defects",
-                Map.of("projectId", "9", "projectName", projectName)),
+                Map.of("projectId", "9", "projectName", projectKey)),
             exportAction("defect-repair-user")));
 
     return new AnalyticsDashboardResponse(
@@ -263,8 +277,20 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
 
   @Override
   public AnalyticsDashboardRulesResponse loadRules(AnalyticsDashboardQueryContext context) {
-    String projectName = rdService.normalizeProjectName(
+    String projectName = rdService.displayProjectName(
         context.parameter("projectName").orElse(null));
+    String projectKey = rdService.normalizeProjectName(
+        context.parameter("projectName").orElse(null));
+    DashboardVersionScope versionScope = versionScopeService.resolve(
+        IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+        IssueScopeDimension.TESTING_PHASE,
+        projectKey);
+    String integrationScope = versionScope.combined()
+        ? String.join("、", versionScope.integrationTestPhases())
+        : projectKey + "集成测试";
+    String leakageScope = versionScope.combined()
+        ? integrationScope + " 与系统测试阶段"
+        : projectKey + " 的集成测试与系统测试阶段";
     String source = canonicalCodeReviewSource(context);
     String codeReviewScope = projectName + "，" + sourceLabel(source) + " 代码走查数据";
     return new AnalyticsDashboardRulesResponse(
@@ -302,7 +328,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "integration-pass-rate",
                 "集成测试通过率",
                 "各集成测试记录的（通过用例数 / 执行用例数 × 100%）之和 / 记录数",
-                projectName + "集成测试；逐条通过率先保留两位小数后再取算术平均",
+                integrationScope + "；逐条通过率先保留两位小数后再取算术平均",
                 "不低于 90.00%",
                 "执行用例为空或为 0 的记录按 0 参与记录数平均。"),
             rule(
@@ -316,7 +342,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 "development-leakage-rate",
                 "开发缺陷遗留率",
                 "集成测试未通过用例数 /（集成测试未通过用例数 + 系统测试有效缺陷数）× 100%",
-                projectName + " 的集成测试与系统测试阶段；系统测试有效缺陷排除已拒绝记录",
+                leakageScope + "；系统测试有效缺陷排除已拒绝记录",
                 "不低于 90.00%",
                 null),
             rule(
@@ -376,6 +402,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
           Set.of("projectId", "projectName", "assigneeName");
       case "quality-code-review-records" ->
           Set.of("projectName", "source", "topic", "reviewerName", "authorName");
+      case "quality-review-records" -> Set.of("projectName", "reviewType");
       default -> Set.of("projectName");
     };
   }
@@ -423,6 +450,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
         .toList();
     String projectName = detailQueryService.canonicalProjectName(
         context.parameter("projectName").orElse(null));
+    String projectLabel = rdService.displayProjectName(
+        context.parameter("projectName").orElse(null));
     Map<String, Object> option = QualityRdDashboardChartOptions.horizontalBar(
         rows,
         "剩余缺陷数",
@@ -434,7 +463,7 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
     return new AnalyticsDashboardDetailResponse.Chart(
         "assignee-remaining-defects",
         "指派人剩余缺陷数量",
-        projectName + " · 未关闭缺陷",
+        projectLabel + " · 未关闭缺陷",
         option,
         420);
   }
@@ -464,6 +493,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
       String exportKey, AnalyticsDashboardQueryContext context) {
     String projectName = rdService.normalizeProjectName(
         context.parameter("projectName").orElse(null));
+    String projectLabel = rdService.displayProjectName(
+        context.parameter("projectName").orElse(null));
     if (Set.of(
             "defect-repair-user",
             "assignee-remaining-summary",
@@ -480,14 +511,14 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
         || "assignee-remaining-summary".equals(exportKey)) {
       requireDetailServices();
       return AnalyticsDashboardExport.xlsx(
-          projectName + "指派人剩余缺陷数量统计.xlsx",
+          projectLabel + "指派人剩余缺陷数量统计.xlsx",
           analyticsWorkbookService.assigneeSummary(
               detailQueryService.assigneeSummaryRows(projectName, null)));
     }
     if ("assignee-remaining-cc-detail".equals(exportKey)) {
       requireDetailServices();
       return AnalyticsDashboardExport.xlsx(
-          "CrownCAD" + projectName + "指派人剩余缺陷数量详细统计数据.xlsx",
+          "CrownCAD" + projectLabel + "指派人剩余缺陷数量详细统计数据.xlsx",
           analyticsWorkbookService.ccDetails(detailQueryService.ccAssigneeDetailRows(
               projectName, null)));
     }
@@ -640,7 +671,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
                 option.label(), option.value()))
             .toList());
     if (options.stream().noneMatch(option -> selected.equals(option.value()))) {
-      options.addFirst(new AnalyticsDashboardDetailResponse.Option(selected, selected));
+      options.addFirst(new AnalyticsDashboardDetailResponse.Option(
+          rdService.displayProjectName(context.parameter("projectName").orElse(null)), selected));
     }
     return List.of(new AnalyticsDashboardDetailResponse.Filter(
         "projectName", "测试阶段", selected, options));
