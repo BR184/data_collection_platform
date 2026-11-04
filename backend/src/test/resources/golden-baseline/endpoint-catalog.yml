@@ -784,10 +784,17 @@ endpoints:
     cases:
       - id: missing-scope
         query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&resourceType=merge_request&resourceId=1&templateKey=code_review
+        expected-http-status: 400
+      - id: golden-record
+        query: gitlabBaseUrl=http://gitlab.test.local:18080&projectId=9&resourceType=issue&resourceId=969&templateKey=issue_response
   - method: GET
     path: /api/collect-forms/exports/records
-    category: EXCLUDED
-    exclude-reason: "pending-approval: N4 P5 新增按版导出，黄金快照需用户确认；版本/项目/目录C谓词、空版表头、作废排除与审计由隔离 PG 导出测试覆盖"
+    category: EXPORT
+    response: excel
+    # 有值版本导出：真实基线记录必须出现在工作簿中；导出审计与临时权限由用例执行层还原。
+    cases:
+      - id: golden-version
+        query: versionId=1&projectIds=9
   - method: GET
     path: /api/collect-forms/notification-payload
     category: READ
@@ -795,6 +802,9 @@ endpoints:
     cases:
       - id: unregistered-source
         query: gitlabBaseUrl=https://gitlab.example.com&projectId=9&requestIid=1&resourceType=issue
+        expected-http-status: 400
+      - id: registered-issue
+        query: gitlabBaseUrl=http://gitlab.test.local:18080&projectId=9&requestIid=969&resourceType=issue
   - method: GET
     path: /api/collect-forms/reviewer-candidates
     category: READ
@@ -810,7 +820,25 @@ endpoints:
         body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","requestKey":"550e8400-e29b-41d4-a716-446655440000","confirmSameReviewer":false,"fields":{"reviewerUserId":"golden-reviewer","reviewDurationMinutes":30,"specificationCount":1,"logicCount":0,"performanceCount":0,"designCount":0,"otherCount":0,"supplementNote":null}}'
         affected-tables:
           - table: form_record_audit_logs
+            ignore-columns: [client_ip]
           - table: form_change_heads
+            ignore-columns: [updated_at]
+      - id: golden-create
+        # 基线消费完成后调度已暂停：真实写事务登记 head 与 AFTER_COMMIT FACT_REFRESH 入队均保留。
+        body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","requestKey":"00000000-0000-4000-8000-000000000002","fields":{"problemType":"REQUIREMENT","problemCause":"新增样本问题原因","modificationPlan":"新增样本修改方案","plannedResolutionDate":"2026-10-15","plannedMergeVersionBranch":"CC2026R3","supplementNote":"新增样本"}}'
+        affected-tables:
+          - table: form_s1_v1_instances
+          - table: form_s1_v1_records
+          - table: form_record_locations
+          - table: form_record_audit_logs
+            ignore-columns: [client_ip]
+          - table: form_change_heads
+            ignore-columns: [updated_at]
+          - table: fact_change_heads
+            ignore-columns: [updated_at]
+          - table: sync_runs
+            scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
+            ignore-columns: [run_id, created_at, updated_at]
   - method: PUT
     path: /api/collect-forms/records/{id}
     category: WRITE
@@ -820,7 +848,25 @@ endpoints:
         body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","recordVersion":1,"fields":{"reviewerUserId":"golden-reviewer","reviewDurationMinutes":30,"specificationCount":1,"logicCount":0,"performanceCount":0,"designCount":0,"otherCount":0,"supplementNote":null}}'
         affected-tables:
           - table: form_record_audit_logs
+            ignore-columns: [client_ip]
           - table: form_change_heads
+            ignore-columns: [updated_at]
+      - id: golden-update
+        query: id=1
+        body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","expectedStorageVersionId":"1","recordVersion":1,"fields":{"problemType":"DEFECT","problemCause":"更新后的问题原因","modificationPlan":"黄金基线固定修改方案","plannedResolutionDate":"2026-09-30","plannedMergeVersionBranch":"CC2026R3","supplementNote":"更新后补充"}}'
+        affected-tables:
+          - table: form_s1_v1_instances
+          - table: form_s1_v1_records
+          - table: form_record_locations
+          - table: form_record_audit_logs
+            ignore-columns: [client_ip]
+          - table: form_change_heads
+            ignore-columns: [updated_at]
+          - table: fact_change_heads
+            ignore-columns: [updated_at]
+          - table: sync_runs
+            scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
+            ignore-columns: [run_id, created_at, updated_at]
   - method: POST
     path: /api/collect-forms/records/{id}/void
     category: WRITE
@@ -830,7 +876,25 @@ endpoints:
         body: '{"gitlabBaseUrl":"https://gitlab.example.com","projectId":9,"resourceType":"merge_request","resourceId":"1","templateKey":"code_review","scopeId":"1","storageVersionId":"2","recordVersion":1,"confirmVoid":true,"confirmationText":"作废"}'
         affected-tables:
           - table: form_record_audit_logs
+            ignore-columns: [client_ip]
           - table: form_change_heads
+            ignore-columns: [updated_at]
+      - id: golden-void
+        query: id=1
+        body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","expectedStorageVersionId":"1","recordVersion":1,"confirmVoid":true,"confirmationText":"作废"}'
+        affected-tables:
+          - table: form_s1_v1_instances
+          - table: form_s1_v1_records
+          - table: form_record_locations
+          - table: form_record_audit_logs
+            ignore-columns: [client_ip]
+          - table: form_change_heads
+            ignore-columns: [updated_at]
+          - table: fact_change_heads
+            ignore-columns: [updated_at]
+          - table: sync_runs
+            scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
+            ignore-columns: [run_id, created_at, updated_at]
 
   # =====CollectFormAdminController（表单字段管理与发布）=====
   - method: GET
@@ -844,6 +908,7 @@ endpoints:
     cases:
       - id: missing-scope
         query: scopeId=999999999
+        expected-http-status: 400
   - method: POST
     path: /api/collect-forms/template-scopes
     category: WRITE
@@ -906,6 +971,7 @@ endpoints:
     cases:
       - id: missing-publication
         query: publicationId=999999999
+        expected-http-status: 400
   - method: POST
     path: /api/collect-forms/publications/{publicationId}/recover
     category: WRITE
@@ -925,12 +991,14 @@ endpoints:
     cases:
       - id: unknown-source
         query: sourceConfigId=999999999&projectId=1
+        expected-http-status: 400
   - method: GET
     path: /api/collect-forms/admin/projects
     category: READ
     cases:
       - id: unknown-source
         query: sourceConfigId=999999999
+        expected-http-status: 400
 
   # =====IssueScopeDefinitionController（议题范围定义）=====
   - method: GET

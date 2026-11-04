@@ -158,6 +158,7 @@ public final class GoldenWriteCaseSupport {
         insertRows(statement, table, captured);
       }
       realignIdSequence(statement, table);
+      realignSharedSequence(statement, table);
       statement.execute("set session_replication_role = DEFAULT");
     }
   }
@@ -224,6 +225,26 @@ public final class GoldenWriteCaseSupport {
     }
     statement.execute("select setval('" + sequence + "', coalesce((select max(id) from "
         + table + "), 0) + 1, false)");
+  }
+
+  /**
+   * 校准不随单表 serial 的共享序列。
+   *
+   * <p>表单记录 id 由全局 {@code form_record_id_seq} 分配；事实 head 版本由
+   * {@code fact_change_version_seq} 分配。REPLAY 后必须按当前最大值回退，否则后续用例会得到
+   * 比基线更大的序号，快照不再可重复。
+   */
+  private static void realignSharedSequence(Statement statement, String table)
+      throws SQLException {
+    if (table.startsWith("form_s") && table.endsWith("_records")) {
+      statement.execute(
+          "select setval('form_record_id_seq', coalesce((select max(id) from " + table
+              + "), 0) + 1, false)");
+    } else if ("fact_change_heads".equals(table)) {
+      statement.execute(
+          "select setval('fact_change_version_seq', coalesce((select max(latest_change_version) "
+              + "from fact_change_heads), 0) + 1, false)");
+    }
   }
 
   private static ArrayNode readRows(

@@ -108,8 +108,8 @@ public final class GoldenBaselineSupport {
           """
           insert into gitlab_sync_configs
             (name, enabled, auto_sync_enabled, source_mode, whitelist_mode,
-             db_host, db_port, db_name, db_username, db_password)
-          values ('%s', true, false, 'DIRECT', 'RECOMMENDED', '%s', %d, '%s', '%s', '%s')
+             db_host, db_port, db_name, db_username, db_password, web_base_url)
+          values ('%s', true, false, 'DIRECT', 'RECOMMENDED', '%s', %d, '%s', '%s', '%s', '%s')
           """
               .formatted(
                   SYNC_CONFIG_NAME,
@@ -117,7 +117,9 @@ public final class GoldenBaselineSupport {
                   GITLAB_SOURCE.getMappedPort(5432),
                   SOURCE_DB_NAME,
                   SOURCE_DB_USER,
-                  SOURCE_DB_PASSWORD));
+                  SOURCE_DB_PASSWORD,
+                  // 表单范围绑定核验要求保存的 Web 基址与范围规范化地址一致；生产由配置页写入。
+                  GoldenFormFixtureSupport.BASE_URL));
       ResultSet rs = statement.executeQuery(
           "select id from gitlab_sync_configs where name = '" + SYNC_CONFIG_NAME + "'");
       rs.next();
@@ -537,7 +539,9 @@ public final class GoldenBaselineSupport {
           // gitlab-sync/diagnostics 会探测 golden 档不可达的 GitLab Web API，阻塞至对端连接超时，
           // 请求预算需显著大于对端超时才能拿到确定性失败响应。
           .timeout(Duration.ofSeconds(120))
-          .header("Accept", "application/json");
+          .header("Accept", "application/json")
+          // 表单审计记录 User-Agent；固定值使表快照不随运行客户端变化。
+          .header("User-Agent", "golden-baseline");
       if (!"GET".equals(method)) {
         builder.header("X-XSRF-TOKEN", csrfToken);
       }

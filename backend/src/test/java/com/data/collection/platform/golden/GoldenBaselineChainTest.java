@@ -17,6 +17,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -51,6 +52,7 @@ class GoldenBaselineChainTest {
 
   private GoldenHttpSession session;
   private long configId;
+  private GoldenFormFixtureSupport formFixture;
 
   @org.springframework.beans.factory.annotation.Autowired
   private org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -64,6 +66,16 @@ class GoldenBaselineChainTest {
   private com.data.collection.platform.service.read.DatasetRefreshWorker datasets;
   @org.springframework.beans.factory.annotation.Autowired
   private org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor schedules;
+  @org.springframework.beans.factory.annotation.Autowired
+  private org.springframework.context.ApplicationContext applicationContext;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.domain.form.FormTemplateSpecCatalog formSpecCatalog;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.form.FormVersionSchemaService formVersionSchemaService;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.form.FormScopeValidationService formScopeValidationService;
 
   /**
    * 固定黄金链路的时间口径：业务日与时钟都取基线清单 {@code frozen_at}。
@@ -120,15 +132,42 @@ class GoldenBaselineChainTest {
         "http://localhost:" + port, "admin", "admin-test-2026");
     GoldenBaselineSupport.triggerFullSyncAndAwait(session, configId);
     // 黄金链必须等待正式生产者的完整读产物，而不仅是镜像/事实运行终态。
-    for (int table = 0; table < jdbc.queryForObject("select count(*) from sync_run_table_states", Integer.class); table++) {
-      mirrors.publishOneCompleteTable();
-    }
+    // 先停镜像工作器，再用同一生产方法确定性发布，避免周期任务与手工发布竞争后留下 PROJECTING 候选。
+    pauseScheduledProducer(com.data.collection.platform.service.read.MirrorDatasetPublicationWorker.class);
+    settleMirrorDatasets();
     for (var ignored : com.data.collection.platform.service.DatasetProducerCatalog.localDatasetOwners()) {
       datasets.publishOneRequestedDataset();
     }
+    GoldenFormFixtureSupport fixture =
+        new GoldenFormFixtureSupport(
+            jdbc,
+            objectMapper,
+            formSpecCatalog,
+            formVersionSchemaService,
+            formScopeValidationService,
+            applicationContext);
+    this.formFixture = fixture;
+    fixture.bootstrapBaseline(configId, session);
+    // 基线事实消费完成后再暂停全部生产者，确保命令用例的 head 与 AFTER_COMMIT 入队是真实结果。
     pauseScheduledProducer(com.data.collection.platform.service.read.DatasetRefreshWorker.class);
-    pauseScheduledProducer(com.data.collection.platform.service.read.MirrorDatasetPublicationWorker.class);
+    pauseScheduledProducer(com.data.collection.platform.service.read.ReadModelInstallationScheduler.class);
+    pauseScheduledProducer(com.data.collection.platform.service.sync.SyncRunDispatcherService.class);
+    pauseScheduledProducer(com.data.collection.platform.service.FactRefreshTaskWorkerService.class);
+    pauseScheduledProducer(com.data.collection.platform.service.FactProjectionTaskRecoveryScheduler.class);
+    pauseScheduledProducer(com.data.collection.platform.service.form.FormPublicationWorker.class);
+    pauseScheduledProducer(com.data.collection.platform.service.FormDirectoryEventWorker.class);
+    pauseScheduledProducer(com.data.collection.platform.service.CustomerIssueDelayClosureScheduler.class);
+    // 暂停前已入队的数据集请求用同一生产方法结算，固定读状态后才进入快照。
+    fixture.settleReadState(datasets, mirrors);
     captureWriteReplayBaselines();
+  }
+
+  /** 测试结束后再落盘一次读发布状态，定位读用例执行期间出现的 UPDATING/ATTENTION 来源。 */
+  @AfterAll
+  void dumpReadStateAfterTests() {
+    if (formFixture != null) {
+      formFixture.dumpReadState("after-tests");
+    }
   }
 
   /**
@@ -141,6 +180,48 @@ class GoldenBaselineChainTest {
     assertThat(GoldenBaselineSupport.pauseScheduledProducer(schedules, producer))
         .as("周期生产者 %s 必须被真实暂停，否则会污染黄金快照", producer.getSimpleName())
         .isPositive();
+  }
+
+  /**
+   * 确定性发布全部镜像表读版本，并等待没有在途镜像候选。
+   *
+   * <p>镜像工作器已在调用前暂停；本方法重复调用同一生产方法，直到 `PROJECTING/READY_TO_PUBLISH`
+   * 候选清零。若竞争曾留下退避候选，等待其 `producer_retry_after` 到期后继续发布，不能把
+   * `UPDATING` 状态带进快照。
+   */
+  private void settleMirrorDatasets() throws Exception {
+    int tableStates =
+        jdbc.queryForObject("select count(*) from sync_run_table_states", Integer.class);
+    long deadline = System.nanoTime() + java.time.Duration.ofMinutes(3).toNanos();
+    while (System.nanoTime() < deadline) {
+      for (int attempt = 0; attempt < tableStates + 2; attempt++) {
+        mirrors.publishOneCompleteTable();
+      }
+      int active =
+          jdbc.queryForObject(
+              """
+              select count(*) from read_publications p
+                join read_publication_domains d on d.id = p.domain_id
+               where d.producer_kind = 'MIRROR_TABLE'
+                 and p.state in ('BUILDING','PROJECTING','READY_TO_PUBLISH')
+              """,
+              Integer.class);
+      if (active == 0) {
+        return;
+      }
+      Thread.sleep(2000);
+    }
+    throw new AssertionError(
+        "镜像表读版本未收敛："
+            + jdbc.queryForList(
+                """
+                select d.table_key || '=' || p.state
+                  from read_publications p
+                  join read_publication_domains d on d.id = p.domain_id
+                 where d.producer_kind = 'MIRROR_TABLE'
+                   and p.state in ('BUILDING','PROJECTING','READY_TO_PUBLISH')
+                """,
+                String.class));
   }
 
   /** 写用例执行前捕获不在种子文件中的 REPLAY 表基线（迁移播种/协调器重建/同步产物）。 */
@@ -169,13 +250,28 @@ class GoldenBaselineChainTest {
   Stream<DynamicTest> readAndExportSnapshots() throws Exception {
     GoldenEndpointCatalog catalog = GoldenEndpointCatalog.load();
     Map<String, String> vars = resolveGoldenVariables();
+    formFixture.dumpReadState("before-read-tests");
     return catalog.entries().values().stream()
         .filter(entry -> entry.category() != GoldenEndpointCatalog.Category.WRITE
             && entry.category() != GoldenEndpointCatalog.Category.EXCLUDED)
         .flatMap(entry -> entry.cases().stream()
             .map(readCase -> DynamicTest.dynamicTest(
                 GoldenEndpointCatalog.key(entry.method(), entry.path()) + " :: " + readCase.id(),
-                () -> executeSnapshotCase(entry, readCase, vars))));
+                () -> {
+                  try {
+                    executeSnapshotCase(entry, readCase, vars);
+                  } catch (AssertionError | IllegalStateException failure) {
+                    dumpOnFirstFailure("read");
+                    throw failure;
+                  }
+                })));
+  }
+
+  /** 首个快照失败时落盘一次读状态，用于区分"夹具未收敛"与"快照过期"。 */
+  private void dumpOnFirstFailure(String tag) {
+    if (formFixture.markFailureDumped(tag)) {
+      formFixture.dumpReadState("first-failure-" + tag);
+    }
   }
 
   /**
@@ -187,12 +283,26 @@ class GoldenBaselineChainTest {
   Stream<DynamicTest> writeSnapshots() throws Exception {
     GoldenEndpointCatalog catalog = GoldenEndpointCatalog.load();
     Map<String, String> vars = resolveGoldenVariables();
-    return catalog.entries().values().stream()
+    Stream<DynamicTest> cases = catalog.entries().values().stream()
         .filter(entry -> entry.category() == GoldenEndpointCatalog.Category.WRITE)
         .flatMap(entry -> entry.writeCases().stream()
             .map(writeCase -> DynamicTest.dynamicTest(
                 GoldenEndpointCatalog.key(entry.method(), entry.path()) + " :: " + writeCase.id(),
-                () -> executeWriteCase(entry, writeCase, vars))));
+                () -> {
+                  try {
+                    executeWriteCase(entry, writeCase, vars);
+                  } catch (AssertionError | IllegalStateException failure) {
+                    dumpOnFirstFailure("write");
+                    throw failure;
+                  }
+                })));
+    return Stream.concat(
+        cases,
+        Stream.of(
+            DynamicTest.dynamicTest("写阶段结算：真实派生产出收敛到终态", () -> {
+              formFixture.settleQueuedWork(datasets, mirrors);
+              formFixture.dumpReadState("after-write-phase");
+            })));
   }
 
   private void executeWriteCase(
@@ -207,6 +317,7 @@ class GoldenBaselineChainTest {
     try {
       String responseBody =
           session.exchangeAnyJson(entry.method(), request.path(), request.body());
+      formFixture.assertWriteExpectation(entry.path(), writeCase.id(), responseBody);
       String caseSnapshot = GoldenSnapshotSupport.snapshotName(entry, writeCase.id());
       GoldenSnapshotSupport.assertJsonSnapshot(
           caseSnapshot, canonicalReadView(responseBody), entry.ignorePaths(), entry.ignoreArrayOrder());
@@ -217,13 +328,28 @@ class GoldenBaselineChainTest {
             tableSnapshot, snapshotScopedTable(table, vars), List.of(), List.of());
       }
     } finally {
-      for (GoldenEndpointCatalog.AffectedTable table : writeCase.affectedTables()) {
-        GoldenWriteCaseSupport.restore(table);
+      // 先还原表：入队型用例的还原会清掉本次真实入队行，避免用写态数据重建事实；
+      // 独立投影候选（refresh-one）由写阶段结束后的统一结算按生产恢复入口处理，
+      // 用例之间不得抢先结算，否则后续用例会读到前一个用例的终态而不是自己的在途候选。
+      restoreWriteTables(writeCase);
+      publishLocalDatasets();
+      if (entry.path().startsWith("/api/collect-forms/")) {
+        formFixture.assertBaselineRestored();
       }
-      // 控制面还原也是一次真实提交；同步结算完整基线，避免之后的读用例取到随机过渡状态。
-      for (var ignored : com.data.collection.platform.service.DatasetProducerCatalog.localDatasetOwners()) {
-        datasets.publishOneRequestedDataset();
-      }
+    }
+  }
+
+  private static void restoreWriteTables(GoldenEndpointCatalog.WriteCase writeCase)
+      throws SQLException {
+    for (GoldenEndpointCatalog.AffectedTable table : writeCase.affectedTables()) {
+      GoldenWriteCaseSupport.restore(table);
+    }
+  }
+
+  /** 控制面还原也是一次真实提交；同步结算完整基线，避免之后的读用例取到随机过渡状态。 */
+  private void publishLocalDatasets() {
+    for (var ignored : com.data.collection.platform.service.DatasetProducerCatalog.localDatasetOwners()) {
+      datasets.publishOneRequestedDataset();
     }
   }
 
@@ -241,13 +367,27 @@ class GoldenBaselineChainTest {
     GoldenCaseRequest request = resolveCaseRequest(entry, readCase, vars);
     String snapshotName = GoldenSnapshotSupport.snapshotName(entry, readCase.id());
     if (entry.response() == GoldenEndpointCatalog.ResponseKind.EXCEL) {
-      GoldenSnapshotSupport.assertExportSnapshot(
-          snapshotName, session.getBytes(request.path()), entry.ignorePaths());
+      boolean formExport = GoldenFormFixtureSupport.EXPORT_PATH.equals(entry.path());
+      boolean permissionGranted =
+          formExport && GoldenFormFixtureSupport.grantExportPermission(jdbc);
+      try {
+        byte[] content = session.getBytes(request.path());
+        if (formExport) {
+          formFixture.assertExportExpectation(content);
+        }
+        GoldenSnapshotSupport.assertExportSnapshot(
+            snapshotName, content, entry.ignorePaths());
+      } finally {
+        if (formExport) {
+          GoldenFormFixtureSupport.clearExportEvidence(jdbc, permissionGranted);
+        }
+      }
       return;
     }
     String responseBody = "POST".equals(entry.method())
         ? session.postRawJson(request.path(), request.body(), readCase.expectedHttpStatus())
         : session.getRawJson(request.path(), readCase.expectedHttpStatus());
+    formFixture.assertReadExpectation(entry.path(), readCase.id(), responseBody);
     GoldenSnapshotSupport.assertJsonSnapshot(
         snapshotName, canonicalReadView(responseBody), entry.ignorePaths(), entry.ignoreArrayOrder());
   }
