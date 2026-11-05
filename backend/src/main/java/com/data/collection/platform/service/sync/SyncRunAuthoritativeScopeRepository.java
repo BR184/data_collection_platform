@@ -82,7 +82,14 @@ public class SyncRunAuthoritativeScopeRepository {
     return inserted == null ? 0 : inserted;
   }
 
-  /** 将本来源先前达到重试上限的权威范围交给当前镜像运行重放。 */
+  /**
+   * 将本来源先前失败且尚未接管的权威范围交给当前镜像运行。
+   *
+   * <p>只处理本轮选择的子表，按子表和规范范围合并不同触发关系；已有范围也能接管旧失败记录。
+   * 范围登记与旧记录关联在同一事务完成，接管不代表执行成功，失败仍由后续运行继续接管。
+   *
+   * @return 本轮新增的规范范围数，不含复用已有范围及被合并的旧失败记录
+   */
   @Transactional
   public int adoptFailedScopes(long runId, String sourceInstance, java.util.Set<String> selectedTables) {
     if (runId <= 0L || sourceInstance == null || sourceInstance.isBlank()
@@ -104,7 +111,8 @@ public class SyncRunAuthoritativeScopeRepository {
            and old.recovered_by_run_id is null
            and old.child_table = any(?::text[])
            and old.run_id <> ?
-        on conflict (run_id, child_table, relation_key, scope_signature) do nothing
+         order by old.id
+        on conflict (run_id, child_table, scope_signature) do nothing
         """,
         runId,
         sourceInstance,
@@ -124,8 +132,8 @@ public class SyncRunAuthoritativeScopeRepository {
            and exists (
              select 1 from sync_run_authoritative_scopes adopted
               where adopted.run_id = ?
+                and adopted.source_instance = old.source_instance
                 and adopted.child_table = old.child_table
-                and adopted.relation_key = old.relation_key
                 and adopted.scope_signature = old.scope_signature)
         """,
         runId,

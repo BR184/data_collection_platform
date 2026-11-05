@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class SyncRunAuthoritativeScopeSelectionIntegrationTest {
   private static PostgresIntegrationTestDatabase database;
@@ -106,6 +109,89 @@ class SyncRunAuthoritativeScopeSelectionIntegrationTest {
         .isNull();
   }
 
+  @Test
+  void test_failed_scope_reuses_current_scope_from_another_signal() {
+    jdbcTemplate.update("insert into sync_runs(id, payload_json) values (1, '{}'), (2, '{}')");
+    enqueueLabelScope(1L, "issue-label-links");
+    jdbcTemplate.update("update sync_run_authoritative_scopes set status = 'FAILED' where run_id = 1");
+    enqueueLabelScope(2L, "label-event-issue-links");
+
+    assertThat(repository.adoptFailedScopes(2L, "alpha", Set.of("label_links"))).isZero();
+    assertThat(jdbcTemplate.queryForObject(
+        "select count(*) from sync_run_authoritative_scopes where run_id = 2 and status = 'QUEUED'",
+        Integer.class)).isOne();
+    assertThat(jdbcTemplate.queryForObject(
+        "select recovered_by_run_id from sync_run_authoritative_scopes where run_id = 1",
+        Long.class)).isEqualTo(2L);
+  }
+
+  @Test
+  void test_multiple_failed_signals_share_one_recovery_scope() {
+    jdbcTemplate.update("insert into sync_runs(id, payload_json) values (1, '{}'), (2, '{}'), (3, '{}')");
+    enqueueLabelScope(1L, "issue-label-links");
+    enqueueLabelScope(2L, "label-event-issue-links");
+    jdbcTemplate.update("update sync_run_authoritative_scopes set status = 'FAILED'");
+
+    assertThat(repository.adoptFailedScopes(3L, "alpha", Set.of("label_links"))).isOne();
+    assertThat(repository.adoptFailedScopes(3L, "alpha", Set.of("label_links"))).isZero();
+    assertThat(jdbcTemplate.queryForObject(
+        "select count(*) from sync_run_authoritative_scopes where run_id = 3 and status = 'QUEUED'",
+        Integer.class)).isOne();
+    assertThat(jdbcTemplate.queryForList(
+        "select recovered_by_run_id from sync_run_authoritative_scopes where run_id in (1, 2) order by run_id",
+        Long.class)).containsExactly(3L, 3L);
+  }
+
+  private void enqueueLabelScope(long runId, String relationKey) {
+    repository.enqueueScopes(
+        runId, "alpha", null, "label_links", relationKey,
+        java.util.List.of(Map.of("target_type", "Issue", "target_id", 101L)));
+  }
+
+  @Test
+  void test_failed_recovery_link_rolls_back_scope_and_can_be_retried() {
+    jdbcTemplate.update("insert into sync_runs(id, payload_json) values (1, '{}'), (2, '{}')");
+    enqueueLabelScope(1L, "issue-label-links");
+    jdbcTemplate.update("update sync_run_authoritative_scopes set status = 'FAILED'");
+    jdbcTemplate.execute(
+        """
+        create function reject_recovery_link() returns trigger language plpgsql as $$
+        begin
+          raise exception 'recovery link rejected by test';
+        end;
+        $$
+        """);
+    jdbcTemplate.execute(
+        """
+        create trigger reject_recovery_link before update of recovered_by_run_id
+        on sync_run_authoritative_scopes for each row execute function reject_recovery_link()
+        """);
+    TransactionTemplate transaction =
+        new TransactionTemplate(new DataSourceTransactionManager(jdbcTemplate.getDataSource()));
+    // 与生产方法的事务边界一致，验证登记与旧记录关联不能只提交其中一半。
+    try {
+      assertThatThrownBy(() -> transaction.execute(status ->
+          repository.adoptFailedScopes(2L, "alpha", Set.of("label_links"))))
+          .isInstanceOf(org.springframework.dao.DataAccessException.class)
+          .hasMessageContaining("recovery link rejected by test");
+      assertThat(jdbcTemplate.queryForObject(
+          "select count(*) from sync_run_authoritative_scopes where run_id = 2",
+          Integer.class)).isZero();
+      assertThat(jdbcTemplate.queryForObject(
+          "select recovered_by_run_id from sync_run_authoritative_scopes where run_id = 1",
+          Long.class)).isNull();
+    } finally {
+      jdbcTemplate.execute("drop trigger reject_recovery_link on sync_run_authoritative_scopes");
+      jdbcTemplate.execute("drop function reject_recovery_link()");
+    }
+    Integer adopted = transaction.execute(status ->
+        repository.adoptFailedScopes(2L, "alpha", Set.of("label_links")));
+    assertThat(adopted).isEqualTo(1);
+    assertThat(jdbcTemplate.queryForObject(
+        "select recovered_by_run_id from sync_run_authoritative_scopes where run_id = 1",
+        Long.class)).isEqualTo(2L);
+  }
+
   private void resetSchema() {
     jdbcTemplate.execute("drop table if exists sync_run_authoritative_scopes");
     jdbcTemplate.execute("drop table if exists sync_run_table_tasks");
@@ -154,6 +240,11 @@ class SyncRunAuthoritativeScopeSelectionIntegrationTest {
           recovered_at timestamp,
           unique (run_id, child_table, relation_key, scope_signature)
         )
+        """);
+    jdbcTemplate.execute(
+        """
+        create unique index uk_sync_run_authoritative_scopes_canonical_scope
+          on sync_run_authoritative_scopes(run_id, child_table, scope_signature)
         """);
   }
 }
