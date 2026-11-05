@@ -966,6 +966,7 @@ endpoints:
         body: '{"enabled":true,"enabledAt":"2026-11-05T00:00:00Z","linkEnabled":false,"externalBaseUrl":"","expectedRevision":0}'
         affected-tables:
           - table: gitlab_sync_configs
+            ignore-columns: [db_port, created_at, updated_at, last_full_sync_at, last_incremental_sync_at]
   - method: POST
     path: /api/collect-forms/template-scopes/{scopeId}/preview
     category: WRITE

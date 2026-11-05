@@ -319,10 +319,21 @@ class GoldenBaselineChainTest {
         && "missing-copy-version".equals(writeCase.id());
     String templateDefinitionsBefore = missingCopyVersion
         ? GoldenWriteCaseSupport.snapshotTable("form_template_definitions", null, List.of()) : null;
+    // 缺失范围必须拒绝配置写入；环境列仅在跨运行快照中排除，本次请求仍逐列比较。
+    boolean missingIssueSettingsScope =
+        "/api/collect-forms/template-scopes/{scopeId}/issue-settings/{projectId}".equals(entry.path())
+            && "missing-scope".equals(writeCase.id());
+    String issueSettingsBefore = missingIssueSettingsScope
+        ? GoldenWriteCaseSupport.snapshotTable("gitlab_sync_configs", null, List.of()) : null;
     try {
       String responseBody =
           session.exchangeAnyJson(entry.method(), request.path(), request.body());
       formFixture.assertWriteExpectation(entry.path(), writeCase.id(), responseBody);
+      if (missingIssueSettingsScope) {
+        assertThat(GoldenWriteCaseSupport.snapshotTable("gitlab_sync_configs", null, List.of()))
+            .as("范围不存在时配置全列必须保持不变，包括端口与运行时间")
+            .isEqualTo(issueSettingsBefore);
+      }
       if (missingCopyVersion) {
         assertThat(GoldenWriteCaseSupport.snapshotTable("form_template_definitions", null, List.of()))
             .as("失败创建不能修改模板目录，包括创建与更新时间")

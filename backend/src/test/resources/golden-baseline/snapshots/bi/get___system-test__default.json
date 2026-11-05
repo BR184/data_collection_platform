@@ -5,10 +5,10 @@
   "data" : {
     "pageKey" : "system-test",
     "status" : "READY",
-    "sourceVersion" : "<verified-runtime-sourceVersion>",
-    "snapshotId" : "publication:70fe7508d14328b1f195eaca5a459249e7f3e514747d58ae61b832087c9c0f38",
-    "ruleVersion" : "bi-system-test-v3",
-    "generatedAt" : "2026-10-15T13:28:32.7883917+08:00",
+    "sourceVersion" : "<verified-runtime-sourceVersion>|scope:936b56428c48bab44d8da71d964f09ab17076fc5c387080576566feaaf86cbcd",
+    "snapshotId" : "publication:7cde75638bd6f63d32115c5dcd9953185481c268b20a480407b7d5c13cbe5874|scope:936b56428c48bab44d8da71d964f09ab17076fc5c387080576566feaaf86cbcd",
+    "ruleVersion" : "bi-system-test-v4",
+    "generatedAt" : "2026-11-05T18:55:03.8100346+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",

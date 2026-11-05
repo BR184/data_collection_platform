@@ -34,6 +34,7 @@
     "delay_label_writeback_enabled" : "f",
     "match_mode_enabled" : "f",
     "incremental_rerun_requested_at" : null,
-    "incremental_rerun_trigger_count" : "0"
+    "incremental_rerun_trigger_count" : "0",
+    "form_issue_settings" : "{}"
   } ]
 }

@@ -332,7 +332,7 @@ BACKUP_DIR="$(cat <simulation-deployment-dir>/upgrade-backups/latest-backup.txt)
 bash <package-dir>/rollback.sh <simulation-deployment-dir> "$BACKUP_DIR"
 ```
 
-回滚后前后端必须恢复直接基线镜像并健康，PostgreSQL 容器 ID 仍不变。Flyway 保持前向版本是预期行为；不得为了测试回滚而执行 `pg_restore`。应用回滚**不得**因为数据库中已有的 schema 比备份点前进而拒绝执行——旧镜像与新 schema 并存是回滚的既定代价，只有应用回滚仍无法恢复服务时，才按数据库恢复 runbook 处理。
+回滚先比较当前已执行迁移的版本和校验和与同次备份的 `flyway-history.txt`。集合一致时恢复直接基线镜像并验证健康；集合不同或证据缺失时，必须停止应用并以退出码3报告 `ROLLBACK_REQUIRES_DATABASE_RESTORE`，不得启动旧应用尝试兼容新结构。隔离演练中先验证这一拒绝边界，再按包内数据库恢复流程恢复该隔离库的同次备份，核对迁移集合与受保护数据后重跑回滚。生产恢复须明确批准，不能自动执行。整个过程保留原 PostgreSQL 容器和卷。
 
 最后从已恢复的基线重新运行 `backup.sh`，再以新备份运行同一 `upgrade.sh`，并重复目标镜像、健康、Flyway、备份可恢复性、空 `counts.diff` 和 PostgreSQL ID 检查。本地隔离栈最终停留在目标镜像，证明连续操作可重复。
 
@@ -410,7 +410,7 @@ bash ../<update-package>/upgrade.sh "$PWD" "$BACKUP_DIR"
 bash ../<update-package>/rollback.sh "$PWD" "$PWD/upgrade-backups/<backup-dir>"
 ```
 
-应用回滚只有在基线镜像匹配、后端和前端均健康且 PostgreSQL 容器 ID 未变化后才报告成功，不得把 `health: starting` 当作完成。它不自动执行 `pg_restore`。Flyway 是前向迁移；数据库恢复只能在应用回滚无法恢复服务、已停机且明确审批后执行，优先先恢复到隔离数据库验证。
+应用回滚只有在迁移集合与同次备份一致、基线镜像匹配、后端和前端均健康且 PostgreSQL 容器 ID 未变化后才报告成功，不得把 `health: starting` 当作完成。它不自动执行 `pg_restore`。迁移集合已变化时先停应用并报告必须恢复数据库；现场恢复须明确审批，优先先恢复到隔离数据库验证，再恢复配套旧镜像。
 
 ## 禁止操作
 
