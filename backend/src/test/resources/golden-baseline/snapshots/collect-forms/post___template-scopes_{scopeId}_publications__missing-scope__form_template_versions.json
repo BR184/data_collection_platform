@@ -1,0 +1,18 @@
+{
+  "table" : "form_template_versions",
+  "rows" : [ {
+    "id" : "1",
+    "scope_id" : "1",
+    "version_label" : "CC2026R3",
+    "storage_kind" : "RECORDS",
+    "instance_table" : "form_s1_v1_instances",
+    "record_table" : "form_s1_v1_records",
+    "field_spec" : "{\"fields\": [{\"name\": \"problem_type\", \"type\": \"enum\", \"label\": \"问题类型\", \"apiKey\": \"problemType\", \"control\": \"radio\", \"options\": [{\"label\": \"缺陷\", \"value\": \"DEFECT\"}, {\"label\": \"需求\", \"value\": \"REQUIREMENT\"}], \"storage\": {\"column\": \"problem_type\", \"columnType\": \"varchar(32)\"}, \"required\": true}, {\"name\": \"problem_cause\", \"type\": \"string\", \"label\": \"问题原因\", \"apiKey\": \"problemCause\", \"control\": \"textarea\", \"storage\": {\"column\": \"problem_cause\", \"columnType\": \"text\"}, \"required\": true, \"maxLength\": 8192}, {\"name\": \"modification_plan\", \"type\": \"string\", \"label\": \"修改方案\", \"apiKey\": \"modificationPlan\", \"control\": \"textarea\", \"storage\": {\"column\": \"modification_plan\", \"columnType\": \"text\"}, \"required\": true, \"maxLength\": 8192}, {\"name\": \"owner_confirmation\", \"type\": \"string\", \"label\": \"模块负责人确认\", \"apiKey\": \"ownerConfirmation\", \"control\": \"textarea\", \"storage\": {\"column\": \"owner_confirmation\", \"columnType\": \"text\"}, \"required\": false, \"maxLength\": 8192, \"requiredWhen\": {\"resourceSeverityLevel\": \"一级缺陷\"}}, {\"name\": \"planned_resolution_date\", \"type\": \"date\", \"label\": \"计划解决时间\", \"apiKey\": \"plannedResolutionDate\", \"control\": \"date\", \"maxYear\": 2040, \"minYear\": 2020, \"storage\": {\"column\": \"planned_resolution_date\", \"columnType\": \"date\"}, \"required\": true}, {\"name\": \"planned_merge_version_branch\", \"type\": \"string\", \"label\": \"计划合并的版本分支\", \"apiKey\": \"plannedMergeVersionBranch\", \"format\": \"CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留\", \"control\": \"version-members\", \"storage\": {\"column\": \"planned_merge_version_branch\", \"columnType\": \"varchar(255)\"}, \"required\": true, \"maxLength\": 255}, {\"name\": \"supplement_note\", \"type\": \"string\", \"label\": \"补充说明\", \"apiKey\": \"supplementNote\", \"control\": \"textarea\", \"storage\": {\"column\": \"supplement_note\", \"columnType\": \"text\"}, \"required\": false, \"maxLength\": 8192}], \"conditions\": [{\"type\": \"conditionalRequired\", \"target\": \"owner_confirmation\", \"clearWhen\": {\"resourceSeverityLevel\": [\"二级缺陷\", \"三级缺陷\", \"建议类\", \"未设定\"]}, \"requiredWhen\": {\"resourceSeverityLevel\": \"一级缺陷\"}, \"snapshotColumn\": \"owner_confirmation_applicable\"}], \"dictionaries\": [], \"spec_version\": 1, \"template_key\": \"issue_response\"}",
+    "migration_spec" : null,
+    "version_status" : "PUBLISHED",
+    "published_at" : "2026-09-01 08:00:00",
+    "record_source_role" : "AUTHORITATIVE",
+    "instance_mode" : "MATERIALIZED",
+    "source_table" : null
+  } ]
+}

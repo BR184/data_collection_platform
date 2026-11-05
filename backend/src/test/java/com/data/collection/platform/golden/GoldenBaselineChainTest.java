@@ -314,10 +314,20 @@ class GoldenBaselineChainTest {
     for (GoldenEndpointCatalog.AffectedTable table : writeCase.affectedTables()) {
       GoldenWriteCaseSupport.restore(table);
     }
+    // 失败创建必须保持原目录完整不变；跨运行忽略的时间列也参与本次前后比较。
+    boolean missingCopyVersion = "/api/collect-forms/templates".equals(entry.path())
+        && "missing-copy-version".equals(writeCase.id());
+    String templateDefinitionsBefore = missingCopyVersion
+        ? GoldenWriteCaseSupport.snapshotTable("form_template_definitions", null, List.of()) : null;
     try {
       String responseBody =
           session.exchangeAnyJson(entry.method(), request.path(), request.body());
       formFixture.assertWriteExpectation(entry.path(), writeCase.id(), responseBody);
+      if (missingCopyVersion) {
+        assertThat(GoldenWriteCaseSupport.snapshotTable("form_template_definitions", null, List.of()))
+            .as("失败创建不能修改模板目录，包括创建与更新时间")
+            .isEqualTo(templateDefinitionsBefore);
+      }
       String caseSnapshot = GoldenSnapshotSupport.snapshotName(entry, writeCase.id());
       GoldenSnapshotSupport.assertJsonSnapshot(
           caseSnapshot, canonicalReadView(responseBody), entry.ignorePaths(), entry.ignoreArrayOrder());

@@ -10294,8 +10294,8 @@
         }
       }, {
         "columnKey" : "defect_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10342,8 +10342,8 @@
         }
       }, {
         "columnKey" : "defect_calibrated_fix_rate",
-        "numericValue" : 2619,
-        "displayValue" : "26.19%",
+        "numericValue" : 2564,
+        "displayValue" : "25.64%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10486,8 +10486,8 @@
         }
       }, {
         "columnKey" : "level1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10886,8 +10886,8 @@
         }
       }, {
         "columnKey" : "p1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 3,
+        "displayValue" : "3",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -10934,8 +10934,8 @@
         }
       }, {
         "columnKey" : "p1_calibrated_fix_rate",
-        "numericValue" : 2564,
-        "displayValue" : "25.64%",
+        "numericValue" : 2500,
+        "displayValue" : "25.00%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -11206,8 +11206,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 31,
-        "displayValue" : "31",
+        "numericValue" : 17,
+        "displayValue" : "17",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -11254,8 +11254,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 33,
-        "displayValue" : "33",
+        "numericValue" : 19,
+        "displayValue" : "19",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -11270,8 +11270,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 20,
-        "displayValue" : "20",
+        "numericValue" : 18,
+        "displayValue" : "18",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -11318,8 +11318,8 @@
         }
       }, {
         "columnKey" : "fix_delay_total",
-        "numericValue" : 22,
-        "displayValue" : "22",
+        "numericValue" : 20,
+        "displayValue" : "20",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -14632,8 +14632,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -14680,8 +14680,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -14696,8 +14696,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -14744,8 +14744,8 @@
         }
       }, {
         "columnKey" : "fix_delay_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -15774,8 +15774,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -15822,8 +15822,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -19200,8 +19200,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -19248,8 +19248,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 6,
-        "displayValue" : "6",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -21500,8 +21500,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 3,
-        "displayValue" : "3",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -21532,8 +21532,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 10,
-        "displayValue" : "10",
+        "numericValue" : 9,
+        "displayValue" : "9",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -43182,8 +43182,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -43230,8 +43230,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 8,
-        "displayValue" : "8",
+        "numericValue" : 2,
+        "displayValue" : "2",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -46838,8 +46838,8 @@
         }
       }, {
         "columnKey" : "defect_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -46886,8 +46886,8 @@
         }
       }, {
         "columnKey" : "defect_calibrated_fix_rate",
-        "numericValue" : 4000,
-        "displayValue" : "40.00%",
+        "numericValue" : 5000,
+        "displayValue" : "50.00%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -47030,8 +47030,8 @@
         }
       }, {
         "columnKey" : "level1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -47430,8 +47430,8 @@
         }
       }, {
         "columnKey" : "p1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -47478,8 +47478,8 @@
         }
       }, {
         "columnKey" : "p1_calibrated_fix_rate",
-        "numericValue" : 4000,
-        "displayValue" : "40.00%",
+        "numericValue" : 5000,
+        "displayValue" : "50.00%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -47750,8 +47750,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -47798,8 +47798,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 2,
-        "displayValue" : "2",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66252,8 +66252,8 @@
         }
       }, {
         "columnKey" : "defect_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66300,8 +66300,8 @@
         }
       }, {
         "columnKey" : "defect_calibrated_fix_rate",
-        "numericValue" : 870,
-        "displayValue" : "8.70%",
+        "numericValue" : 909,
+        "displayValue" : "9.09%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66444,8 +66444,8 @@
         }
       }, {
         "columnKey" : "level1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66492,8 +66492,8 @@
         }
       }, {
         "columnKey" : "level1_calibrated_fix_rate",
-        "numericValue" : 2857,
-        "displayValue" : "28.57%",
+        "numericValue" : 3333,
+        "displayValue" : "33.33%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66844,8 +66844,8 @@
         }
       }, {
         "columnKey" : "p1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 1,
+        "displayValue" : "1",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -66892,8 +66892,8 @@
         }
       }, {
         "columnKey" : "p1_calibrated_fix_rate",
-        "numericValue" : 870,
-        "displayValue" : "8.70%",
+        "numericValue" : 909,
+        "displayValue" : "9.09%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -67164,8 +67164,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 17,
-        "displayValue" : "17",
+        "numericValue" : 15,
+        "displayValue" : "15",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -67212,8 +67212,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 17,
-        "displayValue" : "17",
+        "numericValue" : 15,
+        "displayValue" : "15",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -72938,8 +72938,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -72986,8 +72986,8 @@
         }
       }, {
         "columnKey" : "fix_delay_total",
-        "numericValue" : 5,
-        "displayValue" : "5",
+        "numericValue" : 4,
+        "displayValue" : "4",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -84294,8 +84294,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -84342,8 +84342,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -84358,8 +84358,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -84406,8 +84406,8 @@
         }
       }, {
         "columnKey" : "fix_delay_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -88862,8 +88862,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -88910,8 +88910,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 1,
-        "displayValue" : "1",
+        "numericValue" : 0,
+        "displayValue" : "0",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -91376,8 +91376,8 @@
         }
       }, {
         "columnKey" : "defect_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -91424,8 +91424,8 @@
         }
       }, {
         "columnKey" : "defect_calibrated_fix_rate",
-        "numericValue" : 1953,
-        "displayValue" : "19.53%",
+        "numericValue" : 1951,
+        "displayValue" : "19.51%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -91568,8 +91568,8 @@
         }
       }, {
         "columnKey" : "level1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -91616,8 +91616,8 @@
         }
       }, {
         "columnKey" : "level1_calibrated_fix_rate",
-        "numericValue" : 2500,
-        "displayValue" : "25.00%",
+        "numericValue" : 2564,
+        "displayValue" : "25.64%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -91968,8 +91968,8 @@
         }
       }, {
         "columnKey" : "p1_data_exception",
-        "numericValue" : 0,
-        "displayValue" : "0",
+        "numericValue" : 5,
+        "displayValue" : "5",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92016,8 +92016,8 @@
         }
       }, {
         "columnKey" : "p1_calibrated_fix_rate",
-        "numericValue" : 1933,
-        "displayValue" : "19.33%",
+        "numericValue" : 1931,
+        "displayValue" : "19.31%",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92288,8 +92288,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p1",
-        "numericValue" : 114,
-        "displayValue" : "114",
+        "numericValue" : 85,
+        "displayValue" : "85",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92304,8 +92304,8 @@
         }
       }, {
         "columnKey" : "resp_delay_p2",
-        "numericValue" : 13,
-        "displayValue" : "13",
+        "numericValue" : 12,
+        "displayValue" : "12",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92336,8 +92336,8 @@
         }
       }, {
         "columnKey" : "resp_delay_total",
-        "numericValue" : 127,
-        "displayValue" : "127",
+        "numericValue" : 97,
+        "displayValue" : "97",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92352,8 +92352,8 @@
         }
       }, {
         "columnKey" : "fix_delay_p1",
-        "numericValue" : 102,
-        "displayValue" : "102",
+        "numericValue" : 97,
+        "displayValue" : "97",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92400,8 +92400,8 @@
         }
       }, {
         "columnKey" : "fix_delay_total",
-        "numericValue" : 115,
-        "displayValue" : "115",
+        "numericValue" : 110,
+        "displayValue" : "110",
         "drilldown" : true,
         "detailViewKey" : null,
         "detailParams" : {
@@ -92451,8 +92451,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-10-15T13:22:43.875714+08:00",
-      "queryDurationMs" : 857,
+      "generatedAt" : "2026-11-05T13:02:18.8056759+08:00",
+      "queryDurationMs" : 583,
       "rowCount" : 80,
       "columnCount" : 71,
       "drilldownColumnCount" : 71

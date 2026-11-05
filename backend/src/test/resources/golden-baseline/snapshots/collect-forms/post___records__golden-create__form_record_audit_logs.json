@@ -1,0 +1,30 @@
+{
+  "table" : "form_record_audit_logs",
+  "rows" : [ {
+    "id" : "1",
+    "record_id" : "1",
+    "template_key" : "issue_response",
+    "scope_id" : "1",
+    "storage_version_id" : "1",
+    "record_version" : "1",
+    "operation" : "CREATE",
+    "snapshot_json" : "{\"record\": {\"id\": 1, \"fields\": {\"problemType\": \"DEFECT\", \"problemCause\": \"黄金基线固定问题原因\", \"supplementNote\": \"黄金基线样本\", \"modificationPlan\": \"黄金基线固定修改方案\", \"ownerConfirmation\": null, \"plannedResolutionDate\": \"2026-09-30\", \"plannedMergeVersionBranch\": \"CC2026R3\"}, \"deleted\": false, \"createdAt\": \"2026-09-01T05:22:08\", \"createdBy\": \"admin\", \"updatedAt\": \"2026-09-01T05:22:08\", \"fieldNames\": {}, \"instanceId\": 1, \"requestKey\": \"00000000-0000-4000-8000-000000000001\", \"recordVersion\": 1, \"snapshotValues\": {\"owner_confirmation_applicable\": false}, \"originVersionId\": 1, \"templateVersion\": \"CC2026R3\", \"legacyIncomplete\": false}, \"context\": {\"projectId\": 9, \"resourceId\": 969, \"templateKey\": \"issue_response\", \"resourceType\": \"issue\", \"gitlabBaseUrl\": \"http://gitlab.test.local:18080\"}, \"instance\": {\"id\": 1, \"scopeId\": 1, \"projectId\": 9, \"resourceId\": 969, \"templateKey\": \"issue_response\", \"resourceType\": \"issue\", \"gitlabBaseUrl\": \"http://gitlab.test.local:18080\", \"sourceConfigId\": 1, \"sourceInstance\": \"default\"}}",
+    "operator_id" : "admin",
+    "operator_name" : "管理员",
+    "user_agent" : "golden-baseline",
+    "created_at" : "2026-09-01 05:22:08"
+  }, {
+    "id" : "2",
+    "record_id" : "2",
+    "template_key" : "issue_response",
+    "scope_id" : "1",
+    "storage_version_id" : "1",
+    "record_version" : "1",
+    "operation" : "CREATE",
+    "snapshot_json" : "{\"record\": {\"id\": 2, \"fields\": {\"problemType\": \"REQUIREMENT\", \"problemCause\": \"新增样本问题原因\", \"supplementNote\": \"新增样本\", \"modificationPlan\": \"新增样本修改方案\", \"ownerConfirmation\": null, \"plannedResolutionDate\": \"2026-10-15\", \"plannedMergeVersionBranch\": \"CC2026R3\"}, \"deleted\": false, \"createdAt\": \"2026-09-01T05:22:08\", \"createdBy\": \"admin\", \"updatedAt\": \"2026-09-01T05:22:08\", \"fieldNames\": {}, \"instanceId\": 1, \"requestKey\": \"00000000-0000-4000-8000-000000000002\", \"recordVersion\": 1, \"snapshotValues\": {\"owner_confirmation_applicable\": false}, \"originVersionId\": 1, \"templateVersion\": \"CC2026R3\", \"legacyIncomplete\": false}, \"context\": {\"projectId\": 9, \"resourceId\": 969, \"templateKey\": \"issue_response\", \"resourceType\": \"issue\", \"gitlabBaseUrl\": \"http://gitlab.test.local:18080\"}, \"instance\": {\"id\": 1, \"scopeId\": 1, \"projectId\": 9, \"resourceId\": 969, \"templateKey\": \"issue_response\", \"resourceType\": \"issue\", \"gitlabBaseUrl\": \"http://gitlab.test.local:18080\", \"sourceConfigId\": 1, \"sourceInstance\": \"default\"}}",
+    "operator_id" : "admin",
+    "operator_name" : "管理员",
+    "user_agent" : "golden-baseline",
+    "created_at" : "2026-09-01 05:22:08"
+  } ]
+}

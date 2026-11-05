@@ -222,6 +222,9 @@
           "label" : "重复问题",
           "value" : "重复问题"
         }, {
+          "label" : "数据异常",
+          "value" : "数据异常"
+        }, {
           "label" : "未复现",
           "value" : "未复现"
         }, {
@@ -10769,8 +10772,8 @@
       } ]
     } ],
     "meta" : {
-      "generatedAt" : "2026-10-15T13:22:45.4638602+08:00",
-      "queryDurationMs" : 757,
+      "generatedAt" : "2026-11-05T13:02:21.7895373+08:00",
+      "queryDurationMs" : 394,
       "rowCount" : 27,
       "columnCount" : 39,
       "drilldownColumnCount" : 22

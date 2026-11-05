@@ -6,9 +6,9 @@
     "pageKey" : "customer-issues",
     "status" : "READY",
     "sourceVersion" : "<verified-runtime-sourceVersion>",
-    "snapshotId" : "publication:70fe7508d14328b1f195eaca5a459249e7f3e514747d58ae61b832087c9c0f38",
+    "snapshotId" : "publication:c8e5cffe0ea855c8a0aba5e18cbf13cf51d0d2978b3e2a11484973dfd1eedea0",
     "ruleVersion" : "customer-issue-bi@2026-10-15-v4",
-    "generatedAt" : "2026-10-15T13:28:33.0742107+08:00",
+    "generatedAt" : "2026-11-05T13:06:59.8968883+08:00",
     "sections" : [ {
       "key" : "source-consistency",
       "label" : "来源一致性",
@@ -1368,8 +1368,8 @@
       }, {
         "key" : "defect_data_exception",
         "label" : "数据异常",
-        "value" : 0,
-        "numerator" : 0,
+        "value" : 5,
+        "numerator" : 5,
         "denominator" : null,
         "percentage" : null,
         "unit" : "个"
@@ -1393,9 +1393,9 @@
         "key" : "defect_calibrated_fix_rate",
         "label" : "校准后整体缺陷修复率",
         "value" : null,
-        "numerator" : 33,
-        "denominator" : 169,
-        "percentage" : 19.53,
+        "numerator" : 32,
+        "denominator" : 164,
+        "percentage" : 19.51,
         "unit" : "%"
       }, {
         "key" : "level1_fix_rate",
@@ -1417,9 +1417,9 @@
         "key" : "p1_calibrated_fix_rate",
         "label" : "P1校准后修复率",
         "value" : null,
-        "numerator" : 29,
-        "denominator" : 150,
-        "percentage" : 19.33,
+        "numerator" : 28,
+        "denominator" : 145,
+        "percentage" : 19.31,
         "unit" : "%"
       }, {
         "key" : "p2_fix_rate",

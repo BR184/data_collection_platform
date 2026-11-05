@@ -24,7 +24,13 @@
       "totalAddedLines" : 17633,
       "defectDensityPerKloc" : 1.98,
       "averageReviewDurationMinutes" : 5.17,
-      "averageAddedLines" : 332.7
+      "averageAddedLines" : 332.7,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 53,
+        "recordCount" : 53,
+        "averageReviewDurationMinutes" : 5.17
+      } ]
     }, {
       "rowKey" : "工具",
       "rowLabel" : "工具",
@@ -35,7 +41,13 @@
       "totalAddedLines" : 4219,
       "defectDensityPerKloc" : 1.9,
       "averageReviewDurationMinutes" : 3.28,
-      "averageAddedLines" : 145.48
+      "averageAddedLines" : 145.48,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 29,
+        "recordCount" : 29,
+        "averageReviewDurationMinutes" : 3.28
+      } ]
     }, {
       "rowKey" : "工程图",
       "rowLabel" : "工程图",
@@ -46,7 +58,13 @@
       "totalAddedLines" : 591,
       "defectDensityPerKloc" : 8.46,
       "averageReviewDurationMinutes" : 1.38,
-      "averageAddedLines" : 36.94
+      "averageAddedLines" : 36.94,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 16,
+        "recordCount" : 16,
+        "averageReviewDurationMinutes" : 1.38
+      } ]
     }, {
       "rowKey" : "装配",
       "rowLabel" : "装配",
@@ -57,7 +75,13 @@
       "totalAddedLines" : 634,
       "defectDensityPerKloc" : 9.46,
       "averageReviewDurationMinutes" : 3.94,
-      "averageAddedLines" : 39.63
+      "averageAddedLines" : 39.63,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 16,
+        "recordCount" : 16,
+        "averageReviewDurationMinutes" : 3.94
+      } ]
     }, {
       "rowKey" : "BOM",
       "rowLabel" : "BOM",
@@ -68,7 +92,13 @@
       "totalAddedLines" : 20302,
       "defectDensityPerKloc" : 3.0,
       "averageReviewDurationMinutes" : 36.07,
-      "averageAddedLines" : 1450.14
+      "averageAddedLines" : 1450.14,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 14,
+        "recordCount" : 14,
+        "averageReviewDurationMinutes" : 36.07
+      } ]
     }, {
       "rowKey" : "PLM",
       "rowLabel" : "PLM",
@@ -79,7 +109,13 @@
       "totalAddedLines" : 765,
       "defectDensityPerKloc" : 11.76,
       "averageReviewDurationMinutes" : 3.92,
-      "averageAddedLines" : 58.85
+      "averageAddedLines" : 58.85,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 13,
+        "recordCount" : 13,
+        "averageReviewDurationMinutes" : 3.92
+      } ]
     }, {
       "rowKey" : "企业版",
       "rowLabel" : "企业版",
@@ -90,7 +126,13 @@
       "totalAddedLines" : 10439,
       "defectDensityPerKloc" : 3.16,
       "averageReviewDurationMinutes" : 16.38,
-      "averageAddedLines" : 803.0
+      "averageAddedLines" : 803.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 13,
+        "recordCount" : 13,
+        "averageReviewDurationMinutes" : 16.38
+      } ]
     }, {
       "rowKey" : "平台",
       "rowLabel" : "平台",
@@ -101,7 +143,13 @@
       "totalAddedLines" : 433,
       "defectDensityPerKloc" : 2.31,
       "averageReviewDurationMinutes" : 1.85,
-      "averageAddedLines" : 33.31
+      "averageAddedLines" : 33.31,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 13,
+        "recordCount" : 13,
+        "averageReviewDurationMinutes" : 1.85
+      } ]
     }, {
       "rowKey" : "库",
       "rowLabel" : "库",
@@ -112,7 +160,13 @@
       "totalAddedLines" : 814,
       "defectDensityPerKloc" : 13.51,
       "averageReviewDurationMinutes" : 20.0,
-      "averageAddedLines" : 162.8
+      "averageAddedLines" : 162.8,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 5,
+        "recordCount" : 5,
+        "averageReviewDurationMinutes" : 20.0
+      } ]
     }, {
       "rowKey" : "集成",
       "rowLabel" : "集成",
@@ -123,7 +177,13 @@
       "totalAddedLines" : 572,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 2.25,
-      "averageAddedLines" : 143.0
+      "averageAddedLines" : 143.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 4,
+        "recordCount" : 4,
+        "averageReviewDurationMinutes" : 2.25
+      } ]
     }, {
       "rowKey" : "曲线",
       "rowLabel" : "曲线",
@@ -134,7 +194,13 @@
       "totalAddedLines" : 3228,
       "defectDensityPerKloc" : 0.62,
       "averageReviewDurationMinutes" : 11.67,
-      "averageAddedLines" : 1076.0
+      "averageAddedLines" : 1076.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 3,
+        "recordCount" : 3,
+        "averageReviewDurationMinutes" : 11.67
+      } ]
     }, {
       "rowKey" : "仿真",
       "rowLabel" : "仿真",
@@ -145,7 +211,13 @@
       "totalAddedLines" : 22,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 11.0
+      "averageAddedLines" : 11.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "后台管理系统",
       "rowLabel" : "后台管理系统",
@@ -156,7 +228,13 @@
       "totalAddedLines" : 753,
       "defectDensityPerKloc" : 5.31,
       "averageReviewDurationMinutes" : 7.5,
-      "averageAddedLines" : 376.5
+      "averageAddedLines" : 376.5,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 7.5
+      } ]
     }, {
       "rowKey" : "无需标注",
       "rowLabel" : "无需标注",
@@ -167,7 +245,13 @@
       "totalAddedLines" : 0,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 0.0
+      "averageAddedLines" : 0.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "曲线曲面",
       "rowLabel" : "曲线曲面",
@@ -178,7 +262,13 @@
       "totalAddedLines" : 4,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 2.0
+      "averageAddedLines" : 2.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "钣金",
       "rowLabel" : "钣金",
@@ -189,7 +279,13 @@
       "totalAddedLines" : 18,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 9.0
+      "averageAddedLines" : 9.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "AI",
       "rowLabel" : "AI",
@@ -200,7 +296,13 @@
       "totalAddedLines" : 1,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 1.0
+      "averageAddedLines" : 1.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "DWG",
       "rowLabel" : "DWG",
@@ -211,7 +313,13 @@
       "totalAddedLines" : 9,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 9.0
+      "averageAddedLines" : 9.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "协同",
       "rowLabel" : "协同",
@@ -222,7 +330,13 @@
       "totalAddedLines" : 2,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 2.0
+      "averageAddedLines" : 2.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "工程图&平台&草图",
       "rowLabel" : "工程图&平台&草图",
@@ -233,7 +347,13 @@
       "totalAddedLines" : 460,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 5.0,
-      "averageAddedLines" : 460.0
+      "averageAddedLines" : 460.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 5.0
+      } ]
     }, {
       "rowKey" : "未标注模块",
       "rowLabel" : "未标注模块",
@@ -244,7 +364,13 @@
       "totalAddedLines" : 1,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 1.0
+      "averageAddedLines" : 1.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "渲染",
       "rowLabel" : "渲染",
@@ -255,7 +381,13 @@
       "totalAddedLines" : 9,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 9.0
+      "averageAddedLines" : 9.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "管路",
       "rowLabel" : "管路",
@@ -266,7 +398,13 @@
       "totalAddedLines" : 128,
       "defectDensityPerKloc" : 7.81,
       "averageReviewDurationMinutes" : 4.0,
-      "averageAddedLines" : 128.0
+      "averageAddedLines" : 128.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 4.0
+      } ]
     }, {
       "rowKey" : "管路&线缆",
       "rowLabel" : "管路&线缆",
@@ -277,7 +415,13 @@
       "totalAddedLines" : 79,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 2.0,
-      "averageAddedLines" : 79.0
+      "averageAddedLines" : 79.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 2.0
+      } ]
     }, {
       "rowKey" : "线缆",
       "rowLabel" : "线缆",
@@ -288,7 +432,13 @@
       "totalAddedLines" : 5,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 5.0
+      "averageAddedLines" : 5.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "自动化测试",
       "rowLabel" : "自动化测试",
@@ -299,7 +449,13 @@
       "totalAddedLines" : 1,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 5.0,
-      "averageAddedLines" : 1.0
+      "averageAddedLines" : 1.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 5.0
+      } ]
     }, {
       "rowKey" : "草图",
       "rowLabel" : "草图",
@@ -310,7 +466,13 @@
       "totalAddedLines" : 2,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 2.0
+      "averageAddedLines" : 2.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     } ],
     "ownerRows" : [ {
       "rowKey" : "田川",
@@ -322,7 +484,13 @@
       "totalAddedLines" : 17031,
       "defectDensityPerKloc" : 1.88,
       "averageReviewDurationMinutes" : 4.47,
-      "averageAddedLines" : 396.07
+      "averageAddedLines" : 396.07,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 43,
+        "recordCount" : 43,
+        "averageReviewDurationMinutes" : 4.47
+      } ]
     }, {
       "rowKey" : "刘佳祺",
       "rowLabel" : "刘佳祺",
@@ -333,7 +501,13 @@
       "totalAddedLines" : 11984,
       "defectDensityPerKloc" : 1.0,
       "averageReviewDurationMinutes" : 5.19,
-      "averageAddedLines" : 332.89
+      "averageAddedLines" : 332.89,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 36,
+        "recordCount" : 36,
+        "averageReviewDurationMinutes" : 5.19
+      } ]
     }, {
       "rowKey" : "牟敬芳",
       "rowLabel" : "牟敬芳",
@@ -344,7 +518,13 @@
       "totalAddedLines" : 12017,
       "defectDensityPerKloc" : 3.83,
       "averageReviewDurationMinutes" : 18.19,
-      "averageAddedLines" : 375.53
+      "averageAddedLines" : 375.53,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 32,
+        "recordCount" : 32,
+        "averageReviewDurationMinutes" : 18.19
+      } ]
     }, {
       "rowKey" : "--",
       "rowLabel" : "--",
@@ -355,7 +535,13 @@
       "totalAddedLines" : 3806,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.81,
-      "averageAddedLines" : 140.96
+      "averageAddedLines" : 140.96,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 27,
+        "recordCount" : 27,
+        "averageReviewDurationMinutes" : 1.81
+      } ]
     }, {
       "rowKey" : "徐昊",
       "rowLabel" : "徐昊",
@@ -366,7 +552,13 @@
       "totalAddedLines" : 5957,
       "defectDensityPerKloc" : 4.36,
       "averageReviewDurationMinutes" : 7.33,
-      "averageAddedLines" : 397.13
+      "averageAddedLines" : 397.13,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 15,
+        "recordCount" : 15,
+        "averageReviewDurationMinutes" : 7.33
+      } ]
     }, {
       "rowKey" : "王念文",
       "rowLabel" : "王念文",
@@ -377,7 +569,13 @@
       "totalAddedLines" : 471,
       "defectDensityPerKloc" : 6.37,
       "averageReviewDurationMinutes" : 2.15,
-      "averageAddedLines" : 36.23
+      "averageAddedLines" : 36.23,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 13,
+        "recordCount" : 13,
+        "averageReviewDurationMinutes" : 2.15
+      } ]
     }, {
       "rowKey" : "华程逸",
       "rowLabel" : "华程逸",
@@ -388,7 +586,13 @@
       "totalAddedLines" : 4473,
       "defectDensityPerKloc" : 1.79,
       "averageReviewDurationMinutes" : 12.22,
-      "averageAddedLines" : 497.0
+      "averageAddedLines" : 497.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 9,
+        "recordCount" : 9,
+        "averageReviewDurationMinutes" : 12.22
+      } ]
     }, {
       "rowKey" : "霍志岩",
       "rowLabel" : "霍志岩",
@@ -399,7 +603,13 @@
       "totalAddedLines" : 222,
       "defectDensityPerKloc" : 4.5,
       "averageReviewDurationMinutes" : 2.57,
-      "averageAddedLines" : 31.71
+      "averageAddedLines" : 31.71,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 7,
+        "recordCount" : 7,
+        "averageReviewDurationMinutes" : 2.57
+      } ]
     }, {
       "rowKey" : "#姚辉彩",
       "rowLabel" : "#姚辉彩",
@@ -410,7 +620,13 @@
       "totalAddedLines" : 161,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 0.0,
-      "averageAddedLines" : 53.67
+      "averageAddedLines" : 53.67,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 3,
+        "recordCount" : 3,
+        "averageReviewDurationMinutes" : 0.0
+      } ]
     }, {
       "rowKey" : "陈晖",
       "rowLabel" : "陈晖",
@@ -421,7 +637,13 @@
       "totalAddedLines" : 754,
       "defectDensityPerKloc" : 5.31,
       "averageReviewDurationMinutes" : 6.67,
-      "averageAddedLines" : 251.33
+      "averageAddedLines" : 251.33,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 3,
+        "recordCount" : 3,
+        "averageReviewDurationMinutes" : 6.67
+      } ]
     }, {
       "rowKey" : "张华磊",
       "rowLabel" : "张华磊",
@@ -432,7 +654,13 @@
       "totalAddedLines" : 129,
       "defectDensityPerKloc" : 7.75,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 64.5
+      "averageAddedLines" : 64.5,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "李东尧",
       "rowLabel" : "李东尧",
@@ -443,7 +671,13 @@
       "totalAddedLines" : 1766,
       "defectDensityPerKloc" : 10.76,
       "averageReviewDurationMinutes" : 31.5,
-      "averageAddedLines" : 883.0
+      "averageAddedLines" : 883.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 31.5
+      } ]
     }, {
       "rowKey" : "李焕坤",
       "rowLabel" : "李焕坤",
@@ -454,7 +688,13 @@
       "totalAddedLines" : 13,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 6.5
+      "averageAddedLines" : 6.5,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "燕欣睿",
       "rowLabel" : "燕欣睿",
@@ -465,7 +705,13 @@
       "totalAddedLines" : 1599,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 15.5,
-      "averageAddedLines" : 799.5
+      "averageAddedLines" : 799.5,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 2,
+        "recordCount" : 2,
+        "averageReviewDurationMinutes" : 15.5
+      } ]
     }, {
       "rowKey" : "张硕",
       "rowLabel" : "张硕",
@@ -476,7 +722,13 @@
       "totalAddedLines" : 2,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 2.0
+      "averageAddedLines" : 2.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "徐凯强",
       "rowLabel" : "徐凯强",
@@ -487,7 +739,13 @@
       "totalAddedLines" : 719,
       "defectDensityPerKloc" : 33.38,
       "averageReviewDurationMinutes" : 40.0,
-      "averageAddedLines" : 719.0
+      "averageAddedLines" : 719.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 40.0
+      } ]
     }, {
       "rowKey" : "杨玉荣",
       "rowLabel" : "杨玉荣",
@@ -498,7 +756,13 @@
       "totalAddedLines" : 11,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 11.0
+      "averageAddedLines" : 11.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
     }, {
       "rowKey" : "柳冰旸",
       "rowLabel" : "柳冰旸",
@@ -509,7 +773,19 @@
       "totalAddedLines" : 9,
       "defectDensityPerKloc" : null,
       "averageReviewDurationMinutes" : 1.0,
-      "averageAddedLines" : 9.0
+      "averageAddedLines" : 9.0,
+      "reviewDurationPartitions" : [ {
+        "authority" : "COMMENT",
+        "mergeRequestCount" : 1,
+        "recordCount" : 1,
+        "averageReviewDurationMinutes" : 1.0
+      } ]
+    } ],
+    "reviewDurationPartitions" : [ {
+      "authority" : "COMMENT",
+      "mergeRequestCount" : 200,
+      "recordCount" : 200,
+      "averageReviewDurationMinutes" : 7.19
     } ]
   },
   "readView" : {

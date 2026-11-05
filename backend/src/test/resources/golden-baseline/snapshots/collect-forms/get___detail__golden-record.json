@@ -1,0 +1,298 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "templateKey" : "issue_response",
+    "fieldSpec" : {
+      "fields" : [ {
+        "name" : "problem_type",
+        "type" : "enum",
+        "label" : "问题类型",
+        "apiKey" : "problemType",
+        "control" : "radio",
+        "options" : [ {
+          "label" : "缺陷",
+          "value" : "DEFECT"
+        }, {
+          "label" : "需求",
+          "value" : "REQUIREMENT"
+        } ],
+        "storage" : {
+          "column" : "problem_type",
+          "columnType" : "varchar(32)"
+        },
+        "required" : true
+      }, {
+        "name" : "problem_cause",
+        "type" : "string",
+        "label" : "问题原因",
+        "apiKey" : "problemCause",
+        "control" : "textarea",
+        "storage" : {
+          "column" : "problem_cause",
+          "columnType" : "text"
+        },
+        "required" : true,
+        "maxLength" : 8192
+      }, {
+        "name" : "modification_plan",
+        "type" : "string",
+        "label" : "修改方案",
+        "apiKey" : "modificationPlan",
+        "control" : "textarea",
+        "storage" : {
+          "column" : "modification_plan",
+          "columnType" : "text"
+        },
+        "required" : true,
+        "maxLength" : 8192
+      }, {
+        "name" : "owner_confirmation",
+        "type" : "string",
+        "label" : "模块负责人确认",
+        "apiKey" : "ownerConfirmation",
+        "control" : "textarea",
+        "storage" : {
+          "column" : "owner_confirmation",
+          "columnType" : "text"
+        },
+        "required" : false,
+        "maxLength" : 8192,
+        "requiredWhen" : {
+          "resourceSeverityLevel" : "一级缺陷"
+        }
+      }, {
+        "name" : "planned_resolution_date",
+        "type" : "date",
+        "label" : "计划解决时间",
+        "apiKey" : "plannedResolutionDate",
+        "control" : "date",
+        "maxYear" : 2040,
+        "minYear" : 2020,
+        "storage" : {
+          "column" : "planned_resolution_date",
+          "columnType" : "date"
+        },
+        "required" : true
+      }, {
+        "name" : "planned_merge_version_branch",
+        "type" : "string",
+        "label" : "计划合并的版本分支",
+        "apiKey" : "plannedMergeVersionBranch",
+        "format" : "CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留",
+        "control" : "version-members",
+        "storage" : {
+          "column" : "planned_merge_version_branch",
+          "columnType" : "varchar(255)"
+        },
+        "required" : true,
+        "maxLength" : 255
+      }, {
+        "name" : "supplement_note",
+        "type" : "string",
+        "label" : "补充说明",
+        "apiKey" : "supplementNote",
+        "control" : "textarea",
+        "storage" : {
+          "column" : "supplement_note",
+          "columnType" : "text"
+        },
+        "required" : false,
+        "maxLength" : 8192
+      } ],
+      "conditions" : [ {
+        "type" : "conditionalRequired",
+        "target" : "owner_confirmation",
+        "clearWhen" : {
+          "resourceSeverityLevel" : [ "二级缺陷", "三级缺陷", "建议类", "未设定" ]
+        },
+        "requiredWhen" : {
+          "resourceSeverityLevel" : "一级缺陷"
+        },
+        "snapshotColumn" : "owner_confirmation_applicable"
+      } ],
+      "dictionaries" : [ ],
+      "spec_version" : 1,
+      "template_key" : "issue_response"
+    },
+    "scopeId" : "1",
+    "currentVersionId" : "1",
+    "storageVersionId" : "1",
+    "versionLabel" : "CC2026R3",
+    "scopeStatus" : "ACTIVE",
+    "writable" : true,
+    "instanceId" : "1",
+    "readableVersions" : [ {
+      "versionId" : "1",
+      "versionLabel" : "CC2026R3",
+      "versionStatus" : "PUBLISHED",
+      "instanceMode" : "MATERIALIZED",
+      "fieldSpecHash" : "49f6fa7dfda8483967fc888620b4ae5fd878b129debbfa8e85c4cc2732425217"
+    } ],
+    "versionSpecs" : {
+      "1" : {
+        "fields" : [ {
+          "name" : "problem_type",
+          "type" : "enum",
+          "label" : "问题类型",
+          "apiKey" : "problemType",
+          "control" : "radio",
+          "options" : [ {
+            "label" : "缺陷",
+            "value" : "DEFECT"
+          }, {
+            "label" : "需求",
+            "value" : "REQUIREMENT"
+          } ],
+          "storage" : {
+            "column" : "problem_type",
+            "columnType" : "varchar(32)"
+          },
+          "required" : true
+        }, {
+          "name" : "problem_cause",
+          "type" : "string",
+          "label" : "问题原因",
+          "apiKey" : "problemCause",
+          "control" : "textarea",
+          "storage" : {
+            "column" : "problem_cause",
+            "columnType" : "text"
+          },
+          "required" : true,
+          "maxLength" : 8192
+        }, {
+          "name" : "modification_plan",
+          "type" : "string",
+          "label" : "修改方案",
+          "apiKey" : "modificationPlan",
+          "control" : "textarea",
+          "storage" : {
+            "column" : "modification_plan",
+            "columnType" : "text"
+          },
+          "required" : true,
+          "maxLength" : 8192
+        }, {
+          "name" : "owner_confirmation",
+          "type" : "string",
+          "label" : "模块负责人确认",
+          "apiKey" : "ownerConfirmation",
+          "control" : "textarea",
+          "storage" : {
+            "column" : "owner_confirmation",
+            "columnType" : "text"
+          },
+          "required" : false,
+          "maxLength" : 8192,
+          "requiredWhen" : {
+            "resourceSeverityLevel" : "一级缺陷"
+          }
+        }, {
+          "name" : "planned_resolution_date",
+          "type" : "date",
+          "label" : "计划解决时间",
+          "apiKey" : "plannedResolutionDate",
+          "control" : "date",
+          "maxYear" : 2040,
+          "minYear" : 2020,
+          "storage" : {
+            "column" : "planned_resolution_date",
+            "columnType" : "date"
+          },
+          "required" : true
+        }, {
+          "name" : "planned_merge_version_branch",
+          "type" : "string",
+          "label" : "计划合并的版本分支",
+          "apiKey" : "plannedMergeVersionBranch",
+          "format" : "CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留",
+          "control" : "version-members",
+          "storage" : {
+            "column" : "planned_merge_version_branch",
+            "columnType" : "varchar(255)"
+          },
+          "required" : true,
+          "maxLength" : 255
+        }, {
+          "name" : "supplement_note",
+          "type" : "string",
+          "label" : "补充说明",
+          "apiKey" : "supplementNote",
+          "control" : "textarea",
+          "storage" : {
+            "column" : "supplement_note",
+            "columnType" : "text"
+          },
+          "required" : false,
+          "maxLength" : 8192
+        } ],
+        "conditions" : [ {
+          "type" : "conditionalRequired",
+          "target" : "owner_confirmation",
+          "clearWhen" : {
+            "resourceSeverityLevel" : [ "二级缺陷", "三级缺陷", "建议类", "未设定" ]
+          },
+          "requiredWhen" : {
+            "resourceSeverityLevel" : "一级缺陷"
+          },
+          "snapshotColumn" : "owner_confirmation_applicable"
+        } ],
+        "dictionaries" : [ ],
+        "spec_version" : 1,
+        "template_key" : "issue_response"
+      }
+    },
+    "sourceSetRevision" : "1",
+    "sourceSetHash" : "477eb6cd1a3ae191125d3f88fde993d08dce70f920c13898fbd8cb569ed81bea",
+    "records" : [ {
+      "id" : "1",
+      "recordVersion" : 1,
+      "deleted" : false,
+      "legacyIncomplete" : false,
+      "legacyMissingFields" : [ ],
+      "fields" : {
+        "problemType" : "DEFECT",
+        "problemCause" : "黄金基线固定问题原因",
+        "modificationPlan" : "黄金基线固定修改方案",
+        "ownerConfirmation" : null,
+        "plannedResolutionDate" : "2026-09-30",
+        "plannedMergeVersionBranch" : "CC2026R3",
+        "supplementNote" : "黄金基线样本"
+      },
+      "fieldNames" : { },
+      "snapshotValues" : {
+        "owner_confirmation_applicable" : false
+      },
+      "createdBy" : "admin",
+      "createdByName" : "管理员",
+      "templateVersion" : "CC2026R3",
+      "originVersionId" : "1",
+      "storageVersionId" : "1",
+      "createdAt" : "2026-09-01T05:22:08+08:00",
+      "updatedAt" : "2026-09-01T05:22:08+08:00",
+      "canEdit" : true,
+      "canVoid" : true
+    } ],
+    "resource" : {
+      "gitlabBaseUrl" : "http://gitlab.test.local:18080",
+      "projectId" : "9",
+      "resourceType" : "issue",
+      "resourceId" : "969",
+      "rootId" : "1228",
+      "webUrl" : "http://gitlab.test.local:18080/cloudcad/crowncad/-/issues/969",
+      "severityLevel" : "未设定"
+    },
+    "account" : {
+      "userId" : "admin",
+      "displayName" : "管理员"
+    },
+    "capabilities" : {
+      "canCreate" : true,
+      "canEditOwn" : true,
+      "canVoidOwn" : true
+    },
+    "templateName" : "Issue 响应"
+  }
+}

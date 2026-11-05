@@ -136,35 +136,38 @@
       "value" : 0.0
     } ],
     "authorDefectDensityRows" : [ {
+      "name" : "guanlixiang",
+      "value" : 90.91
+    }, {
       "name" : "张明霞",
-      "value" : 75.69
+      "value" : 80.69
     }, {
       "name" : "郎琳琳",
-      "value" : 52.81
+      "value" : 55.19
     }, {
       "name" : "霍志岩",
-      "value" : 34.39
-    }, {
-      "name" : "樊雯昊",
-      "value" : 30.0
-    }, {
-      "name" : "孟桦",
-      "value" : 28.47
-    }, {
-      "name" : "刘宗博",
-      "value" : 27.92
-    }, {
-      "name" : "孟秀平",
-      "value" : 27.81
+      "value" : 44.22
     }, {
       "name" : "韩潞钦",
-      "value" : 27.78
+      "value" : 31.75
+    }, {
+      "name" : "孟桦",
+      "value" : 31.46
+    }, {
+      "name" : "樊雯昊",
+      "value" : 31.45
+    }, {
+      "name" : "刘宗博",
+      "value" : 28.7
     }, {
       "name" : "牛闯",
-      "value" : 25.36
+      "value" : 27.23
+    }, {
+      "name" : "孟秀平",
+      "value" : 25.53
     }, {
       "name" : "张海思",
-      "value" : 20.14
+      "value" : 20.42
     }, {
       "name" : "冯文婕",
       "value" : 19.1
@@ -172,17 +175,17 @@
       "name" : "杜敏敏",
       "value" : 18.32
     }, {
-      "name" : "guanlixiang",
-      "value" : 18.18
-    }, {
       "name" : "张华磊",
-      "value" : 14.11
+      "value" : 15.37
+    }, {
+      "name" : "姚思含",
+      "value" : 14.93
     }, {
       "name" : "祁雨宣",
-      "value" : 13.7
+      "value" : 14.85
     }, {
       "name" : "傅培钰",
-      "value" : 13.57
+      "value" : 14.71
     }, {
       "name" : "白云涛",
       "value" : 12.35
@@ -191,16 +194,22 @@
       "value" : 12.15
     }, {
       "name" : "秦龙飞",
-      "value" : 9.62
+      "value" : 9.81
+    }, {
+      "name" : "庄晓",
+      "value" : 9.77
     }, {
       "name" : "骆建彬",
-      "value" : 9.03
+      "value" : 9.1
+    }, {
+      "name" : "刘志国",
+      "value" : 8.19
     }, {
       "name" : "麻荣雨",
-      "value" : 7.43
+      "value" : 7.72
     }, {
       "name" : "艾文涛",
-      "value" : 7.27
+      "value" : 7.34
     }, {
       "name" : "王志阳",
       "value" : 6.92
@@ -208,35 +217,26 @@
       "name" : "张开宇",
       "value" : 6.9
     }, {
-      "name" : "高士亮",
-      "value" : 6.79
-    }, {
       "name" : "王念文",
       "value" : 6.26
     }, {
       "name" : "李焕坤",
-      "value" : 5.89
+      "value" : 6.12
     }, {
       "name" : "王楠",
       "value" : 5.85
     }, {
+      "name" : "高士亮",
+      "value" : 5.69
+    }, {
       "name" : "张宽",
-      "value" : 5.74
+      "value" : 5.4
     }, {
       "name" : "金义展",
       "value" : 5.01
     }, {
-      "name" : "刘志国",
-      "value" : 4.64
-    }, {
       "name" : "徐建民",
       "value" : 3.91
-    }, {
-      "name" : "庄晓",
-      "value" : 3.76
-    }, {
-      "name" : "姚思含",
-      "value" : 3.73
     }, {
       "name" : "张佳旺",
       "value" : 3.5
@@ -244,29 +244,23 @@
       "name" : "Liyaoqi",
       "value" : 3.4
     }, {
-      "name" : "隋天宝",
-      "value" : 2.48
+      "name" : "徐凯强",
+      "value" : 2.61
     }, {
       "name" : "李佳徽",
       "value" : 2.29
     }, {
-      "name" : "徐凯强",
-      "value" : 2.22
-    }, {
       "name" : "孙函娇",
-      "value" : 2.1
+      "value" : 2.13
     }, {
       "name" : "朱梦莹",
-      "value" : 1.88
+      "value" : 2.01
     }, {
-      "name" : "冯钊",
-      "value" : 1.51
-    }, {
-      "name" : "潘广磊",
-      "value" : 0.96
+      "name" : "隋天宝",
+      "value" : 1.87
     }, {
       "name" : "王苏晓",
-      "value" : 0.94
+      "value" : 0.98
     }, {
       "name" : "刘悦",
       "value" : 0.82
@@ -275,16 +269,16 @@
       "value" : 0.74
     }, {
       "name" : "张晓涵",
-      "value" : 0.69
+      "value" : 0.71
     }, {
       "name" : "李令博",
-      "value" : 0.39
+      "value" : 0.46
     }, {
       "name" : "曹步勇",
-      "value" : 0.28
+      "value" : 0.29
     }, {
       "name" : "李东尧",
-      "value" : 0.22
+      "value" : 0.23
     }, {
       "name" : "徐昊2",
       "value" : 0.14
@@ -304,6 +298,9 @@
       "name" : "侯磊",
       "value" : 0.0
     }, {
+      "name" : "冯钊",
+      "value" : 0.0
+    }, {
       "name" : "刘纪凯",
       "value" : 0.0
     }, {
@@ -311,9 +308,6 @@
       "value" : 0.0
     }, {
       "name" : "姜汛",
-      "value" : 0.0
-    }, {
-      "name" : "常根",
       "value" : 0.0
     }, {
       "name" : "张梓瑜",
@@ -340,7 +334,7 @@
       "name" : "柳冰旸",
       "value" : 0.0
     }, {
-      "name" : "燕欣睿",
+      "name" : "潘广磊",
       "value" : 0.0
     }, {
       "name" : "田健",
@@ -392,96 +386,90 @@
     } ],
     "frequencyCodeSubmissionRows" : [ {
       "name" : "艾文涛",
-      "value" : 206.0
+      "value" : 204.0
     }, {
       "name" : "傅培钰",
-      "value" : 168.0
-    }, {
-      "name" : "高士亮",
-      "value" : 158.0
+      "value" : 151.0
     }, {
       "name" : "李焕坤",
-      "value" : 157.0
-    }, {
-      "name" : "刘宗博",
-      "value" : 148.0
+      "value" : 151.0
     }, {
       "name" : "张海思",
-      "value" : 147.0
+      "value" : 145.0
     }, {
-      "name" : "庄晓",
-      "value" : 139.0
+      "name" : "刘宗博",
+      "value" : 144.0
     }, {
-      "name" : "骆建彬",
+      "name" : "高士亮",
       "value" : 132.0
     }, {
+      "name" : "骆建彬",
+      "value" : 131.0
+    }, {
       "name" : "樊雯昊",
-      "value" : 130.0
+      "value" : 124.0
     }, {
       "name" : "朱梦莹",
-      "value" : 109.0
-    }, {
-      "name" : "隋天宝",
-      "value" : 108.0
+      "value" : 102.0
     }, {
       "name" : "郎琳琳",
-      "value" : 93.0
+      "value" : 89.0
     }, {
       "name" : "张明霞",
-      "value" : 92.0
+      "value" : 86.0
+    }, {
+      "name" : "隋天宝",
+      "value" : 84.0
     }, {
       "name" : "祁雨宣",
-      "value" : 87.0
-    }, {
-      "name" : "李令博",
-      "value" : 83.0
-    }, {
-      "name" : "张晓涵",
-      "value" : 79.0
+      "value" : 80.0
     }, {
       "name" : "孙函娇",
-      "value" : 78.0
+      "value" : 77.0
+    }, {
+      "name" : "张晓涵",
+      "value" : 77.0
     }, {
       "name" : "孟秀平",
-      "value" : 76.0
+      "value" : 73.0
+    }, {
+      "name" : "李令博",
+      "value" : 71.0
     }, {
       "name" : "牛闯",
-      "value" : 72.0
+      "value" : 67.0
     }, {
       "name" : "张华磊",
-      "value" : 69.0
-    }, {
-      "name" : "徐凯强",
-      "value" : 68.0
+      "value" : 63.0
     }, {
       "name" : "张佳旺",
       "value" : 60.0
     }, {
+      "name" : "徐凯强",
+      "value" : 58.0
+    }, {
       "name" : "曹步勇",
-      "value" : 59.0
+      "value" : 56.0
     }, {
       "name" : "秦龙飞",
-      "value" : 52.0
+      "value" : 51.0
     }, {
       "name" : "刘悦",
       "value" : 50.0
     }, {
-      "name" : "王苏晓",
+      "name" : "庄晓",
       "value" : 46.0
+    }, {
+      "name" : "王苏晓",
+      "value" : 44.0
     }, {
       "name" : "冯文婕",
       "value" : 42.0
     }, {
-      "name" : "冯钊",
-      "value" : 36.0
-    }, {
-      "name" : "李东尧",
-      "value" : 36.0
-    }, {
-      "name" : "张宽",
+      "name" : "徐建民",
       "value" : 34.0
     }, {
-      "name" : "徐建民",
+      "name" : "李东尧",
       "value" : 34.0
     }, {
       "name" : "李志",
@@ -490,37 +478,37 @@
       "name" : "王念文",
       "value" : 33.0
     }, {
-      "name" : "刘志国",
+      "name" : "张宽",
       "value" : 30.0
     }, {
       "name" : "麻荣雨",
-      "value" : 26.0
-    }, {
-      "name" : "孟桦",
-      "value" : 21.0
+      "value" : 25.0
     }, {
       "name" : "田川",
       "value" : 21.0
     }, {
+      "name" : "孟桦",
+      "value" : 19.0
+    }, {
       "name" : "王楠",
       "value" : 19.0
     }, {
-      "name" : "霍志岩",
-      "value" : 18.0
+      "name" : "刘志国",
+      "value" : 17.0
     }, {
       "name" : "王志阳",
       "value" : 17.0
     }, {
-      "name" : "吴霜",
-      "value" : 16.0
-    }, {
-      "name" : "潘广磊",
-      "value" : 16.0
-    }, {
       "name" : "Liyaoqi",
       "value" : 14.0
     }, {
+      "name" : "吴霜",
+      "value" : 14.0
+    }, {
       "name" : "杜敏敏",
+      "value" : 14.0
+    }, {
+      "name" : "霍志岩",
       "value" : 14.0
     }, {
       "name" : "杨玉荣",
@@ -529,7 +517,7 @@
       "name" : "白云涛",
       "value" : 9.0
     }, {
-      "name" : "韩潞钦",
+      "name" : "冯钊",
       "value" : 8.0
     }, {
       "name" : "刘纪凯",
@@ -541,8 +529,8 @@
       "name" : "金义展",
       "value" : 7.0
     }, {
-      "name" : "guanlixiang",
-      "value" : 5.0
+      "name" : "韩潞钦",
+      "value" : 7.0
     }, {
       "name" : "张硕",
       "value" : 5.0
@@ -553,13 +541,7 @@
       "name" : "田健",
       "value" : 5.0
     }, {
-      "name" : "姚思含",
-      "value" : 4.0
-    }, {
       "name" : "guoyanqun",
-      "value" : 3.0
-    }, {
-      "name" : "付崇莱",
       "value" : 3.0
     }, {
       "name" : "徐昊2",
@@ -568,23 +550,20 @@
       "name" : "于震",
       "value" : 2.0
     }, {
-      "name" : "姜汛",
+      "name" : "付崇莱",
       "value" : 2.0
     }, {
       "name" : "张开宇",
       "value" : 2.0
     }, {
-      "name" : "张继远",
-      "value" : 2.0
-    }, {
       "name" : "徐琦慧",
-      "value" : 2.0
-    }, {
-      "name" : "柳冰旸",
       "value" : 2.0
     }, {
       "name" : "高健峰",
       "value" : 2.0
+    }, {
+      "name" : "guanlixiang",
+      "value" : 1.0
     }, {
       "name" : "zhangyijian",
       "value" : 1.0
@@ -592,10 +571,16 @@
       "name" : "侯磊",
       "value" : 1.0
     }, {
-      "name" : "常根",
+      "name" : "姚思含",
+      "value" : 1.0
+    }, {
+      "name" : "姜汛",
       "value" : 1.0
     }, {
       "name" : "张梓瑜",
+      "value" : 1.0
+    }, {
+      "name" : "张继远",
       "value" : 1.0
     }, {
       "name" : "杜丙瑜",
@@ -604,7 +589,10 @@
       "name" : "杨作林",
       "value" : 1.0
     }, {
-      "name" : "燕欣睿",
+      "name" : "柳冰旸",
+      "value" : 1.0
+    }, {
+      "name" : "潘广磊",
       "value" : 1.0
     }, {
       "name" : "赵佳峻",

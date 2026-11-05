@@ -1,0 +1,9 @@
+{
+  "httpStatus" : 400,
+  "body" : {
+    "success" : false,
+    "code" : "A0400",
+    "message" : "请选择资源类型一致的已发布表单版本",
+    "data" : null
+  }
+}

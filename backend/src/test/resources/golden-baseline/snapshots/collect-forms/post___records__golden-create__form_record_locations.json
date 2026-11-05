@@ -1,0 +1,40 @@
+{
+  "table" : "form_record_locations",
+  "rows" : [ {
+    "record_id" : "1",
+    "scope_id" : "1",
+    "storage_version_id" : "1",
+    "origin_version_id" : "1",
+    "instance_mode" : "MATERIALIZED",
+    "instance_id" : "1",
+    "source_config_id" : "1",
+    "source_instance" : "default",
+    "gitlab_base_url" : "http://gitlab.test.local:18080",
+    "project_id" : "9",
+    "resource_type" : "issue",
+    "resource_id" : "969",
+    "request_key" : "00000000-0000-4000-8000-000000000001",
+    "created_by" : "admin",
+    "origin_spec_hash" : "49f6fa7dfda8483967fc888620b4ae5fd878b129debbfa8e85c4cc2732425217",
+    "create_payload_hash" : "956dfd76b0849e7cd8f300ad176e73aca129b67af573de2bc03edf4255a56dd8",
+    "created_at" : "2026-09-01 05:22:08"
+  }, {
+    "record_id" : "2",
+    "scope_id" : "1",
+    "storage_version_id" : "1",
+    "origin_version_id" : "1",
+    "instance_mode" : "MATERIALIZED",
+    "instance_id" : "1",
+    "source_config_id" : "1",
+    "source_instance" : "default",
+    "gitlab_base_url" : "http://gitlab.test.local:18080",
+    "project_id" : "9",
+    "resource_type" : "issue",
+    "resource_id" : "969",
+    "request_key" : "00000000-0000-4000-8000-000000000002",
+    "created_by" : "admin",
+    "origin_spec_hash" : "49f6fa7dfda8483967fc888620b4ae5fd878b129debbfa8e85c4cc2732425217",
+    "create_payload_hash" : "5a478c10b97216b75ef8ba1ba5092ae0e11c975107cd77e0e90305710a361ab5",
+    "created_at" : "2026-09-01 05:22:08"
+  } ]
+}

@@ -1,0 +1,47 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "templateKey" : "code_review",
+    "displayName" : "代码走查",
+    "status" : "ACTIVE",
+    "resourceType" : "merge_request",
+    "fillPolicy" : "AUTHORIZED_USER",
+    "scopes" : [ ]
+  }, {
+    "templateKey" : "issue_reply",
+    "displayName" : "Issue 回复",
+    "status" : "ACTIVE",
+    "resourceType" : "issue",
+    "fillPolicy" : "AUTHORIZED_USER",
+    "scopes" : [ ]
+  }, {
+    "templateKey" : "issue_response",
+    "displayName" : "Issue 响应",
+    "status" : "ACTIVE",
+    "resourceType" : "issue",
+    "fillPolicy" : "AUTHORIZED_USER",
+    "scopes" : [ {
+      "id" : 1,
+      "templateKey" : "issue_response",
+      "scopeKey" : "golden-issue-response",
+      "status" : "ACTIVE",
+      "resourceType" : "issue",
+      "sourceConfigId" : 1,
+      "sourceInstance" : "default",
+      "canonicalGitlabBaseUrl" : "http://gitlab.test.local:18080",
+      "projectIds" : [ 9 ],
+      "versionProjectId" : 9,
+      "bindingHash" : "3a78999165deeea3ddececc084def9da29c70c1837d9ede23bd51cab7859b9ac",
+      "bindingRevision" : 1,
+      "currentVersionId" : 1,
+      "currentVersionLabel" : "CC2026R3",
+      "currentVersionStatus" : "PUBLISHED",
+      "draftRevision" : null,
+      "writeFenced" : false,
+      "activePublications" : 0,
+      "updatedAt" : "2026-09-01T08:00:00+08:00"
+    } ]
+  } ]
+}

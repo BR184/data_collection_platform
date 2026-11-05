@@ -838,7 +838,7 @@ endpoints:
             ignore-columns: [updated_at]
           - table: sync_runs
             scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
-            ignore-columns: [run_id, created_at, updated_at]
+            ignore-columns: [run_id, run_after, created_at, updated_at]
   - method: PUT
     path: /api/collect-forms/records/{id}
     category: WRITE
@@ -866,7 +866,7 @@ endpoints:
             ignore-columns: [updated_at]
           - table: sync_runs
             scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
-            ignore-columns: [run_id, created_at, updated_at]
+            ignore-columns: [run_id, run_after, created_at, updated_at]
   - method: POST
     path: /api/collect-forms/records/{id}/void
     category: WRITE
@@ -894,7 +894,7 @@ endpoints:
             ignore-columns: [updated_at]
           - table: sync_runs
             scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
-            ignore-columns: [run_id, created_at, updated_at]
+            ignore-columns: [run_id, run_after, created_at, updated_at]
 
   - method: GET
     path: /api/collect-forms/entries
@@ -917,6 +917,7 @@ endpoints:
         body: '{"displayName":"独立表单","resourceType":"issue","fillPolicy":"AUTHORIZED_USER","copyFromVersionId":999999999}'
         affected-tables:
           - table: form_template_definitions
+            ignore-columns: [created_at, updated_at]
           - table: form_template_scopes
           - table: form_template_scope_drafts
   - method: GET

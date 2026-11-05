@@ -1,0 +1,31 @@
+{
+  "table" : "sync_runs",
+  "rows" : [ {
+    "id" : "4",
+    "config_id" : "1",
+    "source_instance" : "default",
+    "run_type" : "FACT_REFRESH",
+    "trigger_type" : "SCHEDULE",
+    "status" : "QUEUED",
+    "priority" : "10",
+    "exclusive_scope" : "source:1:default:mirror",
+    "cancel_requested" : "f",
+    "submitted_by" : null,
+    "request_reason" : "表单记录变化触发事实刷新",
+    "payload_json" : "{\"syncType\":\"COMPENSATION\",\"triggerType\":\"SCHEDULE\",\"reason\":\"表单记录变化触发事实刷新\",\"sourceTables\":[],\"fullBuild\":false}",
+    "thread_mode" : "FIXED",
+    "thread_value" : "2.000",
+    "planned_table_count" : "0",
+    "completed_table_count" : "0",
+    "scanned_rows" : "0",
+    "applied_rows" : "0",
+    "heartbeat_at" : null,
+    "lease_owner" : null,
+    "lease_until" : null,
+    "started_at" : null,
+    "finished_at" : null,
+    "error_message" : null,
+    "parent_run_id" : null,
+    "resolved_worker_count" : "2"
+  } ]
+}

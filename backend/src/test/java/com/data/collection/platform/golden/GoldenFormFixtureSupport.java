@@ -744,6 +744,7 @@ final class GoldenFormFixtureSupport {
                   """
                   select count(*) from sync_runs
                    where config_id = ? and run_type = 'FACT_REFRESH' and status = 'QUEUED'
+                     and run_after <= current_timestamp
                   """,
                   configId))
           .isEqualTo(1);
@@ -772,6 +773,7 @@ final class GoldenFormFixtureSupport {
                   """
                   select count(*) from sync_runs
                    where config_id = ? and run_type = 'FACT_REFRESH' and status = 'QUEUED'
+                     and run_after <= current_timestamp
                   """,
                   configId))
           .isEqualTo(1);
@@ -789,6 +791,7 @@ final class GoldenFormFixtureSupport {
                   """
                   select count(*) from sync_runs
                    where config_id = ? and run_type = 'FACT_REFRESH' and status = 'QUEUED'
+                     and run_after <= current_timestamp
                   """,
                   configId))
           .isEqualTo(1);

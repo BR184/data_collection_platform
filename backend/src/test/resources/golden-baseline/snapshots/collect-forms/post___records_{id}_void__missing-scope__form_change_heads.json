@@ -1,0 +1,30 @@
+{
+  "table" : "form_change_heads",
+  "rows" : [ {
+    "id" : "1",
+    "source_config_id" : "1",
+    "source_instance" : "default",
+    "canonical_gitlab_base_url" : "http://gitlab.test.local:18080",
+    "project_id" : "9",
+    "resource_type" : "issue",
+    "resource_id" : "969",
+    "template_key" : "issue_response",
+    "scope_id" : "1",
+    "latest_change_version" : "1",
+    "consumed_change_version" : "1",
+    "latest_audit_id" : "1",
+    "pending_record_id" : null,
+    "pending_record_version" : null,
+    "pending_storage_version_id" : null,
+    "pending_authority_revision" : null,
+    "status" : "CONSUMED",
+    "lease_owner" : null,
+    "lease_until" : null,
+    "fencing_version" : "1",
+    "next_attempt_at" : null,
+    "last_error" : null,
+    "created_at" : "2026-09-01 05:22:08",
+    "pending_source_set_revision" : null,
+    "pending_source_set_hash" : null
+  } ]
+}
