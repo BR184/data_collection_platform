@@ -79,6 +79,7 @@ public class FormRecordWriteService {
     jdbcTemplate.execute(
         "select pg_advisory_xact_lock(hashtext('form_record_id_seq')::bigint)");
     contextService.lockWritableScope(context);
+    contextService.requireFiller(context, actor.userId());
     requireResourceMirrored(context);
     directoryService.requireNoReplayInsideTransaction(
         context, context.storageVersionId(), rawFields, actor, requestKey);
@@ -203,6 +204,7 @@ public class FormRecordWriteService {
       String clientIp,
       String userAgent) {
     contextService.lockScopeForStorageWrite(context);
+    contextService.requireFiller(context, actor.userId());
     requireResourceMirrored(context);
     FormRecordRow existing = store.findByIdAny(context, id);
     if (existing == null) {
@@ -241,6 +243,7 @@ public class FormRecordWriteService {
       String clientIp,
       String userAgent) {
     contextService.lockScopeForStorageWrite(context);
+    contextService.requireFiller(context, actor.userId());
     requireResourceMirrored(context);
     FormRecordRow existing = store.findByIdAny(context, id);
     if (existing == null) {

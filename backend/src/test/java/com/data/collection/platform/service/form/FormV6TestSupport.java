@@ -53,7 +53,9 @@ final class FormV6TestSupport {
             jdbc,
             objectMapper,
             scopeValidation,
-            new GitlabResourceLinkService(jdbc, new GitlabMirrorProperties()));
+            new GitlabResourceLinkService(jdbc, new GitlabMirrorProperties()),
+            new FormTemplateDefinitionService(jdbc, objectMapper,
+                new com.data.collection.platform.domain.form.FormSpecValidator(objectMapper)));
     FormFieldValueService fieldValueService =
         new FormFieldValueService(objectMapper, new FormReviewerDirectoryService(jdbc));
     FormRecordStore store = new FormRecordStore(jdbc, objectMapper);
@@ -93,7 +95,8 @@ final class FormV6TestSupport {
             directoryService,
             reader,
             jdbc,
-            objectMapper);
+            objectMapper,
+            new FormRecordAuthorityService(jdbc));
     DataSourceTransactionManager transactionManager =
         new DataSourceTransactionManager(jdbc.getDataSource());
     return new WiredServices(

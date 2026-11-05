@@ -110,6 +110,8 @@ class FormTemplateAdminIntegrationTest {
   @Autowired private FormTemplateSpecCatalog specCatalog;
   @Autowired private GitlabResourceLinkService resourceLinkService;
   @Autowired private Environment environment;
+  @Autowired private FormCustomAuthorityService customAuthorities;
+  @Autowired private FormRecordExportService exportService;
 
   private final FormActorContext admin =
       new FormActorContext("w4-admin", "管理员", ALL_PERMISSIONS);
@@ -124,6 +126,7 @@ class FormTemplateAdminIntegrationTest {
     jdbcTemplate.execute("delete from gitlab_sync_configs where name like 'w4-form-%'");
     jdbcTemplate.execute("delete from platform_ldap_users where user_id like 'w4-%'");
     jdbcTemplate.execute("select setval('form_record_id_seq', 1, false)");
+    jdbcTemplate.update("delete from form_template_definitions where definition_kind = 'CUSTOM'");
     ensureOdsTables();
     jdbcTemplate.execute("delete from ods_gitlab_issues");
     jdbcTemplate.execute("delete from ods_gitlab_milestones");
@@ -171,6 +174,111 @@ class FormTemplateAdminIntegrationTest {
             """,
             Long.class,
             GITLAB_URL);
+  }
+
+  @Test
+  void resourceAuthorPolicyRejectsOtherAccountsAtTheWriteBoundary() throws Exception {
+    seedMergeRequest(MERGE_REQUEST_IID);
+    jdbcTemplate.execute("alter table ods_gitlab_merge_requests add column if not exists author_id bigint");
+    jdbcTemplate.execute("create table if not exists ods_gitlab_users(id bigint primary key, username text)");
+    jdbcTemplate.update("insert into ods_gitlab_users(id, username) values (730001, 'w4-admin')"
+        + " on conflict(id) do update set username = excluded.username");
+    jdbcTemplate.update("update ods_gitlab_merge_requests set author_id = 730001 where target_project_id = ? and iid = ?",
+        PROJECT_ID, MERGE_REQUEST_IID);
+    var created = adminService.createTemplate(
+        new com.data.collection.platform.entity.form.admin.FormTemplateCreateRequest(
+            "代码自查表", "merge_request", "RESOURCE_AUTHOR", null), admin);
+    long scopeId = created.scope().id();
+    String key = created.scope().templateKey();
+    ObjectNode spec = (ObjectNode) objectMapper.readTree("""
+        {"spec_version":1,"fields":[{"name":"note","apiKey":"note","label":"自查说明",
+        "type":"string","control":"textarea","required":true,"maxLength":8192,
+        "storage":{"column":"note","columnType":"text"}}],"conditions":[],"dictionaries":[]}
+        """);
+    spec.put("template_key", key);
+    boundDraft(scopeId, spec, "自查一版");
+    long version = publish(scopeId, "自查一版").toVersionId();
+    customAuthorities.registerScope(scopeId);
+    FormCreateRequest request = new FormCreateRequest(GITLAB_URL, PROJECT_ID, "merge_request",
+        Long.toString(MERGE_REQUEST_IID), key, Long.toString(scopeId), Long.toString(version),
+        UUID.randomUUID().toString(), false, toFields(objectMapper.createObjectNode().put("note", "自查完成")));
+    var other = new FormActorContext("w4-other", "管理员", ALL_PERMISSIONS);
+    assertThat(formRecordService.detail(key, GITLAB_URL, PROJECT_ID, "merge_request", Long.toString(MERGE_REQUEST_IID), other).writable()).isFalse();
+    assertThatThrownBy(() -> formRecordService.create(request, other, "127.0.0.1", "JUnit"))
+        .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+    assertThat(formRecordService.create(request, admin, "127.0.0.1", "JUnit").outcome()).isEqualTo("CREATED");
+    assertThat(jdbcTemplate.queryForObject("select count(*) from " + recordTable(version), Integer.class)).isEqualTo(1);
+  }
+
+  @Test
+  void independentTemplateKeepsEachPublishedVersionAndOldRecordInItsOwnTable() throws Exception {
+    var factHeadsBefore = jdbcTemplate.queryForList("select * from fact_change_heads order by source_instance, fact_type, root_id");
+    var created = adminService.createTemplate(
+        new com.data.collection.platform.entity.form.admin.FormTemplateCreateRequest(
+            "独立检查表", "issue", "AUTHORIZED_USER", null), admin);
+    long scopeId = created.scope().id();
+    String key = created.scope().templateKey();
+    assertThat(created.draft().fieldSpec().path("fields")).isEmpty();
+    ObjectNode spec = (ObjectNode) objectMapper.readTree("""
+        {"spec_version":1,"fields":[{"name":"note","apiKey":"note","label":"说明",
+        "type":"string","control":"textarea","required":true,"maxLength":8192,
+        "storage":{"column":"note","columnType":"text"}}],"conditions":[],"dictionaries":[]}
+        """);
+    spec.put("template_key", key);
+    boundDraft(scopeId, spec, "独立一版");
+    long first = publish(scopeId, "独立一版").toVersionId();
+    assertThat(formRecordService.detail(key, GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID), admin).writable()).isFalse();
+    customAuthorities.registerScope(scopeId);
+    assertThat(formRecordService.detail(key, GITLAB_URL, PROJECT_ID, "issue", "999999", admin).writable()).isFalse();
+    assertThat(formRecordService.templateEntries("issue", GITLAB_URL, PROJECT_ID, admin))
+        .anyMatch(entry -> key.equals(entry.get("templateKey")));
+    assertThat(formRecordService.templateEntries("issue", GITLAB_URL, 999999L, admin)).isEmpty();
+    var record = formRecordService.create(new FormCreateRequest(GITLAB_URL, PROJECT_ID, "issue",
+        Long.toString(ISSUE_IID), key, Long.toString(scopeId), Long.toString(first),
+        UUID.randomUUID().toString(), false, toFields(objectMapper.createObjectNode().put("note", "原版记录"))),
+        admin, "127.0.0.1", "JUnit").record();
+    ((ObjectNode) spec.path("fields").get(0)).put("label", "检查说明");
+    boundDraft(scopeId, spec, "独立二版");
+    long second = publish(scopeId, "独立二版").toVersionId();
+    assertThat(recordTable(second)).isNotEqualTo(recordTable(first));
+    assertThat(jdbcTemplate.queryForObject("select count(*) from " + recordTable(second), Integer.class)).isZero();
+    assertThat(jdbcTemplate.queryForObject("select note from " + recordTable(first), String.class)).isEqualTo("原版记录");
+    assertThat(recordLocation(Long.parseLong(record.id())).get("storage_version_id")).isEqualTo(first);
+    var detail = formRecordService.detail(key, GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID), admin);
+    assertThat(detail.templateName()).isEqualTo("独立检查表");
+    assertThat(detail.records()).hasSize(1);
+    assertThat(detail.versionSpecs()).hasSize(2);
+    assertThat(exportService.export(first, List.of(PROJECT_ID), admin.userId()).rowCount()).isEqualTo(1);
+    assertThat(exportService.export(second, List.of(PROJECT_ID), admin.userId()).rowCount()).isZero();
+    formRecordService.update(record.id(), new com.data.collection.platform.entity.form.FormUpdateRequest(
+        GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID), key, Long.toString(scopeId),
+        Long.toString(first), Long.toString(first), record.recordVersion(),
+        toFields(objectMapper.createObjectNode().put("note", "原版修改"))), admin, "127.0.0.1", "JUnit");
+    assertThat(jdbcTemplate.queryForObject("select note from " + recordTable(first), String.class)).isEqualTo("原版修改");
+    assertThat(jdbcTemplate.queryForObject("select count(*) from " + recordTable(second), Integer.class)).isZero();
+    assertThat(jdbcTemplate.queryForObject("select status from form_change_heads where scope_id = ?", String.class, scopeId)).isEqualTo("CONSUMED");
+    assertThat(jdbcTemplate.queryForList("select * from fact_change_heads order by source_instance, fact_type, root_id")).isEqualTo(factHeadsBefore);
+  }
+
+  @Test
+  void copyingReplyCreatesIndependentFieldIdentitiesAndPreservesConditions() {
+    long originalScope = createScope("copy-source");
+    ObjectNode source = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
+    boundDraft(originalScope, source, "原版");
+    long version = publish(originalScope, "原版").toVersionId();
+    var copied = adminService.createTemplate(
+        new com.data.collection.platform.entity.form.admin.FormTemplateCreateRequest(
+            "独立回复", "issue", "AUTHORIZED_USER", version), admin);
+    JsonNode fields = copied.draft().fieldSpec().path("fields");
+    assertThat(fields.size()).isEqualTo(source.path("fields").size());
+    assertThat(fields.get(0).path("name").asText()).isNotEqualTo("fix_status");
+    assertThat(fields.get(1).path("requiredWhen").path("field").asText())
+        .isEqualTo(fields.get(0).path("name").asText());
+    assertThat(fields.get(1).path("options")).isEqualTo(source.path("fields").get(1).path("options"));
+    boundDraft(copied.scope().id(), (ObjectNode) copied.draft().fieldSpec(), "复制一版");
+    long target = publish(copied.scope().id(), "复制一版").toVersionId();
+    assertThat(jdbcTemplate.queryForObject("select count(*) from " + recordTable(target), Integer.class)).isZero();
+    assertThat(adminService.scope(originalScope).draft().fieldSpec()).isEqualTo(source);
   }
 
   @Test

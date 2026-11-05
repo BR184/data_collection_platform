@@ -5,7 +5,6 @@ import com.data.collection.platform.common.exception.FormConflictException;
 import com.data.collection.platform.common.response.ResultCode;
 import com.data.collection.platform.domain.form.FormSourceUrlSupport;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
-import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.service.GitlabResourceLinkService;
 import com.data.collection.platform.service.GitlabResourceRootResolver;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
@@ -35,16 +34,19 @@ public class FormRecordContextService {
   private final ObjectMapper objectMapper;
   private final FormScopeValidationService scopeValidationService;
   private final GitlabResourceLinkService resourceLinkService;
+  private final FormTemplateDefinitionService definitions;
 
   public FormRecordContextService(
       JdbcTemplate jdbcTemplate,
       ObjectMapper objectMapper,
       FormScopeValidationService scopeValidationService,
-      GitlabResourceLinkService resourceLinkService) {
+      GitlabResourceLinkService resourceLinkService,
+      FormTemplateDefinitionService definitions) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
     this.scopeValidationService = scopeValidationService;
     this.resourceLinkService = resourceLinkService;
+    this.definitions = definitions;
   }
 
   /**
@@ -156,11 +158,11 @@ public class FormRecordContextService {
     if ("merge_request".equals(type)) {
       rootId =
           GitlabResourceRootResolver.findMergeRequestRootId(
-              jdbcTemplate, GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, project, iid);
+              jdbcTemplate, matched.sourceInstance(), project, iid);
     } else {
       rootId =
           GitlabResourceRootResolver.findIssueRootId(
-              jdbcTemplate, GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, project, iid);
+              jdbcTemplate, matched.sourceInstance(), project, iid);
       severity = severityLevel(rootId);
     }
     return new FormVersionContext(
@@ -209,6 +211,23 @@ public class FormRecordContextService {
     if (current != context.storageVersionId()) {
       throw new FormConflictException("表单结构版本已变化，请刷新后重试");
     }
+  }
+
+  /** 每次正式写入核验填写对象，避免仅在页面隐藏操作造成越权。 */
+  public void requireFiller(FormVersionContext context, String account) {
+    if (!definitions.canFill(context, account)) {
+      throw new org.springframework.security.access.AccessDeniedException("该表单仅允许资源创建人填写");
+    }
+  }
+
+  /** 页面能力与写入口使用同一填写对象规则。 */
+  public boolean canFill(FormVersionContext context, String account) {
+    return definitions.canFill(context, account);
+  }
+
+  /** 定义名称不随版本变化，冻结字段仍按各记录所属版本读取。 */
+  public String templateName(String templateKey) {
+    return definitions.require(templateKey).displayName();
   }
 
   /** 写事务内锁定范围行与停写栅栏；编辑/作废按记录自身承载版本执行，不要求当前指针相等。 */
@@ -309,9 +328,7 @@ public class FormRecordContextService {
       throw new BizException(ResultCode.BAD_REQUEST, "模板编码不能为空");
     }
     String key = templateKey.trim();
-    if (!FormTemplateSpecCatalog.TEMPLATE_KEYS.contains(key)) {
-      throw new BizException(ResultCode.BAD_REQUEST, "未知模板：" + key);
-    }
+    definitions.require(key);
     return key;
   }
 
@@ -320,8 +337,7 @@ public class FormRecordContextService {
       throw new BizException(ResultCode.BAD_REQUEST, "资源类型不能为空");
     }
     String type = resourceType.trim();
-    String expected =
-        FormTemplateSpecCatalog.CODE_REVIEW.equals(templateKey) ? "merge_request" : "issue";
+    String expected = definitions.require(templateKey).resourceType();
     if (!expected.equals(type)) {
       throw new BizException(ResultCode.BAD_REQUEST, "模板与资源类型不匹配");
     }

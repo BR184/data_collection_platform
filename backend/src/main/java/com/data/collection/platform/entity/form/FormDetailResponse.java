@@ -22,4 +22,5 @@ public record FormDetailResponse(
     List<FormRecordView> records,
     FormResourceView resource,
     FormAccountView account,
-    FormCapabilitiesView capabilities) {}
+    FormCapabilitiesView capabilities,
+    String templateName) {}

@@ -9,7 +9,6 @@ import com.data.collection.platform.domain.form.FormScopeBinding;
 import com.data.collection.platform.domain.form.FormSourceUrlSupport;
 import com.data.collection.platform.domain.form.FormSpecValidator;
 import com.data.collection.platform.domain.form.FormTemplateSpec;
-import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.domain.form.FormVersionSchema;
 import com.data.collection.platform.entity.form.FormActorContext;
 import com.data.collection.platform.entity.form.admin.FormAdminViews;
@@ -17,6 +16,7 @@ import com.data.collection.platform.entity.form.admin.FormBindingRequest;
 import com.data.collection.platform.entity.form.admin.FormDraftUpdateRequest;
 import com.data.collection.platform.entity.form.admin.FormPublicationCreateRequest;
 import com.data.collection.platform.entity.form.admin.FormScopeCreateRequest;
+import com.data.collection.platform.entity.form.admin.FormTemplateCreateRequest;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,30 +48,30 @@ public class FormTemplateAdminService {
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
-  private final FormTemplateSpecCatalog specCatalog;
   private final FormSpecValidator specValidator;
   private final FormVersionSchemaService schemaService;
   private final FormScopeValidationService scopeValidationService;
   private final FormPublicationService publicationService;
   private final Clock clock;
+  private final FormTemplateDefinitionService definitions;
 
   public FormTemplateAdminService(
       JdbcTemplate jdbcTemplate,
       ObjectMapper objectMapper,
-      FormTemplateSpecCatalog specCatalog,
       FormSpecValidator specValidator,
       FormVersionSchemaService schemaService,
       FormScopeValidationService scopeValidationService,
       FormPublicationService publicationService,
-      Clock clock) {
+      Clock clock,
+      FormTemplateDefinitionService definitions) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
-    this.specCatalog = specCatalog;
     this.specValidator = specValidator;
     this.schemaService = schemaService;
     this.scopeValidationService = scopeValidationService;
     this.publicationService = publicationService;
     this.clock = clock;
+    this.definitions = definitions;
   }
 
   /** 模板与全部范围的当前状态。 */
@@ -79,7 +79,7 @@ public class FormTemplateAdminService {
   public List<FormAdminViews.TemplateSummary> templates() {
     Map<String, FormAdminViews.TemplateSummary> summaries = new LinkedHashMap<>();
     jdbcTemplate.query(
-        "select template_key, display_name, status from form_template_definitions order by template_key",
+        "select template_key, display_name, status, resource_type, fill_policy from form_template_definitions order by created_at, template_key",
         rs -> {
           summaries.put(
               rs.getString("template_key"),
@@ -87,6 +87,8 @@ public class FormTemplateAdminService {
                   rs.getString("template_key"),
                   rs.getString("display_name"),
                   rs.getString("status"),
+                  rs.getString("resource_type"),
+                  rs.getString("fill_policy"),
                   new ArrayList<>()));
         });
     for (ScopeRow row : listScopeRows(null)) {
@@ -152,11 +154,20 @@ public class FormTemplateAdminService {
         values (?, 1, ?::jsonb, '[]'::jsonb, ?, ?, ?)
         """,
         scopeId,
-        specCatalog.rawJson(templateKey),
+        definitions.require(templateKey).initialSpec(),
         UNBOUND_BINDING_HASH,
         actor.userId(),
         Timestamp.valueOf(now));
     return scope(scopeId);
+  }
+
+  /** 创建表单及首个草稿范围；任一失败整体回滚，随后在既有工作区编辑与发布。 */
+  @Transactional
+  public FormAdminViews.ScopeDetail createTemplate(
+      FormTemplateCreateRequest request, FormActorContext actor) {
+    FormTemplateDefinitionService.Definition definition = definitions.create(request);
+    return createScope(new FormScopeCreateRequest(
+        definition.key(), java.util.UUID.randomUUID().toString()), actor);
   }
 
   /**
@@ -178,7 +189,7 @@ public class FormTemplateAdminService {
     }
     String fieldSpecJson = writeJson(request.fieldSpec());
     FormTemplateSpec spec = parseSpec(fieldSpecJson, scope.templateKey());
-    specValidator.validate(spec);
+    specValidator.validateDraft(spec);
 
     ResolvedBinding binding = existing.binding();
     if (request.binding() != null) {
@@ -299,7 +310,7 @@ public class FormTemplateAdminService {
     if (spec != null) {
       FormTemplateSpec previous =
           scope.currentVersionId() == null
-              ? specCatalog.require(scope.templateKey())
+              ? parseSpec(definitions.require(scope.templateKey()).initialSpec(), scope.templateKey())
               : currentSpec(scope);
       diff = diff(previous, spec, blockers);
       impact = impact(scope);
@@ -1045,17 +1056,7 @@ public class FormTemplateAdminService {
   }
 
   private String requireTemplate(String templateKey) {
-    if (templateKey == null || !FormTemplateSpecCatalog.TEMPLATE_KEYS.contains(templateKey)) {
-      throw new BizException(ResultCode.BAD_REQUEST, "未知模板：" + templateKey);
-    }
-    List<String> statuses =
-        jdbcTemplate.queryForList(
-            "select status from form_template_definitions where template_key = ?",
-            String.class,
-            templateKey);
-    if (statuses.isEmpty() || !"ACTIVE".equals(statuses.getFirst())) {
-      throw new BizException(ResultCode.BAD_REQUEST, "模板定义不存在或未启用");
-    }
+    definitions.require(templateKey);
     return templateKey;
   }
 
@@ -1072,7 +1073,7 @@ public class FormTemplateAdminService {
   }
 
   private String resourceTypeOf(String templateKey) {
-    return FormTemplateSpecCatalog.CODE_REVIEW.equals(templateKey) ? "merge_request" : "issue";
+    return definitions.require(templateKey).resourceType();
   }
 
   private FormTemplateSpec parseSpec(String raw, String templateKey) {

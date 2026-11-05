@@ -94,6 +94,15 @@ public class CollectFormController {
             servletRequest.getHeader("User-Agent")));
   }
 
+  /** 动态填写目录，显示名称由服务端模板定义提供。 */
+  @GetMapping("/entries")
+  @RequirePermission(PlatformPermissionCodes.FORM_RECORD_CREATE)
+  public ApiResponse<List<java.util.Map<String, String>>> entries(
+      @RequestParam String resourceType, @RequestParam String gitlabBaseUrl,
+      @RequestParam Long projectId, HttpServletRequest request) {
+    return ApiResponse.success(formRecordService.templateEntries(resourceType, gitlabBaseUrl, projectId, actor(request)));
+  }
+
   @PutMapping("/records/{id}")
   @RequirePermission(PlatformPermissionCodes.FORM_RECORD_EDIT_OWN)
   public ApiResponse<FormRecordView> update(

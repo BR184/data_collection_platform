@@ -78,6 +78,18 @@ public class FormSpecValidator {
    * @return 按校验顺序排列的问题描述
    */
   public List<String> validationErrors(FormTemplateSpec spec) {
+    return validationErrors(spec, true);
+  }
+
+  /** 草稿允许尚未添加字段；字段与条件一经存在即遵循完整契约，发布仍要求非空。 */
+  public void validateDraft(FormTemplateSpec spec) {
+    List<String> errors = validationErrors(spec, false);
+    if (!errors.isEmpty()) {
+      throw new IllegalArgumentException("表单规格不合法：" + String.join("；", errors));
+    }
+  }
+
+  private List<String> validationErrors(FormTemplateSpec spec, boolean requireFields) {
     List<String> errors = new ArrayList<>();
     if (spec == null) {
       errors.add("表单规格不能为空");
@@ -89,7 +101,7 @@ public class FormSpecValidator {
     if (spec.specVersion() != 1) {
       errors.add("不支持的 spec_version " + spec.specVersion());
     }
-    if (spec.fields().isEmpty()) {
+    if (requireFields && spec.fields().isEmpty()) {
       errors.add("fields 不能为空");
     }
     Set<String> names = new HashSet<>();

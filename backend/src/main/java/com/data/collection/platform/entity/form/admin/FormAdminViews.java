@@ -13,6 +13,8 @@ public final class FormAdminViews {
       String templateKey,
       String displayName,
       String status,
+      String resourceType,
+      String fillPolicy,
       List<ScopeSummary> scopes) {}
 
   public record ScopeSummary(

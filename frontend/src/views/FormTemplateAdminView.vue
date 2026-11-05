@@ -70,6 +70,46 @@ const fieldRows = ref<FieldRow[]>([]);
 const conditionRows = ref<ConditionRow[]>([]);
 const specBase = ref<FormTemplateSpecView | null>(null);
 const createVisible = ref(false);
+const newTemplateVisible = ref(false);
+const newTemplateSaving = ref(false);
+const newTemplateName = ref('');
+const newTemplateResource = ref<'issue' | 'merge_request'>('issue');
+const newTemplatePolicy = ref<'AUTHORIZED_USER' | 'RESOURCE_AUTHOR'>('AUTHORIZED_USER');
+const newTemplateCopyVersion = ref<number | null>(null);
+const copyVersionOptions = computed(() => templates.value
+  .filter(item => item.resourceType === newTemplateResource.value)
+  .flatMap(item => item.scopes.filter(range => range.currentVersionId != null)
+    .map(range => ({ value: range.currentVersionId!, label: `${item.displayName} · ${range.currentVersionLabel || '当前版本'}` }))));
+watch(newTemplateResource, () => { newTemplateCopyVersion.value = null; });
+
+function templateName(key: string): string {
+  return templates.value.find(item => item.templateKey === key)?.displayName || formTitle(key);
+}
+
+async function createTemplate() {
+  if (!newTemplateName.value.trim()) {
+    ElMessage.warning('请填写表单名称');
+    return;
+  }
+  if (newTemplateSaving.value) return;
+  newTemplateSaving.value = true;
+  try {
+    const created = await collectFormsApi.createFormTemplate({
+      displayName: newTemplateName.value.trim(), resourceType: newTemplateResource.value,
+      fillPolicy: newTemplatePolicy.value, copyFromVersionId: newTemplateCopyVersion.value,
+    });
+    newTemplateVisible.value = false;
+    newTemplateName.value = '';
+    newTemplateCopyVersion.value = null;
+    await loadTemplates(created.scope.id);
+    ElMessage.success('表单已创建，请选择适用项目并编辑字段');
+    rangeVisible.value = true;
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '表单创建失败'));
+  } finally {
+    newTemplateSaving.value = false;
+  }
+}
 const createTemplateKey = ref('code_review');
 const createScopeKey = ref('');
 const bindingSourceId = ref<number | null>(null);
@@ -1234,7 +1274,7 @@ let saveInFlight: Promise<void> | null = null;
 const changes = computed(() => { try { return fieldChanges(initialSpec.value, buildSpec()); } catch { return []; } });
 const pendingCount = computed(() => new Set(changes.value.map(change => change.name || change.key)).size);
 const headerFailure = computed(() => publication.value?.stage === 'FAILED' ? publicationFailure(publication.value.lastError) : '');
-const displayTitle = computed(() => formTitle(scope.value?.templateKey ?? ''));
+const displayTitle = computed(() => templateName(scope.value?.templateKey ?? ''));
 const scopeDisplay = computed(() => scope.value ? rangeName(scope.value) : '');
 const editStatus = computed(() => saving.value || dirty.value ? '正在保存' : '已保存');
 
@@ -1394,8 +1434,9 @@ watch(() => scope.value?.id, () => closeVersionExport());
     <h1 class="page-title">表单管理</h1>
     <div class="admin-layout">
       <nav class="form-list" aria-label="选择表单">
+        <button class="new-template" @click="newTemplateVisible = true">＋ 新建表单</button>
         <section v-for="template in templates" :key="template.templateKey" class="form-group">
-          <h2>{{ formTitle(template.templateKey) }}</h2>
+          <h2>{{ template.displayName }}</h2>
           <button v-for="item in template.scopes" :key="item.id" class="scope-item" :class="{ selected: item.id === selectedScopeId }" @click="switchScope(item.id)">
             <span class="scope-name">{{ rangeName(item) }}</span>
             <span class="scope-state"><i :class="{ active: item.status === 'ACTIVE', changed: item.id === selectedScopeId && pendingCount > 0 }" />{{ item.id === selectedScopeId && pendingCount ? '有未发布修改' : item.status === 'ACTIVE' ? '已启用' : item.status === 'RETIRED' ? '已退役' : '草稿' }}</span>
@@ -1515,7 +1556,16 @@ watch(() => scope.value?.id, () => closeVersionExport());
 
     <el-dialog v-model="publishConfirmVisible" title="发布修改" width="min(560px, 90vw)" :close-on-click-modal="false"><ul class="confirm-changes"><li v-for="change in changes" :key="change.key">{{ change.text }}</li></ul><p v-if="!changes.length">将启用此表单供填写。</p><p class="history-effect">新版本从空结构开始；已有记录保留在原版本，不迁移、不改绑。</p><template #footer><el-button @click="publishConfirmVisible = false">继续编辑</el-button><el-button type="primary" @click="confirmPublication">确认发布</el-button></template></el-dialog>
 
-    <el-dialog v-model="createVisible" title="新建适用范围" width="420px"><el-form label-position="top"><el-form-item label="表单"><el-select v-model="createTemplateKey"><el-option v-for="template in templates" :key="template.templateKey" :label="formTitle(template.templateKey)" :value="template.templateKey" /></el-select></el-form-item><el-form-item label="适用范围名称"><el-input v-model="createScopeKey" placeholder="例如：CCProduct" /></el-form-item></el-form><template #footer><el-button @click="createVisible = false">取消</el-button><el-button @click="createScope">创建</el-button></template></el-dialog>
+    <el-dialog v-model="newTemplateVisible" title="新建表单" width="420px" :close-on-click-modal="!newTemplateSaving">
+      <el-form label-position="top" :disabled="newTemplateSaving" @submit.prevent="createTemplate">
+        <el-form-item label="表单名称" required><el-input v-model="newTemplateName" maxlength="128" placeholder="例如：代码自查表" /></el-form-item>
+        <el-form-item label="用于"><el-radio-group v-model="newTemplateResource"><el-radio value="issue">议题</el-radio><el-radio value="merge_request">合并请求</el-radio></el-radio-group></el-form-item>
+        <el-form-item label="填写人"><el-radio-group v-model="newTemplatePolicy"><el-radio value="AUTHORIZED_USER">有填写权限的人员</el-radio><el-radio value="RESOURCE_AUTHOR">议题或合并请求的创建人</el-radio></el-radio-group></el-form-item>
+        <el-form-item label="初始字段"><el-select v-model="newTemplateCopyVersion" clearable placeholder="从空白开始"><el-option v-for="option in copyVersionOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="newTemplateSaving" @click="newTemplateVisible = false">取消</el-button><el-button :loading="newTemplateSaving" @click="createTemplate">创建</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="createVisible" title="新建适用范围" width="420px"><el-form label-position="top"><el-form-item label="表单"><el-select v-model="createTemplateKey"><el-option v-for="template in templates" :key="template.templateKey" :label="template.displayName" :value="template.templateKey" /></el-select></el-form-item><el-form-item label="适用范围名称"><el-input v-model="createScopeKey" placeholder="例如：CCProduct" /></el-form-item></el-form><template #footer><el-button @click="createVisible = false">取消</el-button><el-button @click="createScope">创建</el-button></template></el-dialog>
 
     <el-drawer v-model="conflictVisible" title="其他管理员也修改了此表单" size="460px"><p>你的修改仍保留。选择使用哪份内容。</p><h3 class="conflict-heading">最新内容</h3><ul class="conflict-fields"><li v-for="field in conflictDraft?.fieldSpec.fields ?? []" :key="field.name">{{ field.label }} · {{ controlLabel(field.control) }}</li></ul><div class="conflict-actions"><el-button @click="keepLocalWithLatestRevision(); saveDraft()">保留我的修改</el-button><el-button @click="applyServerDraft">使用最新内容</el-button></div></el-drawer>
   </section>
@@ -1536,7 +1586,7 @@ watch(() => scope.value?.id, () => closeVersionExport());
 .scope-state i { width: 5px; height: 5px; border-radius: 50%; background: #8794a5; }
 .scope-state i.active { background: #229477; }
 .scope-state i.changed { background: #3578e6; }
-.new-range { margin: 8px 0 0 12px; background: none; border: 0; color: #37679f; font-size: 12px; cursor: pointer; padding: 3px 0; }
+.new-range, .new-template { margin: 8px 0 0 12px; background: none; border: 0; color: #37679f; font-size: 12px; cursor: pointer; padding: 3px 0; }
 .small-empty { margin: 9px 12px 4px; color: #758399; font-size: 12px; }
 .workspace { min-width: 0; }
 .workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; min-height: 68px; }

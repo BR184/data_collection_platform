@@ -124,6 +124,21 @@ export const collectFormsApi = {
   getFormTemplates() {
     return request<FormAdminTemplateSummary[]>('/api/collect-forms/templates');
   },
+  getFormEntries(context: { resourceType: string; gitlabBaseUrl: string; projectId: string }) {
+    return request<Array<{ templateKey: string; title: string }>>(
+      `/api/collect-forms/entries?${new URLSearchParams(context).toString()}`,
+    );
+  },
+  createFormTemplate(payload: {
+    displayName: string;
+    resourceType: 'issue' | 'merge_request';
+    fillPolicy: 'AUTHORIZED_USER' | 'RESOURCE_AUTHOR';
+    copyFromVersionId: number | null;
+  }) {
+    return request<FormAdminScopeDetail>('/api/collect-forms/templates', {
+      method: 'POST', body: JSON.stringify(payload),
+    });
+  },
   getFormScope(scopeId: number) {
     return request<FormAdminScopeDetail>(`/api/collect-forms/template-scopes/${scopeId}`);
   },

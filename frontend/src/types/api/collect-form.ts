@@ -106,6 +106,7 @@ export interface FormReadableVersionView {
 }
 
 export interface FormDetailResponse {
+  templateName?: string;
   templateKey: string;
   fieldSpec: FormTemplateSpecView;
   scopeId: string;
@@ -179,6 +180,8 @@ export interface FormAdminTemplateSummary {
   templateKey: string;
   displayName: string;
   status: string;
+  resourceType?: 'issue' | 'merge_request';
+  fillPolicy?: 'AUTHORIZED_USER' | 'RESOURCE_AUTHOR';
   scopes: FormAdminScopeSummary[];
 }
 

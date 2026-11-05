@@ -60,10 +60,6 @@ const TEMPLATE_TITLES: Record<string, string> = {
   issue_response: '问题响应表',
   issue_reply: '问题回复表',
 };
-const ISSUE_TEMPLATES = [
-  { templateKey: 'issue_response', title: '问题响应' },
-  { templateKey: 'issue_reply', title: '问题回复' },
-];
 const RESOURCE_TYPE_LABELS: Record<string, string> = {
   merge_request: '合并请求（MR）',
   issue: '问题（Issue）',
@@ -100,10 +96,7 @@ function contextFromQuery(path: string, query: LocationQuery): FormFillContext {
     };
   }
   const resourceType = queryText(query.resourceType);
-  let templateKey = queryText(query.templateKey);
-  if (!templateKey && resourceType === 'merge_request') {
-    templateKey = 'code_review';
-  }
+  const templateKey = queryText(query.templateKey);
   return {
     gitlabBaseUrl: queryText(query.gitlabBaseUrl),
     projectId: queryNumber(query.projectId) ?? 0,
@@ -132,15 +125,6 @@ function contextProblem(context: FormFillContext): string {
   }
   if (context.resourceType !== 'merge_request' && context.resourceType !== 'issue') {
     return `不支持的表单资源类型：${context.resourceType}`;
-  }
-  if (context.templateKey) {
-    const expected =
-      context.resourceType === 'merge_request'
-        ? ['code_review']
-        : ['issue_response', 'issue_reply'];
-    if (!expected.includes(context.templateKey)) {
-      return '模板与资源类型不匹配，请检查链接中的 templateKey';
-    }
   }
   return '';
 }
@@ -205,7 +189,7 @@ const blockSpecRequired = (block: FormBlockState): FormTemplateSpecView =>
 const spec = computed(() => detail.value?.fieldSpec ?? null);
 const blocks = computed<FormBlockState[]>(() => session.value?.state.blocks ?? []);
 const templateTitle = computed(
-  () => TEMPLATE_TITLES[activeContext.value?.templateKey ?? ''] ?? '统一表单',
+  () => detail.value?.templateName || TEMPLATE_TITLES[activeContext.value?.templateKey ?? ''] || '表单',
 );
 const severityLevel = computed(() => detail.value?.resource.severityLevel ?? null);
 const writable = computed(() => Boolean(detail.value?.writable));
@@ -639,7 +623,7 @@ function activateSession() {
       return;
     }
     seedDetailCandidates(instance.state.detail);
-    if (instance.state.detail?.templateKey === 'code_review' && instance.state.detail.writable) {
+    if (instance.state.detail?.fieldSpec.fields.some((field) => field.control === 'person-select') && instance.state.detail.writable) {
       void searchReviewers('');
     }
   });
@@ -657,6 +641,7 @@ interface EntryItem {
 
 const entries = ref<EntryItem[]>([]);
 const entriesLoading = ref(false);
+const entriesError = ref('');
 let entryRequestSeq = 0;
 
 async function loadEntries() {
@@ -666,7 +651,20 @@ async function loadEntries() {
   const context = routeContext.value;
   const seq = ++entryRequestSeq;
   entriesLoading.value = true;
-  entries.value = ISSUE_TEMPLATES.map((item) => ({
+  entriesError.value = '';
+  let templates: Array<{ templateKey: string; title: string }>;
+  try {
+    templates = await api.getFormEntries({ resourceType: context.resourceType, gitlabBaseUrl: context.gitlabBaseUrl, projectId: String(context.projectId) });
+  } catch (error) {
+    if (seq === entryRequestSeq) {
+      entries.value = [];
+      entriesError.value = getErrorMessage(error, '表单目录加载失败');
+      entriesLoading.value = false;
+    }
+    return;
+  }
+  if (seq !== entryRequestSeq || !entriesMode.value) return;
+  entries.value = templates.map((item) => ({
     ...item,
     loading: true,
     detail: null,
@@ -675,7 +673,7 @@ async function loadEntries() {
     draftCount: 0,
   }));
   const results = await Promise.allSettled(
-    ISSUE_TEMPLATES.map((item) =>
+    templates.map((item) =>
       api.getFormDetail({
         gitlabBaseUrl: context.gitlabBaseUrl,
         projectId: context.projectId,
@@ -688,7 +686,7 @@ async function loadEntries() {
   if (seq !== entryRequestSeq || !entriesMode.value) {
     return;
   }
-  entries.value = ISSUE_TEMPLATES.map((item, index) => {
+  entries.value = templates.map((item, index) => {
     const account = authState.currentUser.username;
     const contextKey = formContextKey({ ...context, templateKey: item.templateKey });
     const draftCount = readFormDrafts(account, contextKey).length;
@@ -717,7 +715,7 @@ async function loadEntries() {
   entriesLoading.value = false;
   const available = entries.value.find((item) => item.detail);
   seedDetailCandidates(available?.detail ?? null);
-  if (available?.detail?.templateKey === 'code_review') {
+  if (available?.detail?.fieldSpec.fields.some((field) => field.control === 'person-select')) {
     void searchReviewers('');
   }
 }
@@ -912,7 +910,7 @@ async function refreshList() {
 function retryInitialLoad() {
   void session.value?.initialize().then(() => {
     seedDetailCandidates(session.value?.state.detail ?? null);
-    if (session.value?.state.detail?.templateKey === 'code_review') {
+    if (session.value?.state.detail?.fieldSpec.fields.some((field) => field.control === 'person-select')) {
       void searchReviewers('');
     }
   });
@@ -1126,12 +1124,13 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <el-alert
-            v-if="!entriesLoading && entries.length > 0 && !entries.some((item) => item.detail)"
+            v-if="!entriesLoading && !entriesError && !entries.some((item) => item.detail)"
             type="info"
             :closable="false"
-            title="该资源尚未登记可填写的问题响应或问题回复模板"
+            title="该资源尚未登记可填写的表单"
             description="请联系管理员完成模板范围登记后再打开此入口。"
           />
+          <el-alert v-if="entriesError" type="error" :closable="false" :title="entriesError" />
         </section>
       </template>
 

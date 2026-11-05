@@ -67,6 +67,16 @@ public class FormRecordAuthorityService {
     return ((Number) row.get("authority_revision")).longValue();
   }
 
+  /** 详情能力复用写入口的持久权威核验，尚未登记时只读且不产生登记副作用。 */
+  public boolean isReady(FormVersionContext context) {
+    try {
+      ensureForWrite(context, "READ");
+      return true;
+    } catch (FormConflictException error) {
+      return false;
+    }
+  }
+
   private String canonical(String raw) {
     try {
       return FormSourceUrlSupport.canonicalize(raw);

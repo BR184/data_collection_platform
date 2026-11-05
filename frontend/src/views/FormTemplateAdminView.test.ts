@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     getFormTemplates: vi.fn(),
     getFormScope: vi.fn(),
     createFormScope: vi.fn(),
+    createFormTemplate: vi.fn(),
     saveFormDraft: vi.fn(),
     previewFormScope: vi.fn(),
     createFormPublication: vi.fn(),
@@ -456,6 +457,23 @@ describe('表单管理单页工作区', () => {
     await button(view,'确认发布').trigger('click'); await flushPromises();
     expect(mocks.api.createFormPublication).toHaveBeenCalledWith(7,expect.objectContaining({requestKey:expect.any(String)}));
     expect(mocks.messageBox.confirm).not.toHaveBeenCalled();
+  });
+
+  it('creates an independent form and enters the existing editing workspace', async () => {
+    const created = detail();
+    created.scope = { ...created.scope, id: 9, templateKey: 'form_independent' };
+    mocks.api.createFormTemplate.mockResolvedValue(created);
+    const view = await mountView();
+    await view.get('.new-template').trigger('click');
+    await flushPromises();
+    await view.get('input[placeholder="例如：代码自查表"]').setValue('代码自查表');
+    await button(view, '创建').trigger('click');
+    await flushPromises();
+    expect(mocks.api.createFormTemplate).toHaveBeenCalledWith({
+      displayName: '代码自查表', resourceType: 'issue', fillPolicy: 'AUTHORIZED_USER', copyFromVersionId: null,
+    });
+    expect(mocks.api.createFormScope).not.toHaveBeenCalled();
+    expect(view.text()).toContain('适用范围');
   });
 
   it('creates a range with a derived key on an insecure origin', async () => {

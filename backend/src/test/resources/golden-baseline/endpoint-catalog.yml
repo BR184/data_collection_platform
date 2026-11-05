@@ -896,12 +896,29 @@ endpoints:
             scope: "run_type = 'FACT_REFRESH' and status = 'QUEUED'"
             ignore-columns: [run_id, created_at, updated_at]
 
+  - method: GET
+    path: /api/collect-forms/entries
+    category: READ
+    cases:
+      - id: issue
+        query: resourceType=issue&projectId=9&gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com
+
   # =====CollectFormAdminController（表单字段管理与发布）=====
   - method: GET
     path: /api/collect-forms/templates
     category: READ
     cases:
       - id: default
+  - method: POST
+    path: /api/collect-forms/templates
+    category: WRITE
+    write-cases:
+      - id: missing-copy-version
+        body: '{"displayName":"独立表单","resourceType":"issue","fillPolicy":"AUTHORIZED_USER","copyFromVersionId":999999999}'
+        affected-tables:
+          - table: form_template_definitions
+          - table: form_template_scopes
+          - table: form_template_scope_drafts
   - method: GET
     path: /api/collect-forms/template-scopes/{scopeId}
     category: READ

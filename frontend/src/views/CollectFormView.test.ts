@@ -16,6 +16,7 @@ import CollectFormView from './CollectFormView.vue';
 const mocks = vi.hoisted(() => ({
   api: {
     getFormDetail: vi.fn(),
+    getFormEntries: vi.fn(),
     createFormRecord: vi.fn(),
     updateFormRecord: vi.fn(),
     voidFormRecord: vi.fn(),
@@ -166,6 +167,10 @@ function mockIssueDetails() {
 }
 
 beforeEach(() => {
+  mocks.api.getFormEntries.mockResolvedValue([
+    { templateKey: 'issue_response', title: '问题响应' },
+    { templateKey: 'issue_reply', title: '问题回复' },
+  ]);
   localStorage.clear();
   sessionStorage.clear();
   document.body.innerHTML = '';
@@ -209,6 +214,15 @@ afterEach(() => {
 });
 
 describe('CollectFormView', () => {
+  it('discovers independent MR forms and renders their business names', async () => {
+    mocks.api.getFormEntries.mockResolvedValue([{ templateKey: 'form_custom', title: '代码自查表' }]);
+    mocks.api.getFormDetail.mockResolvedValue(detail({ templateKey: 'form_custom', templateName: '代码自查表' }));
+    const current = await mountView('/external/forms?gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com&projectId=7&resourceType=merge_request&resourceId=3');
+    expect(mocks.api.getFormEntries).toHaveBeenCalledWith(expect.objectContaining({ resourceType: 'merge_request', projectId: '7' }));
+    expect(current.text()).toContain('代码自查表');
+    expect(mocks.api.getFormDetail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: 'form_custom' }));
+  });
+
   it('edits the first record inline and restores its card in the same order after saving', async () => {
     const first = inlineRecord('1', '第一条原值');
     const second = inlineRecord('2', '第二条原值');

@@ -190,7 +190,7 @@ class FormHeadCaptureIntegrationTest {
       jdbc.execute("alter table ods_gitlab_issues rename to first_sync_pending_issues");
       jdbc.execute("alter table ods_gitlab_merge_requests rename to first_sync_pending_mrs");
       FormDirectoryEventCursorService.Consumption result =
-          new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+          new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc)).consumePending(10);
       assertThat(result.consumed()).isZero();
       assertThat(result.woken()).isEmpty();
       assertThat(result.retry()).isEmpty();
@@ -211,7 +211,7 @@ class FormHeadCaptureIntegrationTest {
       status.setRollbackOnly();
       jdbc.execute("alter table ods_gitlab_merge_requests rename to missing_pending_mrs");
       assertThatThrownBy(() ->
-          new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10))
+          new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc)).consumePending(10))
           .isInstanceOf(org.springframework.jdbc.BadSqlGrammarException.class);
     });
   }
@@ -237,7 +237,7 @@ class FormHeadCaptureIntegrationTest {
             + " values (?, 'VERSION_ADDED', 1, ?::jsonb) returning id",
         Long.class, scopeId, "{\"versionId\":" + versionId + "}");
     FormDirectoryEventCursorService cursor =
-        new FormDirectoryEventCursorService(jdbc, services.objectMapper());
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc));
 
     FormDirectoryEventCursorService.Consumption first = cursor.consumePending(10);
     assertThat(first.consumed()).isEqualTo(1);
@@ -344,7 +344,7 @@ class FormHeadCaptureIntegrationTest {
         "{\"versionId\":" + v2.versionId() + "}");
 
     FormDirectoryEventCursorService.Consumption consumption =
-        new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc)).consumePending(10);
 
     assertThat(consumption.woken())
         .extracting(FormDirectoryEventCursorService.WokenResource::resourceId)
@@ -397,7 +397,7 @@ class FormHeadCaptureIntegrationTest {
         "{\"versionId\":" + versionId + "}");
 
     FormDirectoryEventCursorService.Consumption consumption =
-        new FormDirectoryEventCursorService(jdbc, services.objectMapper()).consumePending(10);
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc)).consumePending(10);
 
     assertThat(consumption.woken()).isEmpty();
     assertThat(
@@ -518,7 +518,7 @@ class FormHeadCaptureIntegrationTest {
   private FormDirectoryEventWorker newWorker(
       com.data.collection.platform.service.FormDirectoryEventBridge bridge) {
     return new FormDirectoryEventWorker(
-        new FormDirectoryEventCursorService(jdbc, services.objectMapper()),
+        new FormDirectoryEventCursorService(jdbc, services.objectMapper(), new FormCustomAuthorityService(jdbc)),
         bridge,
         new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource())));
   }

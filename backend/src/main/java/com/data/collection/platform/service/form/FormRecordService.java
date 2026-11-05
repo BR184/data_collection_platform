@@ -33,11 +33,12 @@ import org.springframework.security.authentication.InsufficientAuthenticationExc
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 三模板记录服务的读侧与会话编排；写事务由 {@link FormRecordWriteService} 承担。 */
+/** 表单记录服务的读侧与会话编排；写事务由 {@link FormRecordWriteService} 承担。 */
 @Service
 public class FormRecordService {
 
   private final FormRecordContextService contextService;
+  private final FormRecordAuthorityService authorityService;
   private final FormFieldValueService fieldValueService;
   private final FormRecordWriteService writeService;
   private final FormRecordStore store;
@@ -60,8 +61,10 @@ public class FormRecordService {
       FormRecordDirectoryService directoryService,
       FormRecordDirectoryReader directoryReader,
       JdbcTemplate jdbcTemplate,
-      com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+      com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+      FormRecordAuthorityService authorityService) {
     this.contextService = contextService;
+    this.authorityService = authorityService;
     this.fieldValueService = fieldValueService;
     this.writeService = writeService;
     this.store = store;
@@ -91,7 +94,9 @@ public class FormRecordService {
     FormVersionContext current =
         contextService.resolve(templateKey, gitlabBaseUrl, projectId, resourceType, resourceId, false);
     // 原位 LEGACY/NONE 版本没有实例表，只读展示历史记录。
-    boolean writable = current.writable() && current.recordTable() != null;
+    boolean writable = current.writable() && current.recordTable() != null
+        && current.rootId() != null && authorityService.isReady(current)
+        && contextService.canFill(current, actor.userId());
     FormRecordDirectoryReader.SourceSet sourceSet =
         directoryReader.captureSourceSet(current.scopeId());
     Map<String, JsonNode> versionSpecs = new LinkedHashMap<>();
@@ -171,7 +176,36 @@ public class FormRecordService {
         new FormCapabilitiesView(
             writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_CREATE),
             writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_EDIT_OWN),
-            writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_DELETE_OWN)));
+            writable && actor.hasPermission(PlatformPermissionCodes.FORM_RECORD_DELETE_OWN)),
+        contextService.templateName(current.spec().templateKey()));
+  }
+
+  /** 资源填写入口按持久模板定义发现；已退役范围仍可进入历史只读页面。 */
+  @Transactional(readOnly = true)
+  public List<Map<String, String>> templateEntries(String resourceType, String gitlabBaseUrl, Long projectId, FormActorContext actor) {
+    requireAuthenticated(actor);
+    requirePermission(actor, PlatformPermissionCodes.FORM_RECORD_CREATE);
+    if (!List.of("issue", "merge_request").contains(resourceType)) {
+      throw new BizException(ResultCode.BAD_REQUEST, "资源类型不支持");
+    }
+    if (projectId == null || projectId <= 0) {
+      throw new BizException(ResultCode.BAD_REQUEST, "项目编号必须为正整数");
+    }
+    String canonical;
+    try {
+      canonical = FormSourceUrlSupport.canonicalize(gitlabBaseUrl);
+    } catch (IllegalArgumentException error) {
+      throw new BizException(ResultCode.BAD_REQUEST, "代码平台地址不合法");
+    }
+    return jdbcTemplate.query("""
+        select d.template_key, d.display_name from form_template_definitions d
+         where d.resource_type = ? and d.status = 'ACTIVE' and exists (
+           select 1 from form_template_scopes s where s.template_key = d.template_key
+             and s.status in ('ACTIVE', 'RETIRED') and s.current_version_id is not null
+             and s.canonical_gitlab_base_url = ? and s.project_ids @> jsonb_build_array(?::bigint))
+         order by d.created_at, d.template_key
+        """, (rs, n) -> Map.of("templateKey", rs.getString("template_key"),
+            "title", rs.getString("display_name")), resourceType, canonical, projectId);
   }
 
   private String versionLabel(long versionId) {

@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.form.admin.FormPreviewRequest;
 import com.data.collection.platform.entity.form.admin.FormPublicationCreateRequest;
 import com.data.collection.platform.entity.form.admin.FormRetireRequest;
 import com.data.collection.platform.entity.form.admin.FormScopeCreateRequest;
+import com.data.collection.platform.entity.form.admin.FormTemplateCreateRequest;
 import com.data.collection.platform.security.PlatformPermissionCodes;
 import com.data.collection.platform.security.RequirePermission;
 import com.data.collection.platform.service.form.FormActorResolver;
@@ -57,6 +58,13 @@ public class CollectFormAdminController {
   @GetMapping("/templates")
   public ApiResponse<List<FormAdminViews.TemplateSummary>> templates() {
     return ApiResponse.success(adminService.templates());
+  }
+
+  /** 创建独立表单，不复制来源版本的记录。 */
+  @PostMapping("/templates")
+  public ApiResponse<FormAdminViews.ScopeDetail> createTemplate(
+      @Valid @RequestBody FormTemplateCreateRequest request, HttpServletRequest servletRequest) {
+    return ApiResponse.success("表单已创建", adminService.createTemplate(request, actorResolver.resolve(servletRequest)));
   }
 
   @GetMapping("/template-scopes/{scopeId}")

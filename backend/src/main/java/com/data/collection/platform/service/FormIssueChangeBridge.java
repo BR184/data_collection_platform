@@ -48,6 +48,18 @@ public class FormIssueChangeBridge {
     if (context == null || context.rootId() == null) {
       return;
     }
+    String kind = jdbcTemplate.queryForObject(
+        "select definition_kind from form_template_definitions where template_key = ?",
+        String.class, context.spec().templateKey());
+    if ("CUSTOM".equals(kind)) {
+      // 自定义表单的读模型就是同事务提交的目录与版本记录，没有内置事实消费者。
+      jdbcTemplate.update("""
+          update form_change_heads set consumed_change_version = latest_change_version,
+            status = 'CONSUMED', updated_at = clock_timestamp()
+          where scope_id = ? and project_id = ? and resource_type = ? and resource_id = ?
+          """, context.scopeId(), context.projectId(), context.resourceType(), context.resourceId());
+      return;
+    }
     String factType = factTypeOf(context.resourceType());
     if (factType == null) {
       return;

@@ -22,10 +22,13 @@ public class FormDirectoryEventCursorService {
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
+  private final FormCustomAuthorityService customAuthorities;
 
-  public FormDirectoryEventCursorService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+  public FormDirectoryEventCursorService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
+      FormCustomAuthorityService customAuthorities) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
+    this.customAuthorities = customAuthorities;
   }
 
   /** 被目录事件唤醒的 FORM 资源；调用方据此登记既有事实任务。 */
@@ -87,7 +90,7 @@ public class FormDirectoryEventCursorService {
             ? null
             : ((Number) scope.get("current_version_id")).longValue();
         boolean latest = eventRevision >= scopeRevision;
-        if (latest && currentVersionId != null) {
+        if (latest && currentVersionId != null && !customAuthorities.registerScope(scopeId)) {
           String hash = (String) scope.get("source_set_hash");
           String wakeKey = scopeId + ":" + scopeRevision;
           if (wokenKeys.add(wakeKey)) {
