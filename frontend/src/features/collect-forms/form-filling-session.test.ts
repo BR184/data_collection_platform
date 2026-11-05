@@ -182,6 +182,7 @@ function harness(options: {
   apiDetail?: FormDetailResponse;
   account?: string;
   editingSession?: string;
+  idPrefix?: string;
   templateKey?: string;
   spec?: FormTemplateSpecView;
   dialogs?: Partial<FormSessionDialogs>;
@@ -218,7 +219,7 @@ function harness(options: {
     api: api as unknown as FormApiLike,
     dialogs,
     now: () => new Date('2026-10-23T02:00:00.000Z'),
-    createId: () => `id-${++sequence}`,
+    createId: () => `${options.idPrefix ?? 'id'}-${++sequence}`,
   });
   sessions.push(session);
   return { session, api, dialogs, identity };
@@ -1504,6 +1505,99 @@ describe('form filling session', () => {
   });
 
   describe('W3-R03 权威详情变化后的草稿校验', () => {
+    function publishedNextVersion(records: FormRecordView[] = []): FormDetailResponse {
+      const nextSpec: FormTemplateSpecView = {
+        ...codeReviewSpec,
+        fields: [
+          ...codeReviewSpec.fields.filter((field) => field.apiKey !== 'supplementNote'),
+          { name: 'verification_note', apiKey: 'verificationNote', label: '验证说明', type: 'string', required: true },
+        ],
+      };
+      return detail(records, {
+        currentVersionId: '23', storageVersionId: '23', versionLabel: 'v2', fieldSpec: nextSpec,
+        readableVersions: [
+          { versionId: '22', versionLabel: 'v1', versionStatus: 'RETIRED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'a'.repeat(64) },
+          { versionId: '23', versionLabel: 'v2', versionStatus: 'PUBLISHED', instanceMode: 'MATERIALIZED', fieldSpecHash: 'b'.repeat(64) },
+        ],
+        versionSpecs: { '22': codeReviewSpec, '23': nextSpec },
+      });
+    }
+
+    it('restores unsaved input after publication and requires new fields only in an explicit new-version copy', async () => {
+      const first = harness({ editingSession: 'publication-session' });
+      await first.session.initialize();
+      const original = first.session.addCreateBlock()!;
+      await fillValid(first.session, original);
+      await first.session.changeField(original, 'supplementNote', '新版删除的字段仍须保留');
+      first.session.flushDrafts();
+      first.session.dispose();
+
+      const reopened = harness({ editingSession: 'publication-session', idPrefix: 'reopened', apiDetail: publishedNextVersion() });
+      await reopened.session.initialize();
+      const restored = reopened.session.state.blocks[0];
+      expect(restored.fields.supplementNote).toBe('新版删除的字段仍须保留');
+      expect(restored.storageVersionId).toBe('22');
+      expect(reopened.session.canSubmitBlock(restored)).toBe(false);
+
+      const copied = reopened.session.copyBlock(restored)!;
+      expect(copied.storageVersionId).toBe('23');
+      expect(copied.requestKey).not.toBe(restored.requestKey);
+      expect(copied.fields.reviewDurationMinutes).toBe(restored.fields.reviewDurationMinutes);
+      expect(copied.fields.verificationNote).toBeNull();
+      expect(copied.fields).not.toHaveProperty('supplementNote');
+      await reopened.session.submit(copied);
+      expect(reopened.api.createFormRecord).not.toHaveBeenCalled();
+      expect(copied.errors.verificationNote).toBeTruthy();
+      expect(reopened.session.state.blocks).toContain(restored);
+      expect(restored.fields.supplementNote).toBe('新版删除的字段仍须保留');
+    });
+
+    it('keeps an existing record edit on its original spec when a newer version adds a required field', async () => {
+      const saved = record();
+      const current = harness({ apiDetail: detail([saved]) });
+      await current.session.initialize();
+      const edit = current.session.startEdit(saved)!;
+      await current.session.changeField(edit, 'supplementNote', '旧记录仍按原字段保存');
+      current.api.getFormDetail.mockResolvedValue(publishedNextVersion([saved]));
+      await current.session.reload();
+
+      expect(current.session.canSubmitBlock(edit)).toBe(true);
+      expect(edit.storageVersionId).toBe('22');
+      expect(edit.fields.supplementNote).toBe('旧记录仍按原字段保存');
+      const updated = record({ recordVersion: 2, fields: { ...saved.fields, supplementNote: '旧记录仍按原字段保存' } });
+      current.api.updateFormRecord.mockResolvedValueOnce(updated);
+      current.api.getFormDetail.mockResolvedValue(publishedNextVersion([updated]));
+      await current.session.submit(edit);
+      expect(current.api.updateFormRecord).toHaveBeenCalledWith(saved.id, expect.objectContaining({
+        storageVersionId: '22', expectedStorageVersionId: '22', recordVersion: 1,
+        fields: expect.objectContaining({ supplementNote: '旧记录仍按原字段保存' }),
+      }));
+      expect(current.api.updateFormRecord.mock.calls[0][1].fields).not.toHaveProperty('verificationNote');
+    });
+
+    it('retirement preserves unsaved create and edit input while blocking both submissions', async () => {
+      const saved = record();
+      const current = harness({ apiDetail: detail([saved]) });
+      await current.session.initialize();
+      const creating = current.session.addCreateBlock()!;
+      await fillValid(current.session, creating);
+      const editing = current.session.startEdit(saved)!;
+      await current.session.changeField(editing, 'supplementNote', '退役时尚未提交');
+      current.api.getFormDetail.mockResolvedValue(detail([saved], {
+        scopeStatus: 'RETIRED', writable: false,
+        capabilities: { canCreate: false, canEditOwn: false, canVoidOwn: false },
+      }));
+      await current.session.reload();
+
+      expect(current.session.canSubmitBlock(creating)).toBe(false);
+      expect(current.session.canSubmitBlock(editing)).toBe(false);
+      expect(current.session.copyBlock(creating)).toBeNull();
+      expect(creating.fields.reviewerUserId).toBe('alice');
+      expect(editing.fields.supplementNote).toBe('退役时尚未提交');
+      expect(current.api.createFormRecord).not.toHaveBeenCalled();
+      expect(current.api.updateFormRecord).not.toHaveBeenCalled();
+    });
+
     async function filledBlock() {
       const current = harness();
       await current.session.initialize();
