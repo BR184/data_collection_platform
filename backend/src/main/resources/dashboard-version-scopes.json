@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "scopes": [
+    {
+      "key": "cc-2027-r1-r2",
+      "displayName": "CC2027R1&R2",
+      "projectId": 9,
+      "dimension": "TESTING_PHASE",
+      "anchorBusinessKey": "CC2027R1",
+      "memberBusinessKeys": ["CC2027R1", "CC2027R2"],
+      "reviewProjectNames": ["2027R1&R2"],
+      "integrationTestPhases": []
+    }
+  ]
+}

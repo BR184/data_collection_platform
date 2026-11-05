@@ -24,6 +24,18 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IntranetLdapPackagingTest(unittest.TestCase):
+    def test_release_query_timeout_overrides_old_environment_without_mutating_it(self):
+        context = self.build_context()
+        content = MODULE.compose_content(context)
+        self.assertIn('PLATFORM_QUERY_TIMEOUT_SECONDS: "1800"', content)
+        self.assertNotIn('${PLATFORM_QUERY_TIMEOUT_SECONDS', content)
+        preserved = MODULE.preserved_compose_content(replace(
+            context, baseline_compose_text=content.replace(
+                'PLATFORM_QUERY_TIMEOUT_SECONDS: "1800"',
+                'PLATFORM_QUERY_TIMEOUT_SECONDS: ${PLATFORM_QUERY_TIMEOUT_SECONDS:-30}')))
+        self.assertIn('PLATFORM_QUERY_TIMEOUT_SECONDS: "1800"', preserved)
+        self.assertNotIn('${PLATFORM_QUERY_TIMEOUT_SECONDS', preserved)
+
     def test_fresh_package_rejects_out_of_order_upgrade_option(self):
         args = MODULE.parse_args(["--mode", "fresh-empty", "--allow-out-of-order-migrations"])
         with self.assertRaisesRegex(MODULE.PackageError, "only valid for an approved incremental upgrade"):
@@ -2032,6 +2044,10 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             self.assertEqual(1, manifest["schemaVersion"])
             self.assertEqual(context.release_id, manifest["package"]["id"])
             self.assertEqual("incremental-update", manifest["package"]["type"])
+            self.assertEqual(
+                {"PLATFORM_QUERY_TIMEOUT_SECONDS": 1800},
+                manifest["compose"]["backendEnvironmentOverrides"],
+            )
             self.assertEqual(
                 "qa-flex-platform-backend:20260714-466478a4-working",
                 manifest["baseline"]["backendImage"],

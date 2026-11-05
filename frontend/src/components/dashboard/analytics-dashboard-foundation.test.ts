@@ -141,6 +141,36 @@ describe('analytics dashboard shared foundation', () => {
     )).toThrow('未注册的看板详情视图');
   });
 
+  it('routes review and new-issue drilldowns to the internal quality detail component', () => {
+    const reviewRoute = buildAnalyticsDetailRoute('quality-rd', {
+      viewKey: 'quality-review-records',
+      params: {
+        projectName: 'cc-2027-r1-r2',
+        reviewType: '需求说明书评审',
+        testingPhase: 'CC2027R1&R2',
+      },
+    });
+    expect(reviewRoute).toMatchObject({
+      name: 'quality-rd-analytics-detail',
+      params: { detailViewKey: 'quality-review-records' },
+      query: {
+        projectName: 'cc-2027-r1-r2',
+        reviewType: '需求说明书评审',
+      },
+    });
+    expect((reviewRoute as { query: Record<string, string> }).query)
+      .not.toHaveProperty('testingPhase');
+
+    expect(buildAnalyticsDetailRoute('quality-rd', {
+      viewKey: 'new-issue-defects',
+      params: { projectName: 'cc-2027-r1-r2', testingPhase: 'CC2027R1&R2' },
+    })).toMatchObject({
+      name: 'quality-rd-analytics-detail',
+      params: { detailViewKey: 'new-issue-defects' },
+      query: { projectName: 'cc-2027-r1-r2' },
+    });
+  });
+
   it('keeps pagination available for an empty current page with remaining records', () => {
     expect(shouldShowAnalyticsDetailPagination({
       dashboardKey: 'quality-rd',

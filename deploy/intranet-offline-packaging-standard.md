@@ -129,6 +129,8 @@ qa-flex-platform-frontend:<release-id>
 
 ## 基线与连续更新
 
+2026-11-06起，本轮看板/查询超时更新包在完整Compose的backend环境显式固定`PLATFORM_QUERY_TIMEOUT_SECONDS: "1800"`，覆盖旧.env或shell中的30秒，现场.env仍原样保留。该预算适用于平台JdbcTemplate查询，不局限MR；它延长等待上限，不改变SQL算法。回滚恢复备份Compose时恢复原配置。发布清单`compose.backendEnvironmentOverrides`记录此变更；验收须读取运行容器有效值，不能只检查默认值。
+
 更新包必须显式传入 `--baseline-dir`，其值只能是：
 
 1. 当前现场部署目录的受控副本，只包含唯一的 `docker-compose.yml` 与现场 `.env`；或

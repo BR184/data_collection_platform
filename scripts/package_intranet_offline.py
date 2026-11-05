@@ -33,6 +33,7 @@ JAVA_HOME = REPO_ROOT / "tools" / "jdk" / "jdk-21.0.10+7"
 MAVEN_HOME = REPO_ROOT / "tools" / "maven" / "apache-maven-3.9.9"
 BACKEND_JAR = REPO_ROOT / "backend" / "target" / "qa-flex-platform-backend-0.0.1-SNAPSHOT.jar"
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+PLATFORM_QUERY_TIMEOUT_SECONDS = 1800
 PACKAGE_PREFIX = "qaflex"
 POSTGRES_IMAGE = "postgres:16-alpine"
 BACKEND_IMAGE = "qa-flex-platform-backend"
@@ -753,7 +754,7 @@ PLATFORM_BACKUP_HOST_DIR=/opt/qaflex-backups
 GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE=1000
 GITLAB_MAX_SYNC_THREADS=16
 GITLAB_DELETE_RECONCILIATION_ENABLED=false
-PLATFORM_QUERY_TIMEOUT_SECONDS=30
+PLATFORM_QUERY_TIMEOUT_SECONDS={PLATFORM_QUERY_TIMEOUT_SECONDS}
 PLATFORM_SLOW_QUERY_THRESHOLD_MS=1000
 REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED=false
 """
@@ -1123,7 +1124,7 @@ services:
       GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE: ${{GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:-1000}}
       GITLAB_MAX_SYNC_THREADS: ${{GITLAB_MAX_SYNC_THREADS:-16}}
       GITLAB_DELETE_RECONCILIATION_ENABLED: ${{GITLAB_DELETE_RECONCILIATION_ENABLED:-false}}
-      PLATFORM_QUERY_TIMEOUT_SECONDS: ${{PLATFORM_QUERY_TIMEOUT_SECONDS:-30}}
+      PLATFORM_QUERY_TIMEOUT_SECONDS: "{PLATFORM_QUERY_TIMEOUT_SECONDS}"
       PLATFORM_SLOW_QUERY_THRESHOLD_MS: ${{PLATFORM_SLOW_QUERY_THRESHOLD_MS:-1000}}
       REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED: ${{REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:-false}}
     ports:
@@ -1159,11 +1160,11 @@ volumes:
 
 
 def preserved_compose_content(ctx: BuildContext) -> str:
-    """在基线完整 Compose 上只替换应用镜像并补运行模式开关。
+    """在基线完整 Compose 上替换应用镜像、运行模式及发布查询预算。
 
     验收套件等实例的 Compose 除 postgres/backend/frontend 外还包含 gitlab 等服务和
     变量镜像引用；重新生成标准三服务模型会删除这些服务、卷和端口。这里保留基线全文，
-    只变更平台应用镜像和迁移/调度开关，其它服务、卷、网络、挂载、端口与变量约定不变。
+    只变更平台应用镜像、迁移/调度开关和平台查询预算，其它服务、卷、网络、挂载与端口不变。
     """
     text = ctx.baseline_compose_text
     if not text.strip():
@@ -1173,6 +1174,10 @@ def preserved_compose_content(ctx: BuildContext) -> str:
     lines = _replace_service_image(lines, "frontend", f"{FRONTEND_IMAGE}:{ctx.frontend_tag}")
     lines = _ensure_service_setting(
         lines, "backend", "PLATFORM_RUN_MODE", "${PLATFORM_RUN_MODE:-service}"
+    )
+    # 本轮发布明确固定平台查询预算，避免旧现场.env的30秒覆盖新包。
+    lines = _ensure_service_setting(
+        lines, "backend", "PLATFORM_QUERY_TIMEOUT_SECONDS", str(PLATFORM_QUERY_TIMEOUT_SECONDS)
     )
     lines = _ensure_service_setting(
         lines,
@@ -1716,6 +1721,8 @@ SQL
 # QA Flex Platform 保数据更新包
 
 本包用于既有内网实例的受控升级。它保留现有 PostgreSQL 容器、volume、镜像表、事实表、同步状态、平台配置和业务数据，只重新创建后端与前端应用容器。
+
+本包在完整Compose中显式固定`PLATFORM_QUERY_TIMEOUT_SECONDS={PLATFORM_QUERY_TIMEOUT_SECONDS}`秒，优先于旧.env和shell的同名值；现场.env原样保留。该设置覆盖平台JdbcTemplate查询，不局限MR，未改变构建算法。回滚恢复备份Compose时恢复旧预算；升级后核对运行容器中的该值为{PLATFORM_QUERY_TIMEOUT_SECONDS}。
 
 {topology_note}
 
@@ -2681,6 +2688,9 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "entrypoint": "docker-compose.yml",
             "model": "single-authoritative-file",
             "environmentPreserved": ctx.mode == "incremental-update",
+            "backendEnvironmentOverrides": {
+                "PLATFORM_QUERY_TIMEOUT_SECONDS": PLATFORM_QUERY_TIMEOUT_SECONDS,
+            },
             **({
                 "defaultProjectName": default_compose_project_name(ctx),
                 "hostPorts": {

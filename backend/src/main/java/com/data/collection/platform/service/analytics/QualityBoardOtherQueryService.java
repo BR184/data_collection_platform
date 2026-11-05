@@ -1,8 +1,10 @@
 package com.data.collection.platform.service.analytics;
 
 import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import com.data.collection.platform.service.statistics.SystemTestPhaseMembershipPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -22,45 +24,70 @@ public class QualityBoardOtherQueryService {
       IssueScopeCatalogService.CROWN_CAD_PROJECT_ID;
 
   private final JdbcTemplate jdbcTemplate;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
+  private final DashboardVersionScopeService versionScopeService;
 
   public QualityBoardOtherQueryService(
       JdbcTemplate jdbcTemplate,
-      SystemTestPhaseScopeResolver phaseScopeResolver,
-      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport,
+      DashboardVersionScopeService versionScopeService) {
     this.jdbcTemplate = jdbcTemplate;
-    this.phaseScopeResolver = phaseScopeResolver;
     this.codeReviewReadSupport = codeReviewReadSupport;
+    this.versionScopeService = versionScopeService;
   }
 
   List<Row> load(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
-    String selectedScope = scope(topic, context);
+    String selectedScopeKey = scope(topic, context);
+    String selectedScopeLabel = scopeLabel(topic, context);
     List<Row> rows = switch (topic) {
-      case FUNCTION_DEFECT_COUNT -> functionDefectCountRows(scope(topic, context));
-      case FUNCTION_DEFECT_DENSITY -> functionDefectDensityRows(scope(topic, context));
-      case QUALITY_RANKING -> qualityRankingRows(scope(topic, context));
-      case MEMBER_UNRESOLVED_RATE -> memberUnresolvedRateRows(scope(topic, context));
+      case FUNCTION_DEFECT_COUNT -> functionDefectCountRows(selectedScopeKey);
+      case FUNCTION_DEFECT_DENSITY -> functionDefectDensityRows(selectedScopeKey);
+      case QUALITY_RANKING -> qualityRankingRows(selectedScopeKey);
+      case MEMBER_UNRESOLVED_RATE -> memberUnresolvedRateRows(selectedScopeKey);
       case RELEASE_LEAKAGE_RATE -> releaseLeakageRateRows();
       case DEVELOPMENT_LEAKAGE_RATE -> developmentLeakageRateRows();
     };
+    //统计范围只做显示投影：行内不放查询 key，单范围主题统一显示选中版本的业务名称。
     return rows.stream()
-        .map(row -> StringUtils.hasText(row.scope()) ? row : row.withScope(selectedScope))
+        .map(row -> StringUtils.hasText(row.scope()) ? row : row.withScope(selectedScopeLabel))
         .toList();
   }
 
+  /** 返回下钻、导出和来源版本使用的稳定查询身份。 */
   String scope(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
     if (topic.scopeParameterKey() == null) {
       return "全部启用版本";
     }
-    return context.parameter(topic.scopeParameterKey())
-        .filter(StringUtils::hasText)
-        .map(String::trim)
-        .orElseGet(() -> phaseScopeResolver.defaultParentName(CROWN_CAD_PROJECT_ID));
+    String requested = context.parameter(topic.scopeParameterKey()).orElse(null);
+    return versionScopeService
+        .resolve(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requested)
+        .businessKey();
+  }
+
+  /** 返回页面文案和文件名使用的显示名。 */
+  String scopeLabel(QualityBoardOtherTopic topic, AnalyticsDashboardQueryContext context) {
+    if (topic.scopeParameterKey() == null) {
+      return "全部启用版本";
+    }
+    String requested = context.parameter(topic.scopeParameterKey()).orElse(null);
+    return versionScopeService
+        .resolve(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, requested)
+        .displayName();
   }
 
   List<String> enabledProjectNames() {
-    return phaseScopeResolver.listEnabledParentNames(CROWN_CAD_PROJECT_ID);
+    return versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE)
+        .stream()
+        .map(DashboardVersionScopeService.VersionOption::value)
+        .toList();
+  }
+
+  private List<String> phaseValues(String projectName) {
+    DashboardVersionScope scope = versionScopeService.resolve(
+        CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE, projectName);
+    return scope.phases().stream()
+        .map(DashboardVersionScope.PhaseMember::sourceValue)
+        .toList();
   }
 
   String memberScopeSourceVersion() {
@@ -78,7 +105,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> functionDefectCountRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -103,12 +130,12 @@ public class QualityBoardOtherQueryService {
         """.formatted(phasePredicate.sql());
     return jdbcTemplate.query(
         sql,
-        (rs, rowNum) -> Row.count(projectName, rs.getString("item_name"), rs.getLong("numerator")),
+        (rs, rowNum) -> Row.count("", rs.getString("item_name"), rs.getLong("numerator")),
         args.toArray());
   }
 
   private List<Row> functionDefectDensityRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -128,7 +155,7 @@ public class QualityBoardOtherQueryService {
               .mapToLong(Map.Entry::getValue)
               .sum();
           long lines = Math.max(0L, entry.getValue() == null ? 0L : entry.getValue());
-          return Row.ratio(projectName, functionName, defectCount, lines,
+          return Row.ratio("", functionName, defectCount, lines,
               percentage(defectCount, lines));
         })
         .sorted((left, right) -> {
@@ -139,7 +166,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> qualityRankingRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -162,7 +189,7 @@ public class QualityBoardOtherQueryService {
                       * 1000D / lines)
                   .average()
                   .orElse(0D));
-          return Row.ratio(projectName, member.name(), totalDefects, lines, value);
+          return Row.ratio("", member.name(), totalDefects, lines, value);
         })
         .sorted((left, right) -> {
           int byValue = Double.compare(right.value(), left.value());
@@ -172,7 +199,7 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> memberUnresolvedRateRows(String projectName) {
-    List<String> phases = phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName);
+    List<String> phases = phaseValues(projectName);
     if (phases.isEmpty()) {
       return List.of();
     }
@@ -203,10 +230,14 @@ public class QualityBoardOtherQueryService {
   }
 
   private List<Row> releaseLeakageRateRows() {
-    List<String> projectNames = enabledProjectNames();
-    Map<String, IssueCounts> issueCounts = issueCountsByProject(projectNames);
-    return projectNames.stream()
-        .map(projectName -> releaseLeakageRateRow(projectName, issueCounts.get(projectName)))
+    List<DashboardVersionScopeService.VersionOption> options =
+        versionScopeService.listOptions(CROWN_CAD_PROJECT_ID, IssueScopeDimension.TESTING_PHASE);
+    Map<String, IssueCounts> issueCounts =
+        issueCountsByProject(options.stream().map(DashboardVersionScopeService.VersionOption::value)
+            .toList());
+    return options.stream()
+        .map(option -> releaseLeakageRateRow(
+            option.displayName(), issueCounts.get(option.value())))
         .sorted((left, right) -> {
           int byValue = Double.compare(right.value(), left.value());
           return byValue == 0 ? left.name().compareTo(right.name()) : byValue;
@@ -214,10 +245,10 @@ public class QualityBoardOtherQueryService {
         .toList();
   }
 
-  private Row releaseLeakageRateRow(String projectName, IssueCounts counts) {
+  private Row releaseLeakageRateRow(String projectLabel, IssueCounts counts) {
     long total = counts == null ? 0L : counts.total();
     long open = counts == null ? 0L : counts.open();
-    return Row.ratio(projectName, projectName, open, total, percentage(open, total));
+    return Row.ratio(projectLabel, projectLabel, open, total, percentage(open, total));
   }
 
   private List<Row> developmentLeakageRateRows() {
@@ -271,7 +302,7 @@ public class QualityBoardOtherQueryService {
   private BatchScope issueBatchScope(List<String> projectNames) {
     Set<ScopeEntry> entries = new LinkedHashSet<>();
     for (String projectName : projectNames) {
-      phaseScopeResolver.resolvePhases(CROWN_CAD_PROJECT_ID, projectName).stream()
+      phaseValues(projectName).stream()
           .filter(StringUtils::hasText)
           .map(phase -> new ScopeEntry(projectName, phase))
           .forEach(entries::add);

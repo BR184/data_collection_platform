@@ -25,9 +25,22 @@ const statisticBoardDetailQueryKeys = [
 ] as const;
 
 const detailViewRouteByKey: Readonly<Record<string, AnalyticsDetailViewRouteDefinition>> = {
-  'review-data-records': {
-    pageKey: 'review-data-home',
-    allowedQueryKeys: ['projectName', 'moduleName', 'reviewOwner', 'reviewType', 'problemStatus', 'reviewExpert'],
+  'quality-review-records': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: [
+      'projectName',
+      'reviewType',
+      'page',
+      'size',
+      'sortField',
+      'sortOrder',
+    ],
+  },
+  'new-issue-defects': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: ['projectName', 'page', 'size', 'sortField', 'sortOrder'],
   },
   'quality-code-review-records': {
     internalOwnerPageKey: 'quality-board-rd-quality-board',

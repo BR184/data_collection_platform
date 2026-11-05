@@ -24,7 +24,7 @@ public final class BiSystemTestCalculator {
   private static final BigDecimal LEVEL_ONE_TARGET = new BigDecimal("100.00");
   private static final BigDecimal P1_TARGET = new BigDecimal("90.00");
   private static final BigDecimal P2_TARGET = new BigDecimal("80.00");
-  private static final String RULE_VERSION = "bi-system-test-v3";
+  private static final String RULE_VERSION = "bi-system-test-v4";
 
   /**
    * 计算系统测试页面；缺失来源维度进入显式未知组，缺少不可替代度量时才标记不完整。

@@ -3,10 +3,17 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -16,15 +23,22 @@ public class QualityBoardCodeReviewReadSupport {
   static final String ALL_PROJECTS_OPTION = "全部";
   private static final String DEFAULT_CC_PROJECT = "CC2026R3";
   private static final String DEFAULT_DGM_PROJECT = "CrownCAD 2026 R3";
+  private static final Pattern VERSION_COMPONENT = Pattern.compile("(?:CC|CROWNCAD)?\\s*(20\\d{2})\\s*R\\s*(\\d+)");
+  private static final Pattern SP_VERSION = Pattern.compile("(?i)CC(20\\d{2})R(\\d+)SP(\\d+)");
+  private static final Pattern EXPLICIT_VERSION = Pattern.compile("^(?:CC|CROWNCAD)?(20\\d{2})R(\\d+)(?:SP(\\d+))?$", Pattern.CASE_INSENSITIVE);
+  private static final Pattern YEARLESS_VERSION = Pattern.compile("^R(\\d+)(?:SP(\\d+))?$", Pattern.CASE_INSENSITIVE);
 
   private final JdbcTemplate jdbcTemplate;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final DashboardVersionScopeService versionScopeService;
 
   public QualityBoardCodeReviewReadSupport(
       JdbcTemplate jdbcTemplate,
-      CodeReviewMatchModeSwitchService matchModeSwitchService) {
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      DashboardVersionScopeService versionScopeService) {
     this.jdbcTemplate = jdbcTemplate;
     this.matchModeSwitchService = matchModeSwitchService;
+    this.versionScopeService = versionScopeService;
   }
 
   public List<OptionItemResponse> listAvailableSources() {
@@ -56,9 +70,20 @@ public class QualityBoardCodeReviewReadSupport {
     return defectDensity(source, projectName, configuredReadMode());
   }
 
+  /**
+   * 按产品版本范围计算代码走查缺陷密度。普通版本按组合成员的 dev 事实归属，SP 版本按精确发布分支归属。
+   *
+   * @param source 代码走查来源，支持 {@code cc} 或 {@code dgm}
+   * @param productVersion 产品版本业务键
+   * @param readMode 本次请求冻结的读模式
+   * @return 每千行缺陷数；无可用范围时返回 0
+   */
   public double defectDensity(
-      String source, String projectName, CodeReviewDataReadMode readMode) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
+      String source, String productVersion, CodeReviewDataReadMode readMode) {
+    return defectDensity(resolveProductVersionScope(source, productVersion, readMode));
+  }
+
+  private double defectDensity(QualityBoardCodeReviewReadScope scope) {
     if (!scope.available()) {
       return 0D;
     }
@@ -75,7 +100,6 @@ public class QualityBoardCodeReviewReadSupport {
             row_number() over(partition by %s order by id asc) as row_number_in_mr
           from %s
           where %s
-            and lower(coalesce(target_branch, '')) = 'dev'
             and upper(coalesce(merge_request_state, '')) = 'MERGED'
             %s
         ),
@@ -115,6 +139,7 @@ public class QualityBoardCodeReviewReadSupport {
         queryScope.args().toArray());
   }
 
+  /** 按产品版本范围返回人员代码走查缺陷密度。 */
   public List<QualityBoardChartRowResponse> personDefectDensityRows(
       String personField,
       boolean excludeIllegalReviewerRows,
@@ -128,9 +153,16 @@ public class QualityBoardCodeReviewReadSupport {
       String personField,
       boolean excludeIllegalAssigneeRows,
       String source,
-      String projectName,
+      String productVersion,
       CodeReviewDataReadMode readMode) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
+    return personDefectDensityRows(
+        personField, excludeIllegalAssigneeRows,
+        resolveProductVersionScope(source, productVersion, readMode));
+  }
+
+  private List<QualityBoardChartRowResponse> personDefectDensityRows(
+      String personField, boolean excludeIllegalAssigneeRows,
+      QualityBoardCodeReviewReadScope scope) {
     if (!scope.available()) {
       return List.of();
     }
@@ -195,9 +227,13 @@ public class QualityBoardCodeReviewReadSupport {
     return frequencyRows(source, projectName, configuredReadMode());
   }
 
+  /** 按产品版本范围返回作者代码提交频次。 */
   public List<QualityBoardChartRowResponse> frequencyRows(
-      String source, String projectName, CodeReviewDataReadMode readMode) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
+      String source, String productVersion, CodeReviewDataReadMode readMode) {
+    return frequencyRows(resolveProductVersionScope(source, productVersion, readMode));
+  }
+
+  private List<QualityBoardChartRowResponse> frequencyRows(QualityBoardCodeReviewReadScope scope) {
     if (!scope.available()) {
       return List.of();
     }
@@ -224,6 +260,7 @@ public class QualityBoardCodeReviewReadSupport {
         queryScope.args().toArray());
   }
 
+  /** 按产品版本范围返回代码走查明细，供下钻和导出共用。 */
   public List<QualityBoardCodeReviewRecordExportRow> codeReviewRecordRows(
       String source,
       String projectName) {
@@ -232,10 +269,13 @@ public class QualityBoardCodeReviewReadSupport {
 
   public List<QualityBoardCodeReviewRecordExportRow> codeReviewRecordRows(
       String source,
-      String projectName,
+      String productVersion,
       CodeReviewDataReadMode readMode) {
-    //兼容模式-MatchMode：质量看板导出必须和统计共用 resolveScope，避免 DGM 兼容表影响正式 CC 读取。
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
+    return codeReviewRecordRows(resolveProductVersionScope(source, productVersion, readMode));
+  }
+
+  private List<QualityBoardCodeReviewRecordExportRow> codeReviewRecordRows(
+      QualityBoardCodeReviewReadScope scope) {
     if (!scope.available()) {
       return List.of();
     }
@@ -393,6 +433,155 @@ public class QualityBoardCodeReviewReadSupport {
         List.of());
   }
 
+  /**
+   * 将研发质量看板的产品版本转换为代码走查来源范围。该范围与原始项目名筛选隔离：
+   * R 版本只接受精确版本成员的 dev 记录，SP 版本只接受精确发布分支。
+   */
+  QualityBoardCodeReviewReadScope resolveProductVersionScope(
+      String requestedSource, String productVersion, CodeReviewDataReadMode readMode) {
+    String normalized = TextQuerySupport.trimToNull(productVersion);
+    QualityBoardCodeReviewReadScope base = resolveAllProjectsScope(requestedSource, readMode);
+    if (normalized == null) {
+      return unavailableScope(base);
+    }
+    Matcher spMatcher = SP_VERSION.matcher(normalized);
+    if (spMatcher.matches()) {
+      // SP1 的事实归属由发布分支唯一决定，允许其跨项目名承载。
+      return withExactTargetBranch(base,
+          "release_" + spMatcher.group(1) + "R" + spMatcher.group(2) + "_SP" + spMatcher.group(3));
+    }
+    QualityBoardCodeReviewReadScope devScope = withTargetBranch(base, "dev");
+    List<String> names = resolveProjectNamesForVersion(devScope, normalized);
+    if (names.isEmpty()) {
+      return unavailableScope(devScope);
+    }
+    return withProjectNames(devScope, names);
+  }
+
+  /**
+   * 把看板版本展开为代码走查来源项目名。组合入口按成员分别应用既有版本匹配规则，
+   * 取并集后仍只执行一次明细查询；非规范业务键保留原值精确归属。
+   */
+  private List<String> resolveProjectNamesForVersion(
+      QualityBoardCodeReviewReadScope scope, String productVersion) {
+    Optional<DashboardVersionScope> selection = versionScopeService.findSelection(
+        IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+        IssueScopeDimension.TESTING_PHASE,
+        productVersion);
+    if (selection.isEmpty()) {
+      return compactVersion(productVersion) == null
+          ? List.of(productVersion)
+          : queryProjectNames(scope).stream()
+              .filter(name -> matchesVersionMember(name, productVersion))
+              .toList();
+    }
+    List<String> memberKeys = selection.get().memberBusinessKeys();
+    if (memberKeys.size() == 1 && compactVersion(memberKeys.getFirst()) == null) {
+      return List.of(memberKeys.getFirst());
+    }
+    List<String> versionKeys = memberKeys.stream()
+        .filter(member -> compactVersion(member) != null)
+        .toList();
+    LinkedHashSet<String> names = new LinkedHashSet<>();
+    if (!versionKeys.isEmpty()) {
+      queryProjectNames(scope).stream()
+          .filter(name -> versionKeys.stream().anyMatch(key -> matchesVersionMember(name, key)))
+          .forEach(names::add);
+    }
+    memberKeys.stream()
+        .filter(member -> compactVersion(member) == null)
+        .forEach(names::add);
+    return List.copyOf(names);
+  }
+
+  private List<String> queryProjectNames(QualityBoardCodeReviewReadScope scope) {
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
+    String sql = "select distinct project_name from " + scope.tableName()
+        + " where " + queryScope.predicate()
+        + " and nullif(btrim(project_name), '') is not null";
+    org.springframework.jdbc.core.RowMapper<String> mapper =
+        (rs, rowNum) -> rs.getString("project_name");
+    return jdbcTemplate.query(sql, mapper, queryScope.args().toArray());
+  }
+
+  private QualityBoardCodeReviewReadScope withProjectNames(
+      QualityBoardCodeReviewReadScope scope, List<String> projectNames) {
+    return new QualityBoardCodeReviewReadScope(
+        scope.available(), scope.tableName(), scope.sourceInstance(), projectNames,
+        scope.mergeRequestIdentity(), scope.deletedPredicate(),
+        scope.additionalPredicate(), scope.additionalArgs());
+  }
+
+  private QualityBoardCodeReviewReadScope withTargetBranch(
+      QualityBoardCodeReviewReadScope scope, String targetBranch) {
+    String predicate = scope.additionalPredicate();
+    String branchPredicate = "lower(coalesce(target_branch, '')) = lower(?)";
+    String combined = predicate == null || predicate.isBlank()
+        ? branchPredicate : predicate + " and " + branchPredicate;
+    List<Object> args = new ArrayList<>(scope.additionalArgs());
+    args.add(targetBranch);
+    return new QualityBoardCodeReviewReadScope(
+        scope.available(), scope.tableName(), scope.sourceInstance(), scope.projectNames(),
+        scope.mergeRequestIdentity(), scope.deletedPredicate(), combined, args);
+  }
+
+  private QualityBoardCodeReviewReadScope withExactTargetBranch(
+      QualityBoardCodeReviewReadScope scope, String targetBranch) {
+    String predicate = scope.additionalPredicate();
+    String branchPredicate = "coalesce(target_branch, '') = ?";
+    String combined = predicate == null || predicate.isBlank()
+        ? branchPredicate : predicate + " and " + branchPredicate;
+    List<Object> args = new ArrayList<>(scope.additionalArgs());
+    args.add(targetBranch);
+    return new QualityBoardCodeReviewReadScope(
+        scope.available(), scope.tableName(), scope.sourceInstance(), scope.projectNames(),
+        scope.mergeRequestIdentity(), scope.deletedPredicate(), combined, args);
+  }
+
+  private boolean matchesVersionMember(String projectName, String productVersion) {
+    String target = compactVersion(productVersion);
+    return target != null && versionTokens(projectName).contains(target);
+  }
+
+  private java.util.Set<String> versionTokens(String value) {
+    if (value == null) {
+      return java.util.Set.of();
+    }
+    String normalized = value.toUpperCase(Locale.ROOT).replaceAll("\\s+", "");
+    String[] segments = normalized.split("[&/,、]");
+    java.util.Set<String> tokens = new java.util.LinkedHashSet<>();
+    String inheritedYear = null;
+    for (String segment : segments) {
+      Matcher explicit = EXPLICIT_VERSION.matcher(segment);
+      Matcher yearless = YEARLESS_VERSION.matcher(segment);
+      if (explicit.matches()) {
+        inheritedYear = explicit.group(1);
+        tokens.add(inheritedYear + "R" + explicit.group(2)
+            + (explicit.group(3) == null ? "" : "SP" + explicit.group(3)));
+      } else if (yearless.matches() && inheritedYear != null) {
+        tokens.add(inheritedYear + "R" + yearless.group(1)
+            + (yearless.group(2) == null ? "" : "SP" + yearless.group(2)));
+      } else {
+        return java.util.Set.of();
+      }
+    }
+    return tokens;
+  }
+
+  private String compactVersion(String value) {
+    Matcher matcher = VERSION_COMPONENT.matcher(value.toUpperCase(Locale.ROOT));
+    if (!matcher.matches()) {
+      return null;
+    }
+    return matcher.group(1) + "R" + matcher.group(2);
+  }
+
+  private QualityBoardCodeReviewReadScope unavailableScope(QualityBoardCodeReviewReadScope scope) {
+    return new QualityBoardCodeReviewReadScope(
+        false, scope.tableName(), scope.sourceInstance(), List.of(), scope.mergeRequestIdentity(),
+        scope.deletedPredicate(), scope.additionalPredicate(), scope.additionalArgs());
+  }
+
   QualityBoardCodeReviewReadScope resolveAllProjectsScope(
       String requestedSource, CodeReviewDataReadMode readMode) {
     String source = normalizeSource(requestedSource);
@@ -430,9 +619,25 @@ public class QualityBoardCodeReviewReadSupport {
       default -> throw new IllegalArgumentException("Unsupported code-review group field: " + groupField);
     };
     //兼容模式-MatchMode：其他看板的代码规模是正式 CC 业务口径，不能随兼容开关切到临时快照。
-    QualityBoardCodeReviewReadScope scope = StringUtils.hasText(projectName)
-        ? resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL)
-        : resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+    QualityBoardCodeReviewReadScope scope;
+    if (StringUtils.hasText(projectName)) {
+      QualityBoardCodeReviewReadScope base =
+          resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+      Optional<DashboardVersionScope> selection = versionScopeService.findSelection(
+          IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+          IssueScopeDimension.TESTING_PHASE,
+          projectName);
+      if (selection.isPresent() && selection.get().combined()) {
+        List<String> names = resolveProjectNamesForVersion(base, projectName);
+        scope = names.isEmpty()
+            ? unavailableScope(base)
+            : withProjectNames(base, names);
+      } else {
+        scope = resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL);
+      }
+    } else {
+      scope = resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+    }
     if (!scope.available()) {
       return Map.of();
     }

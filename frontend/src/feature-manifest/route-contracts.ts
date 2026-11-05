@@ -56,6 +56,7 @@ export const analyticsDashboardDetailQueryKeys = [
   'priorityLevel',
   'pointKey',
   'topic',
+  'reviewType',
   'functionCountProjectName',
   'functionDensityProjectName',
   'qualityRankingProjectName',

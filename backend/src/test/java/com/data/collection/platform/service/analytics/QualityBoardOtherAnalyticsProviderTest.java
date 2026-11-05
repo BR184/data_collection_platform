@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardDetailRes
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.service.PageRecordSnapshotService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -30,11 +31,17 @@ class QualityBoardOtherAnalyticsProviderTest {
     when(queryService.scope(
         any(QualityBoardOtherTopic.class),
         any(AnalyticsDashboardQueryContext.class))).thenReturn("CC2026R4");
+    when(queryService.scopeLabel(
+        any(QualityBoardOtherTopic.class),
+        any(AnalyticsDashboardQueryContext.class))).thenReturn("CC2026R4");
     when(workbookService.export(
         QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY, "CC2026R4", rows))
         .thenReturn(new byte[] {1, 2, 3});
     QualityBoardOtherAnalyticsProvider provider = new QualityBoardOtherAnalyticsProvider(
-        queryService, workbookService, mock(PageRecordSnapshotService.class));
+        queryService,
+        workbookService,
+        mock(PageRecordSnapshotService.class),
+        DashboardVersionScopeTestSupport.service());
     AnalyticsDashboardQueryContext context = AnalyticsDashboardQueryContext.empty();
 
     AnalyticsDashboardResponse.Chart chart = provider.loadDashboard(context).charts().stream()
@@ -64,6 +71,51 @@ class QualityBoardOtherAnalyticsProviderTest {
   }
 
   @Test
+  void combinedScopeUsesStableKeyForActionsButBusinessNameInDetailsAndExport() {
+    QualityBoardOtherQueryService queryService = mock(QualityBoardOtherQueryService.class);
+    QualityBoardOtherWorkbookService workbookService = mock(QualityBoardOtherWorkbookService.class);
+    List<QualityBoardOtherQueryService.Row> rows = List.of(
+        new QualityBoardOtherQueryService.Row("CC2027R1&R2", "装配", 2L, 1000L, 0.2D));
+    when(queryService.load(
+        eq(QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY),
+        any(AnalyticsDashboardQueryContext.class))).thenReturn(rows);
+    when(queryService.scope(
+        any(QualityBoardOtherTopic.class),
+        any(AnalyticsDashboardQueryContext.class))).thenReturn("cc-2027-r1-r2");
+    when(queryService.scopeLabel(
+        any(QualityBoardOtherTopic.class),
+        any(AnalyticsDashboardQueryContext.class))).thenReturn("CC2027R1&R2");
+    when(workbookService.export(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY, "CC2027R1&R2", rows))
+        .thenReturn(new byte[] {1, 2, 3});
+    QualityBoardOtherAnalyticsProvider provider = new QualityBoardOtherAnalyticsProvider(
+        queryService,
+        workbookService,
+        mock(PageRecordSnapshotService.class),
+        DashboardVersionScopeTestSupport.service());
+    AnalyticsDashboardQueryContext context = AnalyticsDashboardQueryContext.of(
+        Map.of("functionDensityProjectName", "cc-2027-r1-r2"));
+
+    AnalyticsDashboardResponse.Chart chart = provider.loadDashboard(context).charts().stream()
+        .filter(item -> item.key().equals(
+            QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY.chartKey()))
+        .findFirst()
+        .orElseThrow();
+    AnalyticsDashboardDetailResponse detail = provider.loadDetail(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY.viewKey(), context);
+    AnalyticsDashboardExport export = provider.export(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY.exportKey(), context);
+
+    assertThat(chart.detail().params())
+        .containsEntry("functionDensityProjectName", "cc-2027-r1-r2");
+    assertThat(detail.records()).singleElement().satisfies(record ->
+        assertThat(record).containsEntry("scope", "CC2027R1&R2"));
+    assertThat(export.filename())
+        .contains("CC2027R1&R2")
+        .doesNotContain("cc-2027-r1-r2");
+  }
+
+  @Test
   void denseCategoryChartsKeepTheLegacyWindowAndReadableLabels() {
     QualityBoardOtherQueryService queryService = mock(QualityBoardOtherQueryService.class);
     QualityBoardOtherWorkbookService workbookService = mock(QualityBoardOtherWorkbookService.class);
@@ -77,7 +129,10 @@ class QualityBoardOtherAnalyticsProviderTest {
         .thenReturn("CC2026R3");
 
     var provider = new QualityBoardOtherAnalyticsProvider(
-        queryService, workbookService, mock(PageRecordSnapshotService.class));
+        queryService,
+        workbookService,
+        mock(PageRecordSnapshotService.class),
+        DashboardVersionScopeTestSupport.service());
     AnalyticsDashboardResponse dashboard = provider.loadDashboard(AnalyticsDashboardQueryContext.empty());
     AnalyticsDashboardResponse.Chart chart = dashboard.charts().stream()
         .filter(item -> item.key().equals(QualityBoardOtherTopic.FUNCTION_DEFECT_COUNT.chartKey()))

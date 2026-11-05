@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
     getDatabaseTables: vi.fn(),
     getDatabaseTableRows: vi.fn(),
     refreshDatabaseTable: vi.fn(),
-    updateCollectFormRecord: vi.fn(),
   },
   message: {
     success: vi.fn(),
@@ -140,77 +139,15 @@ describe('DatabaseBrowserView', () => {
     }
   });
 
-  // R01 跨层回归：数据库浏览器内联编辑器读取/回写 remark 与全部可编辑字段。补齐声明列后，
-  // 五场景逐一核对完整 11 字段 payload（只覆盖用户实际编辑的标题或备注），防止评分被误写。
-  describe('collect_form_records 编辑器保存契约', () => {
-    // 与 collectFormRow 一致的固定输入 → 期望保存 payload（camelCase 11 字段）。
-    const BASE_ROW = {
-      formTitle: '原始标题',
-      reviewer: '张三',
-      reviewDurationMinutes: 60,
-      specificationScore: 1,
-      logicScore: 2,
-      performanceScore: 3,
-      designScore: 4,
-      otherScore: 5,
-      deleted: false,
-    };
-
-    beforeEach(() => {
-      mocks.api.getDatabaseTables.mockResolvedValue([
-        { tableName: 'collect_form_records', label: '采集表单记录', syncStatus: 'IDLE', lastSyncTime: null, tableKind: 'LOCAL', refreshable: false },
-      ]);
-      mocks.api.updateCollectFormRecord.mockResolvedValue(undefined);
-    });
-
-    function expectedPayload(overrides: Record<string, unknown>) {
-      return { id: 7, ...BASE_ROW, remark: '必须保留的原备注', ...overrides };
-    }
-
-    async function clickSaveAndExpect(expected: Record<string, unknown>) {
-      await clickDialogButton('保存修改');
-      await flushPromises();
-      expect(mocks.api.updateCollectFormRecord).toHaveBeenCalledTimes(1);
-      // 精确比较：任何额外/缺失字段或评分被改写都会失败，不像 toMatchObject 只断言子集。
-      expect(mocks.api.updateCollectFormRecord.mock.calls[0][0]).toEqual(expected);
-    }
-
-    it('只改标题并保存时保留原备注与全部评分', async () => {
-      const wrapper = await mountCollectForm({});
-      await openCollectFormEditor(wrapper);
-      await setDialogField('.db-edit-form input', '新标题');
-      await clickSaveAndExpect(expectedPayload({ formTitle: '新标题' }));
-      wrapper.unmount();
-    });
-
-    it('不改动任何字段直接保存时完整 payload 与行数据一致', async () => {
-      const wrapper = await mountCollectForm({});
-      await openCollectFormEditor(wrapper);
-      await clickSaveAndExpect(expectedPayload({}));
-      wrapper.unmount();
-    });
-
-    it('主动清空备注时提交空串，其余字段保持', async () => {
-      const wrapper = await mountCollectForm({});
-      await openCollectFormEditor(wrapper);
-      await setDialogField('.db-edit-form textarea', '');
-      await clickSaveAndExpect(expectedPayload({ remark: '' }));
-      wrapper.unmount();
-    });
-
-    it('原备注为 null 时沿用表单空串语义', async () => {
-      const wrapper = await mountCollectForm({ remark: null });
-      await openCollectFormEditor(wrapper);
-      await clickSaveAndExpect(expectedPayload({ remark: '' }));
-      wrapper.unmount();
-    });
-
-    it('原备注为空串时保存仍为空串', async () => {
-      const wrapper = await mountCollectForm({ remark: '' });
-      await openCollectFormEditor(wrapper);
-      await clickSaveAndExpect(expectedPayload({ remark: '' }));
-      wrapper.unmount();
-    });
+  it('旧表单记录只读展示，不提供已退役的内联编辑入口', async () => {
+    mocks.api.getDatabaseTables.mockResolvedValue([
+      { tableName: 'collect_form_records', label: '采集表单记录', syncStatus: 'IDLE', lastSyncTime: null, tableKind: 'LOCAL', refreshable: false },
+    ]);
+    const wrapper = await mountCollectForm({});
+    expect(wrapper.text()).toContain('原始标题');
+    expect(wrapper.text()).toContain('必须保留的原备注');
+    expect(wrapper.findAll('button').some((button) => button.text().includes('编辑'))).toBe(false);
+    wrapper.unmount();
   });
 });
 
@@ -270,27 +207,4 @@ async function mountCollectForm(rowOverrides: Record<string, unknown>) {
   await flushPromises();
   await flushPromises();
   return wrapper;
-}
-
-async function openCollectFormEditor(wrapper: Awaited<ReturnType<typeof mountCollectForm>>) {
-  const editButton = wrapper.findAll('button').find((button) => button.text().includes('编辑'));
-  expect(editButton).toBeTruthy();
-  await editButton!.trigger('click');
-  await flushPromises();
-  await flushPromises();
-}
-
-async function setDialogField(selector: string, value: string) {
-  const element = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | null;
-  expect(element).toBeTruthy();
-  element!.value = value;
-  element!.dispatchEvent(new Event('input', { bubbles: true }));
-  await flushPromises();
-}
-
-async function clickDialogButton(label: string) {
-  const button = Array.from(document.querySelectorAll('.el-dialog button')).find((item) => item.textContent?.includes(label));
-  expect(button).toBeTruthy();
-  button!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  await flushPromises();
 }

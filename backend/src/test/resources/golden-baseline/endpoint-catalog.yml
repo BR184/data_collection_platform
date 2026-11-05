@@ -185,6 +185,10 @@ endpoints:
         query: dashboardKey=quality-rd&viewKey=release-leakage-defects
       - id: quality-rd-fix-user-defects
         query: dashboardKey=quality-rd&viewKey=fix-user-defects
+      - id: quality-rd-quality-review-records
+        query: dashboardKey=quality-rd&viewKey=quality-review-records&reviewType=需求说明书评审
+      - id: quality-rd-new-issue-defects
+        query: dashboardKey=quality-rd&viewKey=new-issue-defects
       - id: quality-board-other-function-defect-count
         query: dashboardKey=quality-board-other&viewKey=other-function-defect-count
       - id: code-review-multi-statistics

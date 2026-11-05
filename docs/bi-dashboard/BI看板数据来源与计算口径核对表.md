@@ -38,6 +38,7 @@
 | G-06 | 全局 | 数据结构版本 | 数据状态 | 数据采集平台 | 早期候选 `schemaVersion` | 当前响应使用 `ruleVersion` 和强类型 DTO，没有独立 `schemaVersion`。 | 当前未使用 | [ ] |
 | G-07 | 全局 | 数据生成时间 | 数据状态 | BI / CAT | BI `BiPageResponse.generatedAt` | 由 BI 生成响应时间，仅用于显示和追溯，不能代替一致快照；CAT 未提供来源生成时间。 | BI计算 | [ ] |
 | G-08 | 全局 | 数据快照 ID | 数据状态 | 数据采集平台 / CAT | 平台 `PageRecordSnapshotService` / `issueFactSourceVersion` 发布身份；CAT 等价稳定身份待提供 | 平台四页使用冻结后的已发布来源身份；CAT 四接口未提供，不能用响应哈希或调用时间代替。 | 待确认 | [ ] |
+| G-09 | 全局 | 看板合并版本范围 | 请求/维度 | 数据采集平台 | `dashboard-version-scopes.json`（schemaVersion 1）+ `IssueScopeCatalogService` | 两个看板的候选把分组登记的原目录成员合并为一个入口，请求解析为成员原始事实并集；分组只在看板查询范围生效，不改目录、独立系统测试、客户问题或 CAT。成员按稳定业务键和原目录 ID 解析，不接受标签前缀/显示名猜测；同一稳定身份只计一次。各指标公式不变。 | BI计算 | [x] 2026-11-03 用户确认范围；生产目录/来源映射待只读取证 |
 | G-08A | 全局 | 来源版本 | 数据状态 | 数据采集平台 / CAT | 平台 `PageRecordSnapshotService` / `issueFactSourceVersion`；CAT 等价稳定身份待提供 | 记录当前页面自己的来源版本，不要求六页采集时刻一致。 | 待确认 | [ ] |
 | G-08B | 全局 | 业务规则版本 | 数据状态 | BI | 各计算器和分类器 `RULE_VERSION` | 由 BI 权威实现输出；规则变化时用于追溯和失效判断。 | BI计算 | [ ] |
 | G-08C | 全局 | 数据状态 | 数据状态 | BI / CAT | BI `BiDataStatus`；CAT 响应 `code/message/data` | BI 按来源完整性和公式边界计算 `READY/EMPTY/NOT_APPLICABLE/INCOMPLETE/ERROR`；CAT 错误分类仍待补充。 | BI计算 | [ ] |
@@ -138,13 +139,13 @@
 | CD-18 | 编码 | 人工走查实际工时（分钟） | 原始度量 | 数据采集平台 | 兼容态 `code_review_match_mode_records.review_duration_minutes` / 正式态 `code_review_formal_records.review_duration_minutes` | 走查速率的分母；转换为小时需除以 60。 | 等价映射 | [ ] |
 | CD-19 | 编码 | 人工走查有效问题数 | 计算输入 | 数据采集平台 | 兼容态 `code_review_match_mode_records.defect_count` / 正式态 `code_review_formal_records.defect_count` | 使用当前冻结人工走查读源已聚合的有效缺陷数。 | 等价映射 | [ ] |
 | CD-20 | 编码 | 代码走查缺陷密度（千行代码缺陷率） | 计算值 | BI | CD-17、CD-19 | `有效走查问题数 × 1000 ÷ 被走查代码行数`；目标区间 `[3.00, 12.00]`（2026-09-09 更新）。 | BI计算 | [ ] |
-| CD-21 | 编码 | 人工走查速率（行/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedLocPerHour` | `被走查代码行数 ÷ (实际工时分钟 ÷ 60)`。 | BI计算 | [ ] |
-| CD-22 | 编码 | 人工走查速率（KLOC/小时） | 计算值 | BI | CD-17、CD-18；可直接提供 `reviewSpeedKlocPerHour` | `被走查代码 KLOC ÷ (实际工时分钟 ÷ 60)`。具体展示单位待页面定稿时选择。 | BI计算 | [ ] |
+| CD-21 | 编码 | 人工走查速率（行/小时） | 计算值 | BI | CD-17、CD-18；单次可直接提供 `reviewSpeedLocPerHour` | `被走查代码行数 ÷ (实际工时分钟 ÷ 60)`。总体及模块范围内同一 MR 多次走查时，新增行数按 CD-01 只计一次，实际工时按有效走查记录累计；不得累加重复行数或平均各次速率（2026-10-30 用户确认）。 | BI计算 | [ ] |
+| CD-22 | 编码 | 人工走查速率（KLOC/小时） | 计算值 | BI | CD-17、CD-18；单次可直接提供 `reviewSpeedKlocPerHour` | `CD-21 ÷ 1000`，计算保留原始精度至最终舍入；总体及模块沿用 CD-21 的 MR 行数去重、走查工时累计规则。单次散点仍表示该条走查自身速率。 | BI计算 | [ ] |
 | CD-23 | 编码 | 人工走查缺陷密度目标下限 | 质量目标 | BI 规则 | `BiCodingCalculator.MIN_REVIEW_DENSITY` | 固定为 `3.00`（2026-09-09 更新）。 | BI计算 | [ ] |
 | CD-24 | 编码 | 人工走查缺陷密度目标上限 | 质量目标 | BI 规则 | `BiCodingCalculator.MAX_REVIEW_DENSITY` | 固定为 `12.00`（2026-09-09 更新）。 | BI计算 | [ ] |
 | CD-25 | 编码 | 人工走查缺陷密度达标状态 | 计算值 | BI | CD-20、CD-23、CD-24 | `3.00 ≤ 人工走查缺陷密度 ≤ 12.00` 为达标。 | BI计算 | [ ] |
 | CD-26 | 编码 | 模块人工走查缺陷密度 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-19 | 按来源快照内模块名称维度计算 `模块有效走查问题数 × 1000 ÷ 模块被走查代码行数`。 | BI计算 | [ ] |
-| CD-27 | 编码 | 模块人工走查速率 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-18 | 按来源快照内模块名称维度计算 `模块被走查代码行数 ÷ 模块实际工时（小时）`。 | BI计算 | [ ] |
+| CD-27 | 编码 | 模块人工走查速率 | 模块计算值 | BI | 兼容态 `code_review_match_mode_records.module_name` / 正式态 `code_review_formal_records.module_name`、CD-17、CD-18 | 按来源快照内模块名称维度计算 `模块去重被走查代码行数 ÷ 模块累计实际工时（小时）`，去重与累计边界遵循 CD-21。 | BI计算 | [ ] |
 | CD-28 | 编码 | 单次人工走查散点横坐标 | 图表计算值 | BI | CD-17、CD-18 | 当前使用 CD-22 的 KLOC/小时。 | BI计算 | [ ] |
 | CD-29 | 编码 | 单次人工走查散点纵坐标 | 图表计算值 | BI | CD-17、CD-19 | 值等于 CD-20。 | BI计算 | [ ] |
 | CD-30 | 编码 | 代码规范问题数 | 类别计数 | 数据采集平台 | 兼容态 `code_review_match_mode_records.code_specification_count` / 正式态 `code_review_formal_records.code_specification_count` | 当前筛选范围内本类别问题计数。 | 等价映射 | [ ] |
