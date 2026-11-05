@@ -901,7 +901,7 @@ endpoints:
     category: READ
     cases:
       - id: issue
-        query: resourceType=issue&projectId=9&gitlabBaseUrl=https%3A%2F%2Fgitlab.example.com
+        query: resourceType=issue&projectId=9&gitlabBaseUrl=http://gitlab.test.local:18080
 
   # =====CollectFormAdminController（表单字段管理与发布）=====
   - method: GET
