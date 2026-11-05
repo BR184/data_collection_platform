@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+from dataclasses import replace
 import hashlib
 import importlib.util
 import json
@@ -23,6 +24,21 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IntranetLdapPackagingTest(unittest.TestCase):
+    def test_fresh_package_rejects_out_of_order_upgrade_option(self):
+        args = MODULE.parse_args(["--mode", "fresh-empty", "--allow-out-of-order-migrations"])
+        with self.assertRaisesRegex(MODULE.PackageError, "only valid for an approved incremental upgrade"):
+            MODULE.resolve_context(args)
+
+    def test_out_of_order_is_explicit_and_only_in_one_shot_migration(self):
+        ordinary = MODULE.upgrade_helper(self.build_context())
+        self.assertIn("-e SPRING_FLYWAY_OUT_OF_ORDER=false backend", ordinary)
+        context = replace(self.build_context(), allow_out_of_order_migrations=True)
+        content = MODULE.upgrade_helper(context)
+        migration = content[content.index('log "running one-shot'):content.index('log "verifying Flyway')]
+        self.assertIn("-e SPRING_FLYWAY_OUT_OF_ORDER=true backend", migration)
+        service = content[content.index('log "recreating backend'):]
+        self.assertNotIn("SPRING_FLYWAY_OUT_OF_ORDER=true", service)
+
     def test_upgrade_uses_one_shot_migration_before_starting_service(self):
         content = MODULE.upgrade_helper(self.build_context())
         self.assertIn("PLATFORM_RUN_MODE=migrate", content)

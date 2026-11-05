@@ -242,6 +242,8 @@ python scripts\package_intranet_offline.py `
 
 不需要事实重建时省略最后两个事实参数。仅当发布显式声明历史 ODS 时刻纠正时，再追加 `--require-ods-correction`；该开关与事实范围独立，`all` 不自动包含。输出中的基线目录、前后端基线镜像、包类型和目标目录必须全部正确；否则停止。
 
+当目标迁移集合包含低于旧库水位的已审核缺失迁移时，计划解析和正式打包均追加 `--allow-out-of-order-migrations`。该选项写入清单的 `target.outOfOrderMigration`，只传给单次迁移容器；常驻服务保持默认关闭。现场仍由 Flyway 校验已执行迁移的 checksum，回滚使用迁移前数据库备份与配套旧包。
+
 确认后用完全相同的参数去掉 `--plan-only`：
 
 ```powershell

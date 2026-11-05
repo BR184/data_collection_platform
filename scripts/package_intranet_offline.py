@@ -81,6 +81,7 @@ class BuildContext:
     baseline_env_path: Path | None = None
     extra_services: tuple[str, ...] = ()
     preserve_baseline_topology: bool = False
+    allow_out_of_order_migrations: bool = False
 
 
 def log(message: str) -> None:
@@ -483,6 +484,8 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
             fail("incremental-update does not use --template-package-dir")
     if args.template_package_dir is not None and not args.include_offline_docker_debs:
         fail("--template-package-dir requires --include-offline-docker-debs")
+    if getattr(args, "allow_out_of_order_migrations", False) and args.mode != "incremental-update":
+        fail("--allow-out-of-order-migrations is only valid for an approved incremental upgrade")
 
     branch = git_value("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
     commit = git_value("rev-parse", "HEAD") or "unknown"
@@ -554,6 +557,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         baseline_name=baseline_name,
         container_names=container_names,
         expected_flyway_version=latest_flyway_version(),
+        allow_out_of_order_migrations=getattr(args, "allow_out_of_order_migrations", False),
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
@@ -2348,7 +2352,7 @@ if ! timeout --signal=TERM --kill-after=30s 900 env -u COMPOSE_PROJECT_NAME -u P
     -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose \
     --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" run --rm --no-deps -T \
     --name "$MIGRATION_CONTAINER" --label "com.qaflex.migration-token=$MIGRATION_TOKEN" \
-    -e PLATFORM_RUN_MODE=migrate -e PLATFORM_BACKGROUND_JOBS_ENABLED=false backend \
+    -e PLATFORM_RUN_MODE=migrate -e PLATFORM_BACKGROUND_JOBS_ENABLED=false -e SPRING_FLYWAY_OUT_OF_ORDER={str(ctx.allow_out_of_order_migrations).lower()} backend \
     > "$BACKUP_DIR/backend-migration.log" 2>&1; then
   cat "$BACKUP_DIR/backend-migration.log" >&2
   fail "one-shot migration failed or exceeded its process deadline; service was not started"
@@ -2653,6 +2657,7 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "os": "ubuntu-24.04-amd64",
             "offline": True,
             "flywayVersion": ctx.expected_flyway_version,
+            "outOfOrderMigration": ctx.allow_out_of_order_migrations,
             "images": {
                 "backend": {
                     "reference": f"{BACKEND_IMAGE}:{ctx.backend_tag}",
@@ -2926,6 +2931,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="include Ubuntu 24.04 Docker/Compose debs in a fresh package from the template directory",
     )
     parser.add_argument("--require-fact-rebuild", action="store_true")
+    parser.add_argument(
+        "--allow-out-of-order-migrations",
+        action="store_true",
+        help="allow reviewed missing lower-version migrations in the one-shot upgrade process only",
+    )
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument(
         "--require-ods-correction",
