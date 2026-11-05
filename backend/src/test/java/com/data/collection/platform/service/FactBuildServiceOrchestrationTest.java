@@ -118,7 +118,6 @@ class FactBuildServiceOrchestrationTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties(),
         mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
   }

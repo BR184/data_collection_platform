@@ -5,7 +5,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.service.QualityBoardCodeReviewReadSupport;
-import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeTestSupport;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -16,6 +17,45 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 class QualityBoardOtherQueryServiceTest {
+
+  @Test
+  void releaseLeakageCandidateUsesStableKeyButDisplaysCombinedName() {
+    var jdbc = new CapturingJdbcTemplate(true);
+    var service = new QualityBoardOtherQueryService(
+        jdbc,
+        mock(QualityBoardCodeReviewReadSupport.class),
+        DashboardVersionScopeTestSupport.service(
+            List.of(
+                DashboardVersionScopeTestSupport.group(
+                    10L,
+                    "CC2027R1",
+                    1,
+                    DashboardVersionScopeTestSupport.member(101L, "CC2027R1第一轮系统测试", 1)),
+                DashboardVersionScopeTestSupport.group(
+                    20L,
+                    "CC2027R2",
+                    2,
+                    DashboardVersionScopeTestSupport.member(201L, "CC2027R2第一轮系统测试", 1))),
+            List.of(DashboardVersionScopeTestSupport.scope(
+                "cc-2027-r1-r2",
+                "CC2027R1&R2",
+                "CC2027R1",
+                List.of("CC2027R1", "CC2027R2"),
+                List.of(),
+                List.of()))));
+
+    var rows = service.load(
+        QualityBoardOtherTopic.RELEASE_LEAKAGE_RATE,
+        AnalyticsDashboardQueryContext.empty());
+
+    assertThat(rows).extracting(QualityBoardOtherQueryService.Row::name)
+        .containsExactly("CC2027R1&R2");
+    assertThat(rows).extracting(QualityBoardOtherQueryService.Row::scope)
+        .containsExactly("CC2027R1&R2");
+    assertThat(jdbc.queryCalls).singleElement().satisfies(call -> assertThat(call.args())
+        .contains("cc-2027-r1-r2", "CC2027R1第一轮系统测试",
+            "cc-2027-r1-r2", "CC2027R2第一轮系统测试"));
+  }
 
   @Test
   void releaseLeakageAggregatesAllEnabledProjectsInOneIssueQuery() {
@@ -83,7 +123,7 @@ class QualityBoardOtherQueryServiceTest {
     QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     when(codeReview.reviewedAddedLinesByFunction("CC2026R3"))
         .thenReturn(Map.of("装配", 1000L, "工程图", 500L));
-    var service = new QualityBoardOtherQueryService(jdbc, phaseResolver(), codeReview);
+    var service = new QualityBoardOtherQueryService(jdbc, codeReview, versionScopeService());
 
     var rows = service.load(
         QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
@@ -109,7 +149,7 @@ class QualityBoardOtherQueryServiceTest {
     QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
     when(codeReview.addedLinesByAuthorAcrossAllProjects())
         .thenReturn(Map.of("张金花", 1000L, "刘敏", 2000L));
-    var service = new QualityBoardOtherQueryService(jdbc, phaseResolver(), codeReview);
+    var service = new QualityBoardOtherQueryService(jdbc, codeReview, versionScopeService());
 
     var rows = service.load(
         QualityBoardOtherTopic.QUALITY_RANKING,
@@ -128,21 +168,80 @@ class QualityBoardOtherQueryServiceTest {
         .contains("topic_key = 'QUALITY_RANKING'"));
   }
 
-  private QualityBoardOtherQueryService service(CapturingJdbcTemplate jdbc) {
-    return new QualityBoardOtherQueryService(
-        jdbc, phaseResolver(), mock(QualityBoardCodeReviewReadSupport.class));
+  @Test
+  void singleScopeTopicsProjectBusinessLabelIntoRowScopeButQueryByStableKey() {
+    var jdbc = new CapturingJdbcTemplate(true);
+    QualityBoardCodeReviewReadSupport codeReview = mock(QualityBoardCodeReviewReadSupport.class);
+    when(codeReview.reviewedAddedLinesByFunction("cc-2027-r1-r2"))
+        .thenReturn(Map.of("装配", 1000L));
+    when(codeReview.addedLinesByAuthorAcrossAllProjects())
+        .thenReturn(Map.of("张金花", 1000L));
+    var service = new QualityBoardOtherQueryService(
+        jdbc, codeReview, combinedVersionScopeService());
+
+    var functionRows = service.load(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_COUNT,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("functionCountProjectName", "cc-2027-r1-r2")));
+    var densityRows = service.load(
+        QualityBoardOtherTopic.FUNCTION_DEFECT_DENSITY,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("functionDensityProjectName", "cc-2027-r1-r2")));
+    var rankingRows = service.load(
+        QualityBoardOtherTopic.QUALITY_RANKING,
+        AnalyticsDashboardQueryContext.of(
+            Map.of("qualityRankingProjectName", "cc-2027-r1-r2")));
+
+    assertThat(functionRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
+    assertThat(densityRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
+    assertThat(rankingRows).isNotEmpty()
+        .allSatisfy(row -> assertThat(row.scope()).isEqualTo("CC2027R1&R2"));
   }
 
-  private SystemTestPhaseScopeResolver phaseResolver() {
-    var resolver = mock(SystemTestPhaseScopeResolver.class);
-    when(resolver.listEnabledParentNames(9L))
-        .thenReturn(List.of("CC2026R3", "CC2026R4"));
-    when(resolver.defaultParentName(9L)).thenReturn("CC2026R3");
-    when(resolver.resolvePhases(9L, "CC2026R3"))
-        .thenReturn(List.of("CC2026R3第一轮系统测试", "CC2026R3回归测试"));
-    when(resolver.resolvePhases(9L, "CC2026R4"))
-        .thenReturn(List.of("CC2026R4系统测试"));
-    return resolver;
+  private QualityBoardOtherQueryService service(CapturingJdbcTemplate jdbc) {
+    return new QualityBoardOtherQueryService(
+        jdbc, mock(QualityBoardCodeReviewReadSupport.class), versionScopeService());
+  }
+
+  private DashboardVersionScopeService combinedVersionScopeService() {
+    return DashboardVersionScopeTestSupport.service(
+        List.of(
+            DashboardVersionScopeTestSupport.group(
+                10L,
+                "CC2027R1",
+                1,
+                DashboardVersionScopeTestSupport.member(
+                    101L, "CC2027R1第一轮系统测试", 1)),
+            DashboardVersionScopeTestSupport.group(
+                20L,
+                "CC2027R2",
+                2,
+                DashboardVersionScopeTestSupport.member(
+                    201L, "CC2027R2第一轮系统测试", 1))),
+        List.of(DashboardVersionScopeTestSupport.scope(
+            "cc-2027-r1-r2",
+            "CC2027R1&R2",
+            "CC2027R1",
+            List.of("CC2027R1", "CC2027R2"),
+            List.of(),
+            List.of())));
+  }
+
+  private DashboardVersionScopeService versionScopeService() {
+    return DashboardVersionScopeTestSupport.service(
+        DashboardVersionScopeTestSupport.group(
+            30L,
+            "CC2026R3",
+            1,
+            DashboardVersionScopeTestSupport.member(301L, "CC2026R3第一轮系统测试", 1),
+            DashboardVersionScopeTestSupport.member(302L, "CC2026R3回归测试", 2)),
+        DashboardVersionScopeTestSupport.group(
+            40L,
+            "CC2026R4",
+            2,
+            DashboardVersionScopeTestSupport.member(401L, "CC2026R4系统测试", 1)));
   }
 
   private static final class CapturingJdbcTemplate extends JdbcTemplate {

@@ -127,8 +127,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
             formIssueInputResolver(),
             mock(FormIssueAuthorityRegistrar.class),
             formIssueBuildInputService(),
-            new com.data.collection.platform.config.FormAdoptionProperties(),
-            mock(FormMergeRequestBuildInputService.class),
+                mock(FormMergeRequestBuildInputService.class),
             mock(FormReviewProjectionService.class));
   }
 

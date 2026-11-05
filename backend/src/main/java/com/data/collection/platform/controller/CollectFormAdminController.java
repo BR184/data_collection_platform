@@ -43,16 +43,34 @@ public class CollectFormAdminController {
   private final FormPublicationService publicationService;
   private final FormActorResolver actorResolver;
   private final FormProjectCandidateService projectCandidateService;
+  private final com.data.collection.platform.service.form.FormIssueSettingsService issueSettingsService;
 
   public CollectFormAdminController(
       FormTemplateAdminService adminService,
       FormPublicationService publicationService,
       FormActorResolver actorResolver,
-      FormProjectCandidateService projectCandidateService) {
+      FormProjectCandidateService projectCandidateService,
+      com.data.collection.platform.service.form.FormIssueSettingsService issueSettingsService) {
     this.adminService = adminService;
     this.publicationService = publicationService;
     this.actorResolver = actorResolver;
     this.projectCandidateService = projectCandidateService;
+    this.issueSettingsService = issueSettingsService;
+  }
+
+  /** 获取绑定项目的响应/回复共用启用配置。 */
+  @GetMapping("/template-scopes/{scopeId}/issue-settings/{projectId}")
+  public ApiResponse<com.data.collection.platform.service.form.FormIssueSettingsService.View> issueSettings(
+      @PathVariable @Positive Long scopeId, @PathVariable @Positive Long projectId) {
+    return ApiResponse.success(issueSettingsService.view(scopeId, projectId));
+  }
+
+  /** 保存接入开关与生效时间；沿用表单管理权限和平台操作审计。 */
+  @PutMapping("/template-scopes/{scopeId}/issue-settings/{projectId}")
+  public ApiResponse<com.data.collection.platform.service.form.FormIssueSettingsService.View> saveIssueSettings(
+      @PathVariable @Positive Long scopeId, @PathVariable @Positive Long projectId,
+      @RequestBody com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest request) {
+    return ApiResponse.success("议题表单设置已保存", issueSettingsService.save(scopeId, projectId, request));
   }
 
   @GetMapping("/templates")

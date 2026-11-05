@@ -22,9 +22,9 @@ import com.data.collection.platform.service.BusinessDateProvider;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMergeRequestCommitFactCapability;
-import com.data.collection.platform.service.IssueScopeCatalogService;
 import com.data.collection.platform.service.PageRecordSnapshotService;
 import com.data.collection.platform.service.CustomerIssueFactQueryService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.data.collection.platform.service.statistics.StatisticBoardReadScopeResolver;
 import com.data.collection.platform.service.statistics.StatisticBoardSnapshotService;
@@ -35,7 +35,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class BiDashboardRuntimeFactory {
   private final JdbcTemplate jdbcTemplate;
-  private final IssueScopeCatalogService catalogService;
   private final PageRecordSnapshotService snapshotService;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final GitlabConfigService gitlabConfigService;
@@ -46,6 +45,7 @@ public class BiDashboardRuntimeFactory {
   private final StatisticBoardReadScopeResolver statisticBoardReadScopeResolver;
   private final BusinessDateProvider businessDateProvider;
   private final com.data.collection.platform.entity.read.ReadSelection fixedRead;
+  private final DashboardVersionScopeService versionScopeService;
 
   /** 每个页面请求创建持有固定组合的 Runtime，不把请求身份存入延迟共享 Runtime。 */
   public BiDashboardRuntimeFactory forRead(com.data.collection.platform.entity.read.ReadSelection selection) {
@@ -55,7 +55,7 @@ public class BiDashboardRuntimeFactory {
   private BiDashboardRuntimeFactory(BiDashboardRuntimeFactory factory,
       com.data.collection.platform.entity.read.ReadSelection selection) {
     this.jdbcTemplate = factory.jdbcTemplate;
-    this.catalogService = factory.catalogService.forRead(selection);
+    this.versionScopeService = factory.versionScopeService.forRead(selection);
     this.snapshotService = factory.snapshotService;
     this.matchModeSwitchService = selection instanceof com.data.collection.platform.entity.read.DatasetReadSelection dataset
         && dataset.datasets().stream().anyMatch(input -> input.datasetKey().equals("formal-records"))
@@ -73,7 +73,7 @@ public class BiDashboardRuntimeFactory {
   @org.springframework.beans.factory.annotation.Autowired
   public BiDashboardRuntimeFactory(
       JdbcTemplate jdbcTemplate,
-      IssueScopeCatalogService catalogService,
+      DashboardVersionScopeService versionScopeService,
       PageRecordSnapshotService snapshotService,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       GitlabConfigService gitlabConfigService,
@@ -84,7 +84,7 @@ public class BiDashboardRuntimeFactory {
       StatisticBoardReadScopeResolver statisticBoardReadScopeResolver,
       BusinessDateProvider businessDateProvider) {
     this.jdbcTemplate = jdbcTemplate;
-    this.catalogService = catalogService;
+    this.versionScopeService = versionScopeService;
     this.snapshotService = snapshotService;
     this.matchModeSwitchService = matchModeSwitchService;
     this.gitlabConfigService = gitlabConfigService;
@@ -103,7 +103,7 @@ public class BiDashboardRuntimeFactory {
     // 最后将完整运行时交给 RuntimeManager；Controller 不感知具体依赖。
     // 先组装稳定的产品版本目录和平台事实入口；这些入口只读平台已发布数据。
     var matcher = new BiProductVersionMatcher();
-    var versions = new BiPlatformProductVersionAdapter(catalogService);
+    var versions = new BiPlatformProductVersionAdapter(versionScopeService);
     var reviews = new BiPlatformReviewSourceAdapter(jdbcTemplate, snapshotService, matcher);
     var commits = new BiCodingCommitFactRepository(jdbcTemplate);
     var codeReviewSourceContextFactory = new BiPlatformCodeReviewSourceContextFactory(

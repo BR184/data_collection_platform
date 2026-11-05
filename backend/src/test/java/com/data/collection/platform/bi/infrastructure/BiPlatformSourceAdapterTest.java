@@ -17,6 +17,7 @@ import com.data.collection.platform.bi.domain.port.BiCodingSourcePort;
 import com.data.collection.platform.bi.domain.port.BiReviewSourcePort;
 import com.data.collection.platform.bi.domain.source.BiProductVersionScope;
 import com.data.collection.platform.bi.domain.source.BiCodingSource;
+import com.data.collection.platform.bi.domain.source.BiSystemTestSource;
 import com.data.collection.platform.service.PageRecordSnapshotService;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -97,7 +98,7 @@ class BiPlatformSourceAdapterTest {
     assertThat(source.codeReviews()).singleElement().satisfies(record ->
         assertThat(record.module().displayName()).isEqualTo("草图"));
     assertThat(source.sourceVersion())
-        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:scope-fp");
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class));
     assertThat(sql.getValue())
@@ -130,7 +131,7 @@ class BiPlatformSourceAdapterTest {
         null));
 
     assertThat(source.sourceVersion())
-        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:scope-fp");
     assertThat(source.mergeRequests()).singleElement().satisfies(record ->
         assertThat(record.mergeRequestIdentity()).isEqualTo(
             new BiCodingSource.CompatibilityMergeRequestIdentity("cc", 101L)));
@@ -294,9 +295,9 @@ class BiPlatformSourceAdapterTest {
         .forRead(com.data.collection.platform.service.read.TestReadSelections.datasets());
 
     assertThat(adapter.current("coding", scope()))
-        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:scope-fp");
     assertThat(adapter.current("coding", scope()))
-        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:scope-fp");
   }
 
   @Test
@@ -322,8 +323,78 @@ class BiPlatformSourceAdapterTest {
 
     assertThat(source.commitDetailsAvailable()).isFalse();
     assertThat(source.commits()).isEmpty();
-    assertThat(source.sourceVersion()).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion());
+    assertThat(source.sourceVersion()).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:scope-fp");
     org.mockito.Mockito.verify(commitRepository, org.mockito.Mockito.never()).load();
+  }
+
+  @Test
+  void combinedCodingScopeMatchesAnyMemberAndReturnsEachRowOnce() throws Exception {
+    ResultSet rs = codingRow();
+    when(rs.getString("project_name")).thenReturn("CC2027R1&R2");
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
+        .thenAnswer(invocation -> List.of(mapper(invocation.getArgument(1)).mapRow(rs, 0)));
+    when(snapshotService.codeReviewSourceVersion()).thenReturn("coding-v1");
+    when(compatibilityModeEnabled.getAsBoolean()).thenReturn(false);
+    var adapter = new BiPlatformCodingSourceAdapter(
+        jdbcTemplate,
+        new BiPlatformCodeReviewSourceContextFactory(
+            compatibilityModeEnabled, snapshotService, () -> "review-v1", () -> true,
+            () -> "commits-v1"),
+        new BiProductVersionMatcher(),
+        commitRepository);
+
+    BiCodingSource source = boundCoding(adapter, true).load(combinedScope(), codingQuery());
+
+    assertThat(source.mergeRequests()).hasSize(1);
+    assertThat(source.codeReviews()).hasSize(1);
+    assertThat(source.sourceVersion()).endsWith("|scope:combined-fp");
+  }
+
+  @Test
+  void combinedReviewScopeIncludesCombinedProjectNameOnce() throws Exception {
+    ResultSet rs = reviewRow();
+    when(rs.getString("project_name")).thenReturn("CC2027R1&R2");
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+        .thenAnswer(invocation -> List.of(mapper(invocation.getArgument(1)).mapRow(rs, 0)));
+    when(snapshotService.reviewDataSourceVersion()).thenReturn("review-v1");
+    var adapter = new BiPlatformReviewSourceAdapter(
+        jdbcTemplate, snapshotService, new BiProductVersionMatcher());
+
+    var source = adapter.forRead(com.data.collection.platform.service.read.TestReadSelections.datasets())
+        .load(combinedScope(), BiReviewSourcePort.ReviewStage.REQUIREMENTS);
+
+    assertThat(source.records()).hasSize(1);
+    assertThat(source.sourceVersion()).isEqualTo(com.data.collection.platform.service.read.TestReadSelections.datasets().sourceVersion() + "|scope:combined-fp");
+  }
+
+  @Test
+  void combinedSystemTestScopeQueriesAllMemberRoundsAndKeepsOneIssuePerRow()
+      throws Exception {
+    ResultSet rs = systemTestRow();
+    when(rs.getString("testing_phase")).thenReturn("CC2027R2第一轮系统测试");
+    when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+        .thenAnswer(invocation -> List.of(mapper(invocation.getArgument(1)).mapRow(rs, 0)));
+    when(snapshotService.issueFactSourceVersion(anyString(), any(Long.class), any(), anyString()))
+        .thenReturn("issue-v1");
+    var adapter = new BiPlatformSystemTestSourceAdapter(
+        jdbcTemplate,
+        snapshotService,
+        new BiSystemTestCauseClassifier(),
+        new BiSystemTestDelayCauseClassifier());
+
+    var source = adapter.forRead(com.data.collection.platform.service.read.TestReadSelections.all()).load(combinedScope());
+
+    assertThat(source.issues()).singleElement().satisfies(issue ->
+        assertThat(issue.roundId()).isEqualTo("r2-1"));
+    assertThat(source.rounds())
+        .extracting(BiSystemTestSource.RoundDefinition::roundName)
+        .containsExactly("R1第一轮", "R2第一轮");
+    assertThat(source.sourceVersion())
+        .isEqualTo(com.data.collection.platform.service.read.TestReadSelections.all().sourceVersion() + "|scope:combined-fp");
+    ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+    verify(jdbcTemplate).query(anyString(), any(RowMapper.class), args.capture());
+    assertThat(args.getValue())
+        .contains("CC2027R1第一轮系统测试", "CC2027R2第一轮系统测试");
   }
 
   @Test
@@ -393,7 +464,25 @@ class BiPlatformSourceAdapterTest {
         "CC2026R3",
         "CC2026R3",
         1,
-        List.of(new BiProductVersionScope.RoundScope("round-1", "CC2026R3", "第一轮", 1)));
+        List.of(new BiProductVersionScope.RoundScope("round-1", "CC2026R3", "第一轮", 1)),
+        List.of("CC2026R3"),
+        "scope-fp");
+  }
+
+  private BiProductVersionScope combinedScope() {
+    return new BiProductVersionScope(
+        10L,
+        278L,
+        "cc-2027-r1-r2",
+        "CC2027R1&R2",
+        2,
+        List.of(
+            new BiProductVersionScope.RoundScope(
+                "r1-1", "CC2027R1第一轮系统测试", "R1第一轮", 1),
+            new BiProductVersionScope.RoundScope(
+                "r2-1", "CC2027R2第一轮系统测试", "R2第一轮", 1)),
+        List.of("CC2027R1", "CC2027R2"),
+        "combined-fp");
   }
 
   private BiPlatformCodingSourceAdapter codingAdapter() {

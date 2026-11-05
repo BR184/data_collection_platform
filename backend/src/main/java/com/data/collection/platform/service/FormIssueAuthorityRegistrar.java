@@ -30,10 +30,12 @@ class FormIssueAuthorityRegistrar {
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
+  private final com.data.collection.platform.service.form.FormIssueSettingsService settingsService;
 
-  FormIssueAuthorityRegistrar(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+  FormIssueAuthorityRegistrar(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper, com.data.collection.platform.service.form.FormIssueSettingsService settingsService) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper;
+    this.settingsService = settingsService;
   }
 
   /**
@@ -41,13 +43,11 @@ class FormIssueAuthorityRegistrar {
    *
    * @param sourceInstance 来源实例
    * @param refs 议题及其创建时间
-   * @param enabledAt 启用点；为空时视为未启用，只能登记 {@code COMMENT}
    * @param now 登记时刻
    */
   void registerMissing(
       String sourceInstance,
       Map<FormIssueInputResolver.IssueRef, LocalDateTime> refs,
-      LocalDateTime enabledAt,
       LocalDateTime now) {
     if (refs == null || refs.isEmpty()) {
       return;
@@ -69,7 +69,9 @@ class FormIssueAuthorityRegistrar {
           ensureExistingFormHead(scope, ref, existing, now);
           continue;
         }
-        boolean form = enabledAt != null
+        var settings = settingsService.lockForUse(scope.sourceConfigId(), ref.projectId());
+        LocalDateTime enabledAt = settings.enabledAt() == null ? null : LocalDateTime.ofInstant(settings.enabledAt(), java.time.ZoneOffset.UTC);
+        boolean form = settings.enabled() && enabledAt != null
             && entry.getValue() != null
             && !entry.getValue().isBefore(enabledAt)
             && "ACTIVE".equals(scope.status())

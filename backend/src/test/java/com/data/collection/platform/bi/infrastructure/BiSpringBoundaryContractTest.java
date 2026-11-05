@@ -30,6 +30,7 @@ class BiSpringBoundaryContractTest {
         BiReviewCalculator.class,
         BiSystemTestCalculator.class,
         BiPlatformProductVersionAdapter.class,
+        BiCatProductVersionAdapter.class,
         BiPlatformReviewSourceAdapter.class,
         BiPlatformCodingSourceAdapter.class,
         BiCodingCommitFactRepository.class,

@@ -99,8 +99,7 @@ class FactBuildServiceTest {
             mock(FormIssueInputResolver.class),
             mock(FormIssueAuthorityRegistrar.class),
             mock(FormIssueBuildInputService.class),
-            new com.data.collection.platform.config.FormAdoptionProperties(),
-            mock(FormMergeRequestBuildInputService.class),
+                mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
 
     service.rebuildMergeRequestFactsForQueuedTask(config,
@@ -186,7 +185,6 @@ class FactBuildServiceTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties(),
         mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
 
@@ -323,7 +321,6 @@ class FactBuildServiceTest {
         mock(FormIssueInputResolver.class),
         mock(FormIssueAuthorityRegistrar.class),
         mock(FormIssueBuildInputService.class),
-        new com.data.collection.platform.config.FormAdoptionProperties(),
         mock(FormMergeRequestBuildInputService.class),
             emptyReviewProjection());
   }

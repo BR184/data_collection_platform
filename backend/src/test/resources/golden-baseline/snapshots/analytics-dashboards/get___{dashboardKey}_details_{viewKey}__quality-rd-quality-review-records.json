@@ -1,0 +1,290 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : {
+    "dashboardKey" : "quality-rd",
+    "viewKey" : "quality-review-records",
+    "title" : "评审缺陷明细",
+    "description" : "展示当前看板范围（含合并版本成员及组合评审来源）去重后的需求或设计评审记录，问题数与规模页数与指标口径一致。",
+    "columns" : [ {
+      "key" : "projectName",
+      "label" : "项目",
+      "format" : "text",
+      "width" : 150
+    }, {
+      "key" : "title",
+      "label" : "评审标题",
+      "format" : "text",
+      "width" : 300
+    }, {
+      "key" : "moduleName",
+      "label" : "模块",
+      "format" : "text",
+      "width" : 170
+    }, {
+      "key" : "reviewType",
+      "label" : "评审类型",
+      "format" : "text",
+      "width" : 180
+    }, {
+      "key" : "reviewDate",
+      "label" : "评审日期",
+      "format" : "date",
+      "width" : 130
+    }, {
+      "key" : "reviewOwner",
+      "label" : "评审负责人",
+      "format" : "text",
+      "width" : 150
+    }, {
+      "key" : "reviewExperts",
+      "label" : "评审专家",
+      "format" : "text",
+      "width" : 220
+    }, {
+      "key" : "authorName",
+      "label" : "作者",
+      "format" : "text",
+      "width" : 140
+    }, {
+      "key" : "reviewVersion",
+      "label" : "版本",
+      "format" : "text",
+      "width" : 150
+    }, {
+      "key" : "reviewScalePages",
+      "label" : "评审规模页数",
+      "format" : "number",
+      "width" : 140
+    }, {
+      "key" : "problemCount",
+      "label" : "问题数",
+      "format" : "number",
+      "width" : 120
+    } ],
+    "records" : [ {
+      "projectName" : "CC2026R3",
+      "title" : "【企业版模块】需求规格说明书评审",
+      "moduleName" : "企业版",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-27",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "华程逸、刘佳琪、牟敬芳、李东尧、张晓涵",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 28
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【钣金模块】需求规格说明书评审",
+      "moduleName" : "钣金",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-25",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "高新燕、高贯孟、刘旭阳",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 14
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【用户手册模块】需求规格说明书评审",
+      "moduleName" : "用户手册",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-23",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "牟敬芳、刘敏、武伟、庄晓、李令博、刘志国",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 10
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【BOM模块】需求规格说明书评审",
+      "moduleName" : "BOM",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "牟敬芳",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 4
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【后台管理模块】需求规格说明书评审",
+      "moduleName" : "后台管理系统",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "陈晖、张硕",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 6
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【工具模块】需求规格说明书评审",
+      "moduleName" : "工具",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "牟敬芳、高士亮、刘佳琪、高禹阳、张登航、高杨",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 11
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【工程图模块】需求规格说明书评审",
+      "moduleName" : "工程图",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "陈魁",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 25
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【库模块】需求规格说明书评审",
+      "moduleName" : "库",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "牟敬芳",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 6
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【数据转换模块】需求规格说明书评审",
+      "moduleName" : "数据交换",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "谭海燕、郭英科",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 2
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【渲染模块】需求规格说明书评审",
+      "moduleName" : "渲染",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "张硕、张子瑜",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 4
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【焊件模块】需求规格说明书评审",
+      "moduleName" : "焊件",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "崔雪峰、狄林林",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 3
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【特征模块】需求规格说明书评审",
+      "moduleName" : "特征",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "高新燕、gaoguanmeng",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 23
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【真实渲染模块】需求规格说明书评审",
+      "moduleName" : "渲染",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "张硕、张子瑜",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 7
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【管路模块】需求规格说明书评审",
+      "moduleName" : "管路",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "dilin、崔雪峰",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 7
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【草图模块】需求规格说明书评审",
+      "moduleName" : "草图",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "崔雪峰、王青、张晓涵",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 21
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【装配模块】需求规格说明书评审",
+      "moduleName" : "装配",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "陈荣昌、陈魁、高士亮",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 31
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【评估模块】需求规格说明书评审",
+      "moduleName" : "评估",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-11-13",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "白云涛、陈荣昌",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 8
+    }, {
+      "projectName" : "CC2026R3",
+      "title" : "【线缆模块】需求规格说明书评审",
+      "moduleName" : "线缆",
+      "reviewType" : "需求说明书评审",
+      "reviewDate" : "2025-10-29",
+      "reviewOwner" : "杨晓雨",
+      "reviewExperts" : "崔雪峰",
+      "authorName" : null,
+      "reviewVersion" : null,
+      "reviewScalePages" : 0,
+      "problemCount" : 2
+    } ],
+    "total" : 18,
+    "page" : 1,
+    "size" : 20,
+    "exports" : [ ],
+    "filters" : [ ],
+    "chart" : null
+  }
+}

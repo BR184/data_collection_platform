@@ -19,6 +19,8 @@ import FormTemplateAdminView from './FormTemplateAdminView.vue';
 const mocks = vi.hoisted(() => ({
   api: {
     getFormTemplates: vi.fn(),
+    getIssueSettings: vi.fn().mockResolvedValue({ ready: false, settings: { enabled: false, enabledAt: null, linkEnabled: false, externalBaseUrl: "", revision: 0 } }),
+    saveIssueSettings: vi.fn(),
     getFormScope: vi.fn(),
     createFormScope: vi.fn(),
     createFormTemplate: vi.fn(),

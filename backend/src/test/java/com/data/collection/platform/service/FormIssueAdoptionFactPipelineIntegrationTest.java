@@ -160,7 +160,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
   @Autowired private FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
   @Autowired private com.data.collection.platform.service.form.FormHeadCaptureService
       formHeadCaptureService;
-  @Autowired private com.data.collection.platform.config.FormAdoptionProperties adoptionProperties;
+  @Autowired private com.data.collection.platform.service.form.FormIssueSettingsService issueSettingsService;
   @Autowired private com.data.collection.platform.config.GitlabMirrorProperties mirrorProperties;
   @Autowired private FormIssueLinkProperties linkProperties;
   @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -217,9 +217,6 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
 
   @BeforeEach
   void setUp() {
-    adoptionProperties.setIssueEnabledAt(SWITCH_AT);
-    linkProperties.setEnabled(false);
-    linkProperties.setExternalBaseUrl(null);
     org.mockito.Mockito.doReturn(true)
         .when(qualification)
         .canBuildReadCandidate(
@@ -228,6 +225,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     GitlabIssueMirrorFixture.ensureSchema(jdbcTemplate);
     cleanSourceAndFacts();
     insertFormSourceConfig();
+    configureIssueSettings(SWITCH_AT, false);
     cleanFormDirectory();
     jdbcTemplate.execute("truncate read_publications, read_publication_domains cascade");
     LabelEventHistoryTestSupport.markComplete(jdbcTemplate, SOURCE_INSTANCE);
@@ -291,8 +289,6 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
       fakeGitlab = null;
     }
     postedNoteBodies.clear();
-    linkProperties.setEnabled(false);
-    linkProperties.setExternalBaseUrl(null);
   }
 
   @Test
@@ -1146,10 +1142,10 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         .as("启用点之前的议题保持原评论路径")
         .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
     assertThat(fact.get("resolve_deadline_at"))
-        .as("评论计划距创建超过 18 天时按既有 18 天默认期限")
-        .isEqualTo(LocalDateTime.of(2026, 10, 19, 10, 0));
+        .as("COMMENT仍读取评论计划，合法日期不再按18天截断")
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
     assertThat(fact.get("has_response")).isEqualTo(true);
-    assertThat(fact.get("is_resolve_delayed")).isEqualTo(true);
+    assertThat(fact.get("is_resolve_delayed")).isEqualTo(false);
 
     factBuildService.refreshCustomerIssueDelayFactsForConfig(config());
     FactRevisionFixture.completeRequiredProjections(
@@ -1158,7 +1154,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         ReadPublicationDomainKey.gitlabFact(SOURCE_INSTANCE, FactType.ISSUE),
         null);
     assertThat(liveFact(93002L).get("resolve_deadline_at"))
-        .isEqualTo(LocalDateTime.of(2026, 10, 19, 10, 0));
+        .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
   }
 
   @Test
@@ -1333,7 +1329,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(liveFact(93110L).get("planned_resolution_at"))
         .isEqualTo(LocalDateTime.of(2026, 11, 9, 0, 0));
 
-    adoptionProperties.setIssueEnabledAt(LocalDateTime.of(2026, 9, 1, 0, 0));
+    configureIssueSettings(LocalDateTime.of(2026, 9, 1, 0, 0), false);
     rebuildAllIssueFacts();
 
     assertThat(authorityOf(81110L, FormTemplateSpecCatalog.ISSUE_RESPONSE))
@@ -2019,7 +2015,6 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         SOURCE_INSTANCE,
         Map.of(new FormIssueInputResolver.IssueRef(PROJECT_ID, iid),
             LocalDateTime.of(2026, 11, 2, 10, 0)),
-        SWITCH_AT,
         LocalDateTime.of(2026, 11, 3, 0, 0));
   }
 
@@ -2471,14 +2466,79 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
         jdbcTemplate,
         gitlabConfigService,
         linkProperties,
+        issueSettingsService,
         objectMapper,
         platformAsyncExecutor,
         transactionManager);
   }
 
   private void enableLinkDelivery() {
-    linkProperties.setEnabled(true);
-    linkProperties.setExternalBaseUrl("https://platform.test");
+    configureIssueSettings(SWITCH_AT, true);
+  }
+
+  private void configureIssueSettings(LocalDateTime enabledAt, boolean links) {
+    jdbcTemplate.update("""
+        update gitlab_sync_configs set form_issue_settings = jsonb_build_object(?::text,
+          jsonb_build_object('enabled', true, 'enabledAt', ?::text, 'linkEnabled', ?::boolean,
+                            'externalBaseUrl', 'https://platform.test', 'revision', 1)) where id = ?
+        """, Long.toString(PROJECT_ID), enabledAt.toInstant(java.time.ZoneOffset.UTC).toString(), links, SOURCE_CONFIG_ID);
+  }
+
+  @Test
+  void projectSettingsAreSharedByBothTemplatesAndRejectStaleSave() {
+    var before = issueSettingsService.view(responseScopeId, PROJECT_ID);
+    var saved = issueSettingsService.save(replyScopeId, PROJECT_ID,
+        new com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest(
+            true, SWITCH_AT.toInstant(java.time.ZoneOffset.UTC), true, "https://platform.test/", before.settings().revision()));
+    assertThat(issueSettingsService.view(responseScopeId, PROJECT_ID).settings()).isEqualTo(saved.settings());
+    assertThat(saved.settings().externalBaseUrl()).isEqualTo("https://platform.test");
+    assertThat(issueSettingsService.read(SOURCE_CONFIG_ID, PROJECT_ID + 1).enabled()).isFalse();
+    assertThatThrownBy(() -> issueSettingsService.save(responseScopeId, PROJECT_ID,
+        new com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest(
+            false, SWITCH_AT.toInstant(java.time.ZoneOffset.UTC), false, "https://platform.test", before.settings().revision())))
+        .isInstanceOf(com.data.collection.platform.common.exception.BizException.class)
+        .hasMessageContaining("其他管理员");
+  }
+
+  @Test
+  void disablingProjectStopsNewAdoptionAndPendingDeliveryButKeepsExistingAuthority() throws Exception {
+    controlDeliveryTriggers();
+    long iid = 81901L;
+    enableLinkDelivery();
+    insertSourceIssue(93901L, iid, SWITCH_AT.plusDays(1));
+    rebuildAllIssueFacts();
+    awaitPlatformTasksSettled();
+    pointSourceConfigAt(startFakeGitlab(201, 0));
+    var current = issueSettingsService.view(responseScopeId, PROJECT_ID).settings();
+    issueSettingsService.save(responseScopeId, PROJECT_ID,
+        new com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest(
+            false, current.enabledAt(), true, current.externalBaseUrl(), current.revision()));
+    assertThat(formIssueLinkService.sendOne(deliveryAuthorityId(iid))).isFalse();
+    assertThat(postedNoteBodies).isEmpty();
+    insertSourceIssue(93902L, 81902L, SWITCH_AT.plusDays(2));
+    rebuildAllIssueFacts();
+    assertThat(authorityOf(iid, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isEqualTo("FORM");
+    assertThat(authorityOf(81902L, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isEqualTo("COMMENT");
+    assertThat(issueSettingsService.view(replyScopeId, PROJECT_ID).settings().linkEnabled()).isFalse();
+  }
+
+  @Test
+  void projectEnableTimeUsesCreationTimeAndRequiresBothPublishedTemplates() {
+    var current = issueSettingsService.view(responseScopeId, PROJECT_ID).settings();
+    issueSettingsService.save(responseScopeId, PROJECT_ID,
+        new com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest(
+            true, SWITCH_AT.plusDays(2).toInstant(java.time.ZoneOffset.UTC), false, "", current.revision()));
+    insertSourceIssue(93903L, 81903L, SWITCH_AT.plusDays(1));
+    insertSourceIssue(93904L, 81904L, SWITCH_AT.plusDays(2));
+    rebuildAllIssueFacts();
+    assertThat(authorityOf(81903L, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isEqualTo("COMMENT");
+    assertThat(authorityOf(81904L, FormTemplateSpecCatalog.ISSUE_RESPONSE)).isEqualTo("FORM");
+    jdbcTemplate.update("update form_template_scopes set status = 'RETIRED' where id = ?", replyScopeId);
+    var latest = issueSettingsService.view(responseScopeId, PROJECT_ID).settings();
+    assertThatThrownBy(() -> issueSettingsService.save(responseScopeId, PROJECT_ID,
+        new com.data.collection.platform.service.form.FormIssueSettingsService.SaveRequest(
+            true, SWITCH_AT.toInstant(java.time.ZoneOffset.UTC), true, "https://platform.test", latest.revision())))
+        .hasMessageContaining("先发布");
   }
 
   /** 指向本地替身 GitLab 并在来源配置中注入令牌；事实构建在此前后均只读 ODS。 */

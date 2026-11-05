@@ -220,6 +220,10 @@ endpoints:
         query: dashboardKey=quality-rd&viewKey=release-leakage-defects
       - id: quality-rd-fix-user-defects
         query: dashboardKey=quality-rd&viewKey=fix-user-defects
+      - id: quality-rd-quality-review-records
+        query: dashboardKey=quality-rd&viewKey=quality-review-records&reviewType=需求说明书评审
+      - id: quality-rd-new-issue-defects
+        query: dashboardKey=quality-rd&viewKey=new-issue-defects
       - id: quality-board-other-function-defect-count
         query: dashboardKey=quality-board-other&viewKey=other-function-defect-count
       - id: code-review-multi-statistics
@@ -946,6 +950,22 @@ endpoints:
         body: '{"expectedDraftRevision":1,"fieldSpec":{"spec_version":1,"template_key":"issue_reply","fields":[],"conditions":[],"dictionaries":[]}}'
         affected-tables:
           - table: form_template_scope_drafts
+  - method: GET
+    path: /api/collect-forms/template-scopes/{scopeId}/issue-settings/{projectId}
+    category: READ
+    cases:
+      - id: missing-scope
+        query: scopeId=999999999&projectId=325
+        expected-http-status: 400
+  - method: PUT
+    path: /api/collect-forms/template-scopes/{scopeId}/issue-settings/{projectId}
+    category: WRITE
+    write-cases:
+      - id: missing-scope
+        query: scopeId=999999999&projectId=325
+        body: '{"enabled":true,"enabledAt":"2026-11-05T00:00:00Z","linkEnabled":false,"externalBaseUrl":"","expectedRevision":0}'
+        affected-tables:
+          - table: gitlab_sync_configs
   - method: POST
     path: /api/collect-forms/template-scopes/{scopeId}/preview
     category: WRITE

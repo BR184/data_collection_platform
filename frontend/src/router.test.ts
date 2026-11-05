@@ -19,6 +19,16 @@ describe('router query normalization', () => {
     expect(normalizeQuery(to)).toBeNull();
   });
 
+  it('preserves reviewType on the internal dashboard detail route', () => {
+    const to = router.resolve({
+      name: 'quality-rd-analytics-detail',
+      params: { detailViewKey: 'quality-review-records' },
+      query: { projectName: 'cc-2027-r1-r2', reviewType: '需求说明书评审' },
+    });
+
+    expect(normalizeQuery(to)).toBeNull();
+  });
+
   it('preserves review-data keyword, serialized filterGroup, and legacy filter keys', () => {
     const to = router.resolve({
       path: '/review-data/home',

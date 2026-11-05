@@ -7,7 +7,6 @@ import com.data.collection.platform.bi.domain.source.BiProductVersionScope;
 import com.data.collection.platform.bi.domain.source.BiSourceDimension;
 import com.data.collection.platform.bi.domain.source.BiSystemTestSource;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
-import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.PageRecordSnapshotService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -158,7 +157,7 @@ public final class BiPlatformSystemTestSourceAdapter implements BiSystemTestSour
   }
 
   private String sourceVersion(BiProductVersionScope scope) {
-    return java.util.Objects.requireNonNull(fixedRead, "BI 读取必须绑定完整页面身份").sourceVersion();
+    return java.util.Objects.requireNonNull(fixedRead, "BI 读取必须绑定完整页面身份").sourceVersion() + "|scope:" + scope.fingerprint();
   }
 
   private record IssueRow(

@@ -60,7 +60,7 @@ class BiCatReadPublicationIntegrationTest {
     var reads = proxy(new PublishedReadService(publications, new ReadViewRepository(jdbc), properties, transactions), transactions);
     var domain = new ReadPublicationDomainKey(ReadPublicationProducerKind.CAT_MIRROR, "default", "DATASET", "cat:10:UNIT_TEST");
     var mapping = new BiCatMirrorModels.ScopeMapping(10, "CC2026R4", "project", "version", "unit", "integration");
-    var scope = new com.data.collection.platform.bi.domain.source.BiProductVersionScope(10, 9, "CC2026R4", "CC2026R4", 0, List.of());
+    var scope = new com.data.collection.platform.bi.domain.source.BiProductVersionScope(10, 9, "CC2026R4", "CC2026R4", 0, List.of(), List.of("CC2026R4"), "scope-fixture");
     UUID initial = publish(repository, jdbc, mapping, 90);
     var view = reads.acquireView(new AcquireReadViewRequest("tester", "session", "bi:unit-test", "version:10",
         LocalDate.of(2026, 10, 13), "rule", Set.of(domain), UUID.randomUUID()));

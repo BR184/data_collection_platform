@@ -53,7 +53,28 @@ export interface FormVoidPayload extends FormContextPayload {
   confirmationText: string;
 }
 
+/** 来源与项目共用的议题接入配置；enabledAt为带时区的ISO时刻，revision用于并发保存。 */
+export interface FormIssueSettings {
+  enabled: boolean;
+  enabledAt: string | null;
+  linkEnabled: boolean;
+  externalBaseUrl: string;
+  revision: number;
+}
+/** ready表示该项目响应、回复均具备唯一有效的已发布范围。 */
+export interface FormIssueSettingsView { settings: FormIssueSettings; ready: boolean }
+
 export const collectFormsApi = {
+  /** 通过已绑定范围读取该项目响应/回复共用设置。 */
+  getIssueSettings(scopeId: string, projectId: string) {
+    return request<FormIssueSettingsView>(`/api/collect-forms/template-scopes/${encodeURIComponent(scopeId)}/issue-settings/${encodeURIComponent(projectId)}`);
+  },
+  /** 按expectedRevision保存；冲突时保留本地输入，由管理员重新加载。 */
+  saveIssueSettings(scopeId: string, projectId: string, payload: Omit<FormIssueSettings, 'revision'> & { expectedRevision: number }) {
+    return request<FormIssueSettingsView>(`/api/collect-forms/template-scopes/${encodeURIComponent(scopeId)}/issue-settings/${encodeURIComponent(projectId)}`, {
+      method: 'PUT', body: JSON.stringify(payload),
+    });
+  },
   getFormDetail(params: FormContextPayload) {
     const query = new URLSearchParams({
       gitlabBaseUrl: params.gitlabBaseUrl,

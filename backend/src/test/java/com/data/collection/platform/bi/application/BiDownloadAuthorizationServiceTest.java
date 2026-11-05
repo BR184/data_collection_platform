@@ -20,7 +20,8 @@ class BiDownloadAuthorizationServiceTest {
   @Test
   void authorizesOnlyRegisteredTemplateWithCurrentSourceVersion() {
     BiProductVersionScope scope = new BiProductVersionScope(
-        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of());
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp");
     BiProductVersionPort versions = mock(BiProductVersionPort.class);
     BiCurrentSourceVersionPort sourceVersions = mock(BiCurrentSourceVersionPort.class);
     when(versions.requireScope(10L)).thenReturn(scope);
@@ -95,7 +96,8 @@ class BiDownloadAuthorizationServiceTest {
   @Test
   void registersEverySixStageProductChartInstanceWithItsTemplate() {
     BiProductVersionScope scope = new BiProductVersionScope(
-        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of());
+        10L, 9L, "CC2026R4", "CC2026R4", 1, List.of(),
+        List.of("CC2026R4"), "scope-fp");
     BiProductVersionPort versions = mock(BiProductVersionPort.class);
     BiCurrentSourceVersionPort sourceVersions = mock(BiCurrentSourceVersionPort.class);
     BiCustomerIssuePageService customerIssues = mock(BiCustomerIssuePageService.class);

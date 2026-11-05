@@ -439,8 +439,14 @@ class GoldenBaselineChainTest {
     if (node.isObject()) {
       var source = node.path("sourceVersion");
       if (source.isTextual() && source.asText().startsWith("publication:")) {
-        assertThat(source.asText()).isIn(version, factVersion);
-        ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("sourceVersion", "<verified-runtime-sourceVersion>");
+        String identity = source.asText();
+        int scopeIndex = identity.indexOf("|scope:");
+        String publicationIdentity = scopeIndex < 0 ? identity : identity.substring(0, scopeIndex);
+        String scopeIdentity = scopeIndex < 0 ? "" : identity.substring(scopeIndex);
+        assertThat(publicationIdentity).isIn(version, factVersion);
+        // 仅规范化已核实的发布身份；组合范围指纹保留原值，继续严格比较。
+        ((com.fasterxml.jackson.databind.node.ObjectNode) node).put(
+            "sourceVersion", "<verified-runtime-sourceVersion>" + scopeIdentity);
       }
     }
     node.elements().forEachRemaining(child -> canonicalSourceVersions(child, version, factVersion));

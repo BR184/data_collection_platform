@@ -27,7 +27,7 @@ public final class BiCodingCalculator {
   private static final BigDecimal MAX_REVIEW_DENSITY = new BigDecimal("12.00");
   private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
   private static final BigDecimal MINUTES_PER_HOUR = new BigDecimal("60");
-  private static final String RULE_VERSION = "bi-coding-v5";
+  private static final String RULE_VERSION = "bi-coding-v6";
 
   /**
    * 计算编码页面；上游能力、来源维度或计算分母不足时保留可用数据并标记相应分区。

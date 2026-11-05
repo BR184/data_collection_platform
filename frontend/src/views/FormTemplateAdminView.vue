@@ -8,6 +8,7 @@ import { HttpRequestError, isApiBizError } from '../api-client/request';
 import { authState } from '../composables/auth-state';
 import { hasPermission } from '../feature-manifest';
 import SmartSelect from '../components/base/SmartSelect.vue';
+import FormIssueSettingsPanel from './form-template-admin/FormIssueSettingsPanel.vue';
 import { downloadBlob } from '../utils/csv-download';
 import { getErrorMessage } from '../utils/user-message';
 import { createUuid } from '../utils/uuid';
@@ -114,6 +115,7 @@ const createTemplateKey = ref('code_review');
 const createScopeKey = ref('');
 const bindingSourceId = ref<number | null>(null);
 const bindingProjectIds = ref<string[]>([]);
+const issueSettingsPanels = ref<Array<{ saveIfDirty(): Promise<boolean> }>>([]);
 const bindingVersionProject = ref<string | null>(null);
 const projectOptions = ref<FormAdminProjectOption[]>([]);
 const projectOptionCache = ref<Record<string, FormAdminProjectOption>>({});
@@ -1324,7 +1326,7 @@ function discardChanges() {
   hydrateDraft(clonePlain(initialDraft.value)); removedFields.value = []; preview.value = null; pendingRequest.value = null; saveError.value = '';
 }
 function openCreate(key: string) { createTemplateKey.value = key; createVisible.value = true; }
-async function finishRange() { await flushDraft(); if (!dirty.value) { rangeVisible.value = false; if (scope.value && typeof evidenceDraft.value.scopeDisplayName === 'string') rangeNames.value[scope.value.id] = evidenceDraft.value.scopeDisplayName; } }
+async function finishRange() { for (const panel of issueSettingsPanels.value) { if (!await panel.saveIfDirty()) return; } await flushDraft(); if (!dirty.value) { rangeVisible.value = false; if (scope.value && typeof evidenceDraft.value.scopeDisplayName === 'string') rangeNames.value[scope.value.id] = evidenceDraft.value.scopeDisplayName; } }
 function formattedTime(value: string | null): string { return value ? new Date(value).toLocaleDateString('zh-CN') : '尚未发布'; }
 
 const exportProjectLabel = computed(() => {
@@ -1550,6 +1552,9 @@ watch(() => scope.value?.id, () => closeVersionExport());
         </el-form-item>
         <el-form-item label="版本"><el-select v-if="milestones?.available" v-model="selectedMilestoneId" placeholder="选择项目版本" @change="applyMilestone"><el-option v-for="item in milestones.items" :key="item.id" :label="item.title" :value="item.id" /></el-select><el-input v-else v-model="versionLabel" placeholder="填写项目版本" /></el-form-item>
         <el-form-item label="发布说明"><el-input v-model="evidenceNote" type="textarea" :rows="3" maxlength="500" placeholder="本次调整的说明（选填）" /></el-form-item>
+        <template v-if="rangeVisible && bindingBound && scope?.sourceInstance === 'default' && ['issue_response', 'issue_reply'].includes(scope.templateKey)">
+          <FormIssueSettingsPanel v-for="projectId in bindingProjectIds" :key="`${scope.id}:${projectId}`" ref="issueSettingsPanels" :scope-id="String(scope.id)" :project-id="projectId" :project-name="projectOptionFor(projectId).name" />
+        </template>
       </el-form>
       <template #footer><el-button @click="finishRange">完成</el-button></template>
     </el-drawer>

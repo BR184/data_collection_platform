@@ -40,7 +40,7 @@ public class BiCatMirrorManager {
 
   private final BiCatMirrorRepository repository;
   private final BiCatMirrorSyncService syncService;
-  private final BiPlatformProductVersionAdapter productVersions;
+  private final BiCatProductVersionAdapter productVersions;
   private final BiCatProperties properties;
   private final BiCatScopeMappingRecommender mappingRecommender;
   private final Clock clock;
@@ -56,7 +56,7 @@ public class BiCatMirrorManager {
       BiCatReadPublicationService readPublications) {
     this(
         new BiCatMirrorRepository(jdbcTemplate, transactionTemplate, readPublications),
-        new BiPlatformProductVersionAdapter(catalogService),
+        new BiCatProductVersionAdapter(catalogService),
         properties,
         objectMapper,
         Clock.systemUTC(),
@@ -66,7 +66,7 @@ public class BiCatMirrorManager {
 
   BiCatMirrorManager(
       BiCatMirrorRepository repository,
-      BiPlatformProductVersionAdapter productVersions,
+      BiCatProductVersionAdapter productVersions,
       BiCatProperties properties,
       ObjectMapper objectMapper,
       Clock clock,

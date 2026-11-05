@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
@@ -61,6 +62,19 @@ public class PagePermissionKeyResolver {
       case "code-review-multi" -> "code_review.board.export";
       default -> throw new BizException("看板导出权限未定义: " + dashboardKey);
     };
+  }
+
+  /** 看板内部明细除看板查看权限外，还需沿用原业务页查看/查询权限。 */
+  public List<String> dashboardDetailViews(String dashboardKey, String viewKey) {
+    String dashboardView = dashboardView(dashboardKey);
+    String originalPagePermission = switch (dashboardKey + "/" + viewKey) {
+      case "quality-rd/quality-review-records" -> "review.data.view";
+      case "quality-rd/new-issue-defects" -> "system_test.summary.view";
+      default -> null;
+    };
+    return originalPagePermission == null
+        ? List.of(dashboardView)
+        : List.of(dashboardView, originalPagePermission);
   }
 
   private String require(Map<String, String> values, String key, String label) {

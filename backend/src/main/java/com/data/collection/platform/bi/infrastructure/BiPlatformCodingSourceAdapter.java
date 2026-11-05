@@ -137,7 +137,7 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
             java.util.Objects.requireNonNull(fixedRead, "BI 编码读取必须绑定完整页面身份"), queryFor(sourceContext.readMode()), this::mapRow);
     // 阶段二：按产品版本和来源筛选平台事实，并将原始行转换成领域层可识别的稳定身份。
     List<CodingRow> scopedRows = codeRows.stream()
-        .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
+        .filter(row -> versionMatcher.matchesAny(row.projectName(), scope.memberBusinessKeys()))
         .filter(row -> matchesSource(row.businessSource(), query.source()))
         .toList();
     boolean mergeRequestIdsAvailable = scopedRows.stream()
@@ -150,7 +150,7 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
     // 不再维护独立的 BI 走查兼容表重复抓取链路。
     List<CodingRow> reviewRows = codeRows;
     List<CodingRow> completedReviews = reviewRows.stream()
-        .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
+        .filter(row -> versionMatcher.matchesAny(row.projectName(), scope.memberBusinessKeys()))
         .filter(row -> matchesSource(row.businessSource(), query.source()))
         .filter(row -> eligibleReview(row, sourceContext.readMode()))
         .toList();
@@ -169,15 +169,16 @@ public final class BiPlatformCodingSourceAdapter implements BiCodingSourcePort {
         .toList();
     List<BiCodingSource.CommitRecord> commits = sourceContext.commitDetailsAvailable()
         ? commitRepository.load().stream()
-            .filter(row -> versionMatcher.matches(row.projectName(), scope.businessKey()))
+            .filter(row -> versionMatcher.matchesAny(row.projectName(), scope.memberBusinessKeys()))
             .filter(row -> matchesSource(row.sourceInstance(), query.source()))
             .map(this::commit)
             .toList()
         : List.of();
     // 固定输入已由页面事务保护，不以最新指针变化拒绝仍有效的旧数据。
+    String scopedVersion = sourceContext.sourceVersion() + "|scope:" + scope.fingerprint();
     return new BiCodingSource(
-        sourceContext.sourceVersion(),
-        sourceContext.sourceVersion(),
+        scopedVersion,
+        scopedVersion,
         query.granularity(),
         mergeRequests,
         commits,

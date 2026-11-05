@@ -4,14 +4,19 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardDetailRes
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
+import com.data.collection.platform.service.IssueScopeCatalogService;
+import com.data.collection.platform.service.IssueScopeDimension;
 import com.data.collection.platform.service.PageRecordSnapshotService;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,6 +29,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
   private final QualityBoardOtherQueryService queryService;
   private final QualityBoardOtherWorkbookService workbookService;
   private final PageRecordSnapshotService snapshotService;
+  private final DashboardVersionScopeService versionScopeService;
 
   private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
 
@@ -37,6 +43,7 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
     this.queryService = factory.queryService.forRead(selection);
     this.workbookService = factory.workbookService;
     this.snapshotService = factory.snapshotService;
+    this.versionScopeService = factory.versionScopeService.forRead(selection);
     this.fixedRead = java.util.Objects.requireNonNull(selection);
   }
 
@@ -44,11 +51,13 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
   public QualityBoardOtherAnalyticsProvider(
       QualityBoardOtherQueryService queryService,
       QualityBoardOtherWorkbookService workbookService,
-      PageRecordSnapshotService snapshotService) {
+      PageRecordSnapshotService snapshotService,
+      DashboardVersionScopeService versionScopeService) {
     this.fixedRead = null;
     this.queryService = queryService;
     this.workbookService = workbookService;
     this.snapshotService = snapshotService;
+    this.versionScopeService = versionScopeService;
   }
 
   @Override
@@ -58,12 +67,27 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
 
   @Override
   public String ruleVersion(AnalyticsDashboardQueryContext context) {
-    return "legacy-personal-quality-v3";
+    return "legacy-personal-quality-v4";
   }
 
   @Override
   public String sourceVersion(AnalyticsDashboardQueryContext context) {
-    return java.util.Objects.requireNonNull(fixedRead, "分析看板读取必须持有固定页面身份").sourceVersion();
+    Set<String> fingerprints = new LinkedHashSet<>();
+    for (String parameterKey : List.of(
+        "functionCountProjectName",
+        "functionDensityProjectName",
+        "qualityRankingProjectName",
+        "memberUnresolvedProjectName")) {
+      fingerprints.add(versionScopeService.resolve(
+              IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+              IssueScopeDimension.TESTING_PHASE,
+              context.parameter(parameterKey).orElse(null))
+          .fingerprint());
+    }
+    String scopeFingerprints = fingerprints.stream().sorted().collect(Collectors.joining(","));
+    return java.util.Objects.requireNonNull(fixedRead, "分析看板读取必须持有固定页面身份").sourceVersion()
+        + "|scope:"
+        + scopeFingerprints;
   }
 
   @Override
@@ -184,9 +208,9 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
       String exportKey, AnalyticsDashboardQueryContext context) {
     QualityBoardOtherTopic topic = QualityBoardOtherTopic.fromExportKey(exportKey);
     List<QualityBoardOtherQueryService.Row> rows = detailRows(topic, context);
-    String scope = queryService.scope(topic, context);
+    String scopeLabel = queryService.scopeLabel(topic, context);
     return AnalyticsDashboardExport.xlsx(
-        topic.filename(scope), workbookService.export(topic, scope, rows));
+        topic.filename(scopeLabel), workbookService.export(topic, scopeLabel, rows));
   }
 
   private AnalyticsDashboardResponse.Chart chart(

@@ -1,7 +1,6 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.config.FormAdoptionProperties;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactType;
@@ -61,7 +60,6 @@ public class FactBuildService {
   private final FormIssueInputResolver formIssueInputResolver;
   private final FormIssueAuthorityRegistrar formIssueAuthorityRegistrar;
   private final FormIssueBuildInputService formIssueBuildInputService;
-  private final FormAdoptionProperties formAdoptionProperties;
   private final FormMergeRequestBuildInputService formMergeRequestBuildInputService;
   private final com.data.collection.platform.service.form.FormReviewProjectionService
       formReviewProjectionService;
@@ -88,7 +86,6 @@ public class FactBuildService {
       FormIssueInputResolver formIssueInputResolver,
       FormIssueAuthorityRegistrar formIssueAuthorityRegistrar,
       FormIssueBuildInputService formIssueBuildInputService,
-      FormAdoptionProperties formAdoptionProperties,
       FormMergeRequestBuildInputService formMergeRequestBuildInputService,
       com.data.collection.platform.service.form.FormReviewProjectionService
           formReviewProjectionService) {
@@ -113,7 +110,6 @@ public class FactBuildService {
     this.formIssueInputResolver = formIssueInputResolver;
     this.formIssueAuthorityRegistrar = formIssueAuthorityRegistrar;
     this.formIssueBuildInputService = formIssueBuildInputService;
-    this.formAdoptionProperties = formAdoptionProperties;
     this.formMergeRequestBuildInputService = formMergeRequestBuildInputService;
     this.formReviewProjectionService = formReviewProjectionService;
   }
@@ -460,16 +456,12 @@ public class FactBuildService {
 
   private void registerFormAuthorities(
       String sourceInstance, Map<FormIssueInputResolver.IssueRef, IssueFact> candidates) {
-    LocalDateTime enabledAt = formAdoptionProperties.getIssueEnabledAt();
-    if (enabledAt == null) {
-      return;
-    }
     Map<FormIssueInputResolver.IssueRef, LocalDateTime> createdAtByRef = new LinkedHashMap<>();
     for (Map.Entry<FormIssueInputResolver.IssueRef, IssueFact> entry : candidates.entrySet()) {
       createdAtByRef.put(entry.getKey(), entry.getValue().getCreatedAtSource());
     }
     formIssueAuthorityRegistrar.registerMissing(
-        sourceInstance, createdAtByRef, enabledAt, currentGitlabSourceTime());
+        sourceInstance, createdAtByRef, currentGitlabSourceTime());
   }
 
   private void reportPendingRegistration(FormIssueInputResolver.Resolution resolution) {

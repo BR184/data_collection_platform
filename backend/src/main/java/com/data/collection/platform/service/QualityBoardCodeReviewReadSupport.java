@@ -3,11 +3,15 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.QualityBoardCodeReviewRecordExportRow;
 import com.data.collection.platform.entity.QualityBoardChartRowResponse;
+import com.data.collection.platform.service.dashboard.DashboardVersionScope;
+import com.data.collection.platform.service.dashboard.DashboardVersionScopeService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,6 +30,7 @@ public class QualityBoardCodeReviewReadSupport {
 
   private final JdbcTemplate jdbcTemplate;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final DashboardVersionScopeService versionScopeService;
 
 
   private final com.data.collection.platform.entity.read.DatasetReadSelection fixedRead;
@@ -38,16 +43,19 @@ public class QualityBoardCodeReviewReadSupport {
   private QualityBoardCodeReviewReadSupport(QualityBoardCodeReviewReadSupport factory, com.data.collection.platform.entity.read.DatasetReadSelection selection) {
     this.jdbcTemplate = factory.jdbcTemplate;
     this.matchModeSwitchService = factory.matchModeSwitchService.forRead(selection);
+    this.versionScopeService = factory.versionScopeService.forRead(selection);
     this.fixedRead = java.util.Objects.requireNonNull(selection);
   }
 
   @org.springframework.beans.factory.annotation.Autowired
   public QualityBoardCodeReviewReadSupport(
       JdbcTemplate jdbcTemplate,
-      CodeReviewMatchModeSwitchService matchModeSwitchService) {
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      DashboardVersionScopeService versionScopeService) {
     this.fixedRead = null;
     this.jdbcTemplate = jdbcTemplate;
     this.matchModeSwitchService = matchModeSwitchService;
+    this.versionScopeService = versionScopeService;
   }
 
   public List<OptionItemResponse> listAvailableSources() {
@@ -462,15 +470,57 @@ public class QualityBoardCodeReviewReadSupport {
           "release_" + spMatcher.group(1) + "R" + spMatcher.group(2) + "_SP" + spMatcher.group(3));
     }
     QualityBoardCodeReviewReadScope devScope = withTargetBranch(base, "dev");
-    // 非规范产品键仍是用户可配置的业务项目键，按原值精确归属，不把它当作版本解析失败。
-    if (compactVersion(normalized) == null) {
-      return withProjectNames(devScope, List.of(normalized));
-    }
-    List<String> names = queryProjectNamesForVersion(devScope, normalized);
+    List<String> names = resolveProjectNamesForVersion(devScope, normalized);
     if (names.isEmpty()) {
       return unavailableScope(devScope);
     }
     return withProjectNames(devScope, names);
+  }
+
+  /**
+   * 把看板版本展开为代码走查来源项目名。组合入口按成员分别应用既有版本匹配规则，
+   * 取并集后仍只执行一次明细查询；非规范业务键保留原值精确归属。
+   */
+  private List<String> resolveProjectNamesForVersion(
+      QualityBoardCodeReviewReadScope scope, String productVersion) {
+    Optional<DashboardVersionScope> selection = versionScopeService.findSelection(
+        IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+        IssueScopeDimension.TESTING_PHASE,
+        productVersion);
+    if (selection.isEmpty()) {
+      return compactVersion(productVersion) == null
+          ? List.of(productVersion)
+          : queryProjectNames(scope).stream()
+              .filter(name -> matchesVersionMember(name, productVersion))
+              .toList();
+    }
+    List<String> memberKeys = selection.get().memberBusinessKeys();
+    if (memberKeys.size() == 1 && compactVersion(memberKeys.getFirst()) == null) {
+      return List.of(memberKeys.getFirst());
+    }
+    List<String> versionKeys = memberKeys.stream()
+        .filter(member -> compactVersion(member) != null)
+        .toList();
+    LinkedHashSet<String> names = new LinkedHashSet<>();
+    if (!versionKeys.isEmpty()) {
+      queryProjectNames(scope).stream()
+          .filter(name -> versionKeys.stream().anyMatch(key -> matchesVersionMember(name, key)))
+          .forEach(names::add);
+    }
+    memberKeys.stream()
+        .filter(member -> compactVersion(member) == null)
+        .forEach(names::add);
+    return List.copyOf(names);
+  }
+
+  private List<String> queryProjectNames(QualityBoardCodeReviewReadScope scope) {
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
+    String sql = "select distinct project_name from " + scope.tableName()
+        + " where " + queryScope.predicate()
+        + " and nullif(btrim(project_name), '') is not null";
+    org.springframework.jdbc.core.RowMapper<String> mapper =
+        (rs, rowNum) -> rs.getString("project_name");
+    return jdbcTemplate.query(sql, mapper, queryScope.args().toArray());
   }
 
   private QualityBoardCodeReviewReadScope withProjectNames(
@@ -505,19 +555,6 @@ public class QualityBoardCodeReviewReadSupport {
     return new QualityBoardCodeReviewReadScope(
         scope.available(), scope.tableName(), scope.sourceInstance(), scope.projectNames(),
         scope.mergeRequestIdentity(), scope.deletedPredicate(), combined, args);
-  }
-
-  private List<String> queryProjectNamesForVersion(
-      QualityBoardCodeReviewReadScope scope, String productVersion) {
-    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
-    String sql = "select distinct project_name from " + scope.tableName()
-        + " where " + queryScope.predicate()
-        + " and nullif(btrim(project_name), '') is not null";
-    org.springframework.jdbc.core.RowMapper<String> mapper =
-        (rs, rowNum) -> rs.getString("project_name");
-    List<String> discovered = jdbcTemplate.query(sql, mapper, queryScope.args().toArray());
-    return discovered
-        .stream().filter(name -> matchesVersionMember(name, productVersion)).toList();
   }
 
   private boolean matchesVersionMember(String projectName, String productVersion) {
@@ -601,9 +638,25 @@ public class QualityBoardCodeReviewReadSupport {
       default -> throw new IllegalArgumentException("Unsupported code-review group field: " + groupField);
     };
     //兼容模式-MatchMode：其他看板的代码规模是正式 CC 业务口径，不能随兼容开关切到临时快照。
-    QualityBoardCodeReviewReadScope scope = StringUtils.hasText(projectName)
-        ? resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL)
-        : resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+    QualityBoardCodeReviewReadScope scope;
+    if (StringUtils.hasText(projectName)) {
+      QualityBoardCodeReviewReadScope base =
+          resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+      Optional<DashboardVersionScope> selection = versionScopeService.findSelection(
+          IssueScopeCatalogService.CROWN_CAD_PROJECT_ID,
+          IssueScopeDimension.TESTING_PHASE,
+          projectName);
+      if (selection.isPresent() && selection.get().combined()) {
+        List<String> names = resolveProjectNamesForVersion(base, projectName);
+        scope = names.isEmpty()
+            ? unavailableScope(base)
+            : withProjectNames(base, names);
+      } else {
+        scope = resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL);
+      }
+    } else {
+      scope = resolveAllProjectsScope(source, CodeReviewDataReadMode.FORMAL);
+    }
     if (!scope.available()) {
       return Map.of();
     }

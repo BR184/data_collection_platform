@@ -203,7 +203,7 @@ class DatasetPublicationIntegrationTest {
     worker.publishOneRequestedDataset();
     var domain = new ReadPublicationDomainKey(ReadPublicationProducerKind.FORMAL_RECORD, "default", "DATASET", "formal-records");
     ReadPublication old = repository.findCurrentPublication(repository.findDomain(domain).orElseThrow().id()).orElseThrow();
-    var scope = new com.data.collection.platform.bi.domain.source.BiProductVersionScope(1, 9, "CC2026R4", "CC2026R4", 0, List.of());
+    var scope = new com.data.collection.platform.bi.domain.source.BiProductVersionScope(1, 9, "CC2026R4", "CC2026R4", 0, List.of(), List.of("CC2026R4"), "scope-fixture");
     var adapter = new com.data.collection.platform.bi.infrastructure.BiPlatformReviewSourceAdapter(jdbc, null,
         new com.data.collection.platform.bi.domain.BiProductVersionMatcher()).forRead(selection(old));
     var stage = com.data.collection.platform.bi.domain.port.BiReviewSourcePort.ReviewStage.REQUIREMENTS;

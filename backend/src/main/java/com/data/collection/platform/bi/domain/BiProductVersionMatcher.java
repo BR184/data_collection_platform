@@ -25,6 +25,22 @@ public final class BiProductVersionMatcher {
     return targetVersions.size() == 1 && projectVersions.contains(targetVersions.iterator().next());
   }
 
+  /** 任一成员命中即纳入；同一行只返回一次，避免组合范围重复计数。 */
+  public boolean matchesAny(String projectName, List<String> businessKeys) {
+    if (projectName == null || businessKeys == null || businessKeys.isEmpty()) {
+      return false;
+    }
+    Set<String> projectVersions = extract(projectName);
+    for (String businessKey : businessKeys) {
+      Set<String> targetVersions = extract(businessKey);
+      if (targetVersions.size() == 1
+          && projectVersions.contains(targetVersions.iterator().next())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private Set<String> extract(String value) {
     String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC)
         .toUpperCase(Locale.ROOT);

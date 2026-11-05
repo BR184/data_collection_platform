@@ -4,7 +4,6 @@ import com.data.collection.platform.config.FormIssueLinkProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.service.CustomerIssueFactQueryService;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabResourceRootResolver;
 import com.data.collection.platform.service.read.FactReadVisibility;
@@ -45,7 +44,6 @@ public class FormIssueLinkService {
 
   static final String RESPONSE_TEMPLATE = FormTemplateSpecCatalog.ISSUE_RESPONSE;
   static final String REPLY_TEMPLATE = FormTemplateSpecCatalog.ISSUE_REPLY;
-  static final long TARGET_PROJECT_ID = CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID;
   // 前端使用 createWebHashHistory；资源上下文必须位于哈希路由内。
   private static final String ENTRY_PATH = "/#/external/forms";
   private static final String COMMENT_HEADING = "【表单填写入口】本议题已启用平台表单，请使用平台账号分别填写：";
@@ -53,6 +51,7 @@ public class FormIssueLinkService {
   private final JdbcTemplate jdbcTemplate;
   private final GitlabConfigService configService;
   private final FormIssueLinkProperties properties;
+  private final FormIssueSettingsService settingsService;
   private final ObjectMapper objectMapper;
   private final Executor platformAsyncExecutor;
   private final TransactionTemplate transactionTemplate;
@@ -63,12 +62,14 @@ public class FormIssueLinkService {
       JdbcTemplate jdbcTemplate,
       GitlabConfigService configService,
       FormIssueLinkProperties properties,
+      FormIssueSettingsService settingsService,
       ObjectMapper objectMapper,
       @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR) Executor platformAsyncExecutor,
       PlatformTransactionManager transactionManager) {
     this.jdbcTemplate = jdbcTemplate;
     this.configService = configService;
     this.properties = properties;
+    this.settingsService = settingsService;
     this.objectMapper = objectMapper;
     this.platformAsyncExecutor = platformAsyncExecutor;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -96,9 +97,10 @@ public class FormIssueLinkService {
            set entry_registered_at = current_timestamp,
                updated_at = current_timestamp
          where a.resource_type = 'issue'
-           and a.project_id = ?
            and a.template_key = ?
            and a.authority = 'FORM'
+           and exists (select 1 from gitlab_sync_configs c where c.id = a.source_config_id
+             and c.form_issue_settings -> a.project_id::text @> '{"enabled":true,"linkEnabled":true}'::jsonb)
            and a.entry_registered_at is null
            and exists (
              select 1
@@ -136,7 +138,6 @@ public class FormIssueLinkService {
                 and v.storage_kind = 'RECORDS'
                 and v.version_label is not null)
         """,
-        TARGET_PROJECT_ID,
         RESPONSE_TEMPLATE,
         publicationId,
         REPLY_TEMPLATE);
@@ -191,9 +192,11 @@ public class FormIssueLinkService {
     return jdbcTemplate.queryForList(
         """
         select a.id from form_resource_authorities a
-         where a.resource_type = 'issue' and a.project_id = ? and a.template_key = ?
+         where a.resource_type = 'issue' and a.template_key = ?
            and a.entry_registered_at is not null and a.entry_comment_id is null
            and a.authority = 'FORM'
+           and exists (select 1 from gitlab_sync_configs c where c.id = a.source_config_id
+             and c.form_issue_settings -> a.project_id::text @> '{"enabled":true,"linkEnabled":true}'::jsonb)
            and a.id > ?
            and exists (
              select 1
@@ -237,7 +240,6 @@ public class FormIssueLinkService {
          limit ?
         """,
         Long.class,
-        TARGET_PROJECT_ID,
         RESPONSE_TEMPLATE,
         afterId,
         GitlabResourceRootResolver.DEFAULT_SOURCE_SYSTEM,
@@ -258,6 +260,14 @@ public class FormIssueLinkService {
     Boolean sent =
         transactionTemplate.execute(
             status -> {
+              List<Map<String, Object>> identities = jdbcTemplate.queryForList(
+                  "select source_config_id, project_id from form_resource_authorities where id = ?", authorityId);
+              if (identities.isEmpty()) { return false; }
+              var identity = identities.getFirst();
+              var settings = settingsService.lockForUse(
+                  ((Number) identity.get("source_config_id")).longValue(),
+                  ((Number) identity.get("project_id")).longValue());
+              if (!settings.delivers()) { return false; }
               List<Map<String, Object>> rows =
                   jdbcTemplate.queryForList(
                       """
@@ -275,8 +285,7 @@ public class FormIssueLinkService {
               if (row.get("entry_comment_id") != null
                   || row.get("entry_registered_at") == null
                   || !"FORM".equals(row.get("authority"))
-                  || !RESPONSE_TEMPLATE.equals(row.get("template_key"))
-                  || ((Number) row.get("project_id")).longValue() != TARGET_PROJECT_ID) {
+                  || !RESPONSE_TEMPLATE.equals(row.get("template_key"))) {
                 return false;
               }
               long projectId = ((Number) row.get("project_id")).longValue();
@@ -292,7 +301,7 @@ public class FormIssueLinkService {
                 return false;
               }
               long commentId =
-                  postComment(config, projectId, issueIid, commentBody(config, projectId, issueIid));
+                  postComment(config, projectId, issueIid, commentBody(config, projectId, issueIid, settings.externalBaseUrl()));
               jdbcTemplate.update(
                   """
                   update form_resource_authorities
@@ -370,8 +379,8 @@ public class FormIssueLinkService {
   }
 
   /** 一条评论同时给出响应与回复两个填写入口。 */
-  String commentBody(GitlabSyncConfig config, long projectId, long issueIid) {
-    String base = stripTrailingSlash(properties.getExternalBaseUrl());
+  String commentBody(GitlabSyncConfig config, long projectId, long issueIid, String externalBaseUrl) {
+    String base = stripTrailingSlash(externalBaseUrl);
     return COMMENT_HEADING
         + "\n\n- 问题响应："
         + entryUrl(base, config, projectId, issueIid, RESPONSE_TEMPLATE)
@@ -434,7 +443,8 @@ public class FormIssueLinkService {
   }
 
   private boolean deliveryConfigured() {
-    return properties.isEnabled() && StringUtils.hasText(properties.getExternalBaseUrl());
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+        "select exists(select 1 from gitlab_sync_configs c, lateral jsonb_each(c.form_issue_settings) e where e.value @> '{\"enabled\":true,\"linkEnabled\":true}'::jsonb)", Boolean.class));
   }
 
   private static String stripTrailingSlash(String value) {
