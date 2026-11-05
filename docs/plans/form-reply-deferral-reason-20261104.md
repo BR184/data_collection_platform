@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | R1 字段与条件 | 已实施并验证（桌面四动作通过，复核结论R1通过） | `issue_reply.json` 的 `deferral_reason`＋`notEquals`/`visibleWhen` |
 | R2 四标签写回 | 已实施；复核两项修正与H2完整重读复验通过 | `FormIssueBuildInputService`/`FormIssueInputResolver`/Planner/Queue/Worker |
-| R3 真实六步 | 待外部前置 | 需专属本地325样本、写回开关与 ci_robot |
+| R3 真实六步 | 2026-11-05本地真实GitLab通过 | 普通账号经正式表单API保存，六步四标签集合正确，其他标签保持 |
 
 - 自动验证：复核修正后受影响范围 115/115（`FormIssueBuildInputServiceTest` 2、`FormIssueInputResolverAndSlaTest` 21、Planner 4、Worker 21、Service 14、`CustomerIssueDelayLabelWritebackEnqueueIntegrationTest` 6、`FormIssueAdoptionFactPipelineIntegrationTest` 37、`FormConditionContractTest` 4、`FormTemplateSpecCatalogTest` 6）。含真实PG：保存拒绝缺失/残留/未知、改原因与取消、旧版缺字段、全部作废空目标、技术→资源作业目标变化与旧修订拒绝。
 - 复核再验（回执`e8382fe3`）：H2完整重读后 `FormIssueBuildInputServiceTest` 4/4、`FormIssueInputResolverAndSlaTest` 21/21、原因编辑真实PG用例1/1；未重跑全量。

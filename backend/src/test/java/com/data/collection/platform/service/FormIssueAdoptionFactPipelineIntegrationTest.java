@@ -507,7 +507,7 @@ class FormIssueAdoptionFactPipelineIntegrationTest {
     assertThat(body)
         .as("一条评论承载响应、回复两个入口")
         .contains("issue_response", "issue_reply", "projectId=325", "resourceId=" + iid)
-        .contains("platform.test/external/forms");
+        .contains("platform.test/#/external/forms");
     assertThat(deliveryCommentId(iid)).isNotNull();
 
     assertThat(formIssueLinkService.dispatchPending(10))

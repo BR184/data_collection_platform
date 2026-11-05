@@ -77,6 +77,8 @@
 
 ### 表单 v6 与发布式读取
 
+- 机器人填写入口与前端`createWebHashHistory`保持一致，地址为平台对外地址加`/#/external/forms`，资源查询参数位于哈希片段内；平台对外地址配置仅含协议、主机与可选部署前缀，不靠配置拼入路由。
+
 - 页面读取的完整版本唯一由 `read_publications`/`read_publication_domains` 发布：候选在独立事务内完成事实写入与投影，读取只认 `PUBLISHED` 且满足 live revision 谓词的行；`created_by_publication_id`、epoch/sequence 与可见区间共同区分同一业务实体的多代修订。初始完整版本接管在输入表被占用时按 `lock ... nowait` 让位（`55P03`），不得在无完整基线时公开定向写入；隔离一致性测试容器关闭 autovacuum，维护锁场景由显式反例覆盖。
 - 表单记录按“范围→结构版本→物理记录表/实例表→全局定位目录”组织：`form_template_scopes/versions` 冻结字段结构，`form_record_locations` 为跨版唯一权威位置，新建记录只写当前已发布版本，旧记录不迁移、不改绑；`form_change_heads` 以 `latest_change_version/consumed_change_version` 表达待消费水位，记录、位置、审计与 head 在同一事务提交。
 - FORM/COMMENT 权威在首次登记时冻结到 `form_resource_authorities`：启用点后且范围可覆盖的 Issue 首次登记 FORM，其余登记 COMMENT；已有权威/head 只核验不重置。写入口缺权威拒绝，不自行补登记；MR 在 T_mr 前保持 COMMENT。

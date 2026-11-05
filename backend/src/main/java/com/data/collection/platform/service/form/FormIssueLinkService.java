@@ -46,7 +46,8 @@ public class FormIssueLinkService {
   static final String RESPONSE_TEMPLATE = FormTemplateSpecCatalog.ISSUE_RESPONSE;
   static final String REPLY_TEMPLATE = FormTemplateSpecCatalog.ISSUE_REPLY;
   static final long TARGET_PROJECT_ID = CustomerIssueFactQueryService.CC_PRODUCT_PROJECT_ID;
-  private static final String ENTRY_PATH = "/external/forms";
+  // 前端使用 createWebHashHistory；资源上下文必须位于哈希路由内。
+  private static final String ENTRY_PATH = "/#/external/forms";
   private static final String COMMENT_HEADING = "【表单填写入口】本议题已启用平台表单，请使用平台账号分别填写：";
 
   private final JdbcTemplate jdbcTemplate;
