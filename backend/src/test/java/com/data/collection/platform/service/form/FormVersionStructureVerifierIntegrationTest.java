@@ -118,6 +118,23 @@ class FormVersionStructureVerifierIntegrationTest {
   }
 
   @Test
+  void shouldAcceptChecksRecreatedFromPostgresBackupDefinitions() {
+    dropTables();
+    schema = schemaService.generate(SCOPE_ID, VERSION_ID,
+        catalog.require(FormTemplateSpecCatalog.ISSUE_RESPONSE), false);
+    schema.statements().forEach(jdbcTemplate::execute);
+    var checks = jdbcTemplate.queryForList(
+        "select conname, pg_get_constraintdef(oid) as definition from pg_constraint"
+            + " where conrelid = to_regclass(?) and contype = 'c'", schema.recordTable());
+    for (var check : checks) {
+      jdbcTemplate.execute("alter table " + schema.recordTable() + " drop constraint " + check.get("conname"));
+      jdbcTemplate.execute("alter table " + schema.recordTable() + " add constraint " + check.get("conname")
+          + " " + check.get("definition"));
+    }
+    verifier().verify(schema);
+  }
+
+  @Test
   void shouldRejectCheckLogicalGroupingChange() {
     String check =
         jdbcTemplate.queryForObject(

@@ -162,7 +162,8 @@ public class FormVersionStructureVerifier {
       }
       if (constraint.kind() == FormVersionConstraint.Kind.CHECK) {
         String expectedExpression = canonicalChecks.get(constraint.constraintName());
-        if (!expectedExpression.equals(found.expression())) {
+        if (!expectedExpression.equals(found.expression())
+            && !sameRestoredExpression(tableName, expectedExpression, found.expression())) {
           throw new IllegalStateException(
               "结构漂移：检查约束定义不一致 "
                   + tableName
@@ -198,6 +199,14 @@ public class FormVersionStructureVerifier {
             "结构漂移：约束执行属性不一致 " + tableName + "." + constraint.constraintName());
       }
     }
+  }
+
+  /** 备份恢复会把数组整体类型转换分配到各元素；再次由PG解析两侧，仍保留字面量和逻辑分组。 */
+  private boolean sameRestoredExpression(String tableName, String expected, String actual) {
+    Map<String, String> normalized = canonicalCheckExpressions(tableName, List.of(
+        FormVersionConstraint.check(tableName, "expected", expected),
+        FormVersionConstraint.check(tableName, "actual", actual)));
+    return Objects.equals(normalized.get("expected"), normalized.get("actual"));
   }
 
   /**
