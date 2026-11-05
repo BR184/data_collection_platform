@@ -62,6 +62,7 @@ class FactBuildServiceTest {
             "labels",
             "resource_label_events"));
 
+    when(jdbcTemplate.queryForList(anyString(), eq(Long.class))).thenReturn(List.of(7L));
     when(factBuildTaskService.runGuarded(anyString(), eq(true), any()))
         .thenAnswer(
             invocation -> {
@@ -204,13 +205,13 @@ class FactBuildServiceTest {
   }
 
   /**
-   * 全量构建必须装载"全部"提交关系。
+   * 全量构建按固定根集合分批装载全部提交关系。
    *
    * <p>提交事实增强启用时，全量构建原先把空根集合传给按根装载器，而按根口径把它当成空结果，导致全量构建
-   * 静默发布零条提交关系并让随后的快照清理删掉既有关系。本测试锁定全量构建发出的是未收窄的提交查询。
+   * 静默发布零条提交关系并让随后的快照清理删掉既有关系。本测试锁定全量入口也为每批传入真实根集合。
    */
   @Test
-  void test_full_merge_request_build_loads_all_commit_relations_without_root_scope() {
+  void test_full_merge_request_build_bounds_source_and_commit_queries_by_captured_roots() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceSchemaGuard sourceSchemaGuard = mock(GitlabSourceSchemaGuard.class);
     GitlabConfigService configService = mock(GitlabConfigService.class);
@@ -219,6 +220,7 @@ class FactBuildServiceTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
     when(configService.getConfig()).thenReturn(config);
+    when(jdbcTemplate.queryForList(anyString(), eq(Long.class))).thenReturn(List.of(7L, 8L));
     when(jdbcTemplate.query(
             anyString(),
             org.mockito.ArgumentMatchers.<RowMapper<Object>>any(),
@@ -239,8 +241,11 @@ class FactBuildServiceTest {
         .as("全量构建必须装载提交关系，且只装载一次")
         .hasSize(1);
     assertThat(commitQueries.getFirst())
-        .as("全量构建装载全部提交关系，不得按根收窄")
-        .doesNotContain("target_roots");
+        .as("全量构建逐批读取所有捕获根的提交关系，不能退回单条全表查询")
+        .contains("target_roots");
+    assertThat(capturedQueries(jdbcTemplate).stream()
+        .filter(sql -> sql.contains("walkthrough_notes")))
+        .allSatisfy(sql -> assertThat(sql).contains("target_roots"));
   }
 
   /** 按根构建必须把根集合下推到提交关系查询。 */

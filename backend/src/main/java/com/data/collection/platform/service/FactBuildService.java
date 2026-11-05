@@ -689,6 +689,10 @@ public class FactBuildService {
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince(sourceInstance);
     try {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+      if (full) {
+        return rebuildFullMergeRequestFactsInBatches(
+            target, sourceInstance, commitFactsEnabled, moduleDictionary, progress);
+      }
       List<MergeRequestFact> facts = factSourceQueryExecutor.query(
           "merge-request-fact-source-query",
           sourceInstance,
@@ -697,38 +701,31 @@ public class FactBuildService {
           changedSince,
           (rs, rowNum) ->
               mergeRequestRowMapper.mapSource(rs, sourceInstance, moduleDictionary));
-      if (full) {
-        List<MergeRequestCommitFact> commitFacts = commitFactsEnabled
-            ? loadMergeRequestCommitFacts(sourceInstance)
-            : List.of();
-        publishFullMergeRequestSnapshot(target, sourceInstance, facts, commitFacts, progress);
-      } else {
-        List<Long> rootIds = facts.stream()
-            .map(MergeRequestFact::getMergeRequestId)
-            .filter(java.util.Objects::nonNull)
-            .distinct()
-            .sorted()
-            .toList();
-        if (!rootIds.isEmpty()) {
-          // 增量范围有界，保持单事务原子语义：事实替换、提交关系、走查投影与搜索列刷新同提交。
-          publicationTransaction.execute(() -> {
-            formMergeRequestBuildInputService.freeze(
-                target, sourceInstance, facts, LocalDateTime.now());
-            com.data.collection.platform.service.form.FormReviewProjectionService.Projection
-                projection = formReviewProjectionService.load(sourceInstance, facts);
-            formReviewProjectionService.apply(facts, projection);
-            mergeRequestFactPersistenceService.replaceRootFacts(
-                target,
-                rootIds,
-                facts,
-                commitFactsEnabled
-                    ? loadMergeRequestCommitFactsByRootIds(sourceInstance, rootIds)
-                    : List.of(),
-                projection.records());
-            searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(target, facts);
-            return null;
-          });
-        }
+      List<Long> rootIds = facts.stream()
+          .map(MergeRequestFact::getMergeRequestId)
+          .filter(java.util.Objects::nonNull)
+          .distinct()
+          .sorted()
+          .toList();
+      if (!rootIds.isEmpty()) {
+        // 增量范围有界，保持单事务原子语义：事实替换、提交关系、走查投影与搜索列刷新同提交。
+        publicationTransaction.execute(() -> {
+          formMergeRequestBuildInputService.freeze(
+              target, sourceInstance, facts, LocalDateTime.now());
+          com.data.collection.platform.service.form.FormReviewProjectionService.Projection
+              projection = formReviewProjectionService.load(sourceInstance, facts);
+          formReviewProjectionService.apply(facts, projection);
+          mergeRequestFactPersistenceService.replaceRootFacts(
+              target,
+              rootIds,
+              facts,
+              commitFactsEnabled
+                  ? loadMergeRequestCommitFactsByRootIds(sourceInstance, rootIds)
+                  : List.of(),
+              projection.records());
+          searchIndexRepairService.refreshMergeRequestFactSearchIndexesInBatches(target, facts);
+          return null;
+        });
       }
       return new FactBuildResponse(
           factScope("merge-request", sourceInstance),
@@ -739,6 +736,40 @@ public class FactBuildService {
       log.warn("Failed to rebuild merge request facts", e);
       throw e;
     }
+  }
+
+  /**
+   * 固定本轮根集合后，按已有构建批大小读取和写入MR候选，避免先执行一条全ODS聚合。
+   *
+   * <p>这里只保留轻量根ID清单，每批读取事实及提交关系后立即提交候选并续租；新增或变化输入
+   * 仍由发布器的捕获版本校验拒绝公开。异常向上传递，中止整个候选，不发布半份结果。
+   */
+  private FactBuildResponse rebuildFullMergeRequestFactsInBatches(
+      FactRevisionTarget target,
+      String sourceInstance,
+      boolean commitFactsEnabled,
+      ModuleDictionary moduleDictionary,
+      FactBuildProgress progress) {
+    List<Long> roots = jdbcTemplate.queryForList(
+        "select id from ods_gitlab_merge_requests where coalesce(mirror_deleted, false) = false order by id",
+        Long.class);
+    List<List<Long>> batches = partition(roots, mirrorProperties.getFactFullBuildChunkSize());
+    long processedRows = 0;
+    int completedBatches = 0;
+    for (List<Long> rootIds : batches) {
+      List<MergeRequestFact> facts = factSourceQueryExecutor.query(
+          "merge-request-fact-source-query", sourceInstance,
+          factSourceSqlProvider.mergeRequestSourceSqlForRoots(sourceInstance, rootIds),
+          "", null, new ArrayList<>(rootIds),
+          (rs, rowNum) -> mergeRequestRowMapper.mapSource(rs, sourceInstance, moduleDictionary));
+      List<MergeRequestCommitFact> commits = commitFactsEnabled
+          ? loadMergeRequestCommitFactsByRootIds(sourceInstance, rootIds) : List.of();
+      publishFullMergeRequestSnapshot(target, sourceInstance, facts, commits, FactBuildProgress.NO_OP);
+      processedRows += facts.size();
+      progress.chunkCommitted(++completedBatches, batches.size(), processedRows);
+    }
+    return new FactBuildResponse(factScope("merge-request", sourceInstance), true,
+        Math.toIntExact(processedRows), "合并请求事实已全量构建");
   }
 
   /**
@@ -945,27 +976,6 @@ public class FactBuildService {
         .distinct()
         .sorted()
         .toList();
-  }
-
-  /**
-   * 装载全部合并请求提交关系，供全量构建发布完整快照。
-   *
-   * <p>"全部"是独立入口而不是"根集合为空"：空集合在按根口径里表示空结果（本类 {@code
-   * loadMergeRequestCommitFactsByRootIds} 直接拒绝空集合），两者共用入参会让全量构建静默拿到零条并
-   * 让随后的快照清理删掉既有提交关系。
-   *
-   * @param sourceInstance GitLab 数据源实例
-   * @return 该实例全部提交关系
-   */
-  private List<MergeRequestCommitFact> loadMergeRequestCommitFacts(String sourceInstance) {
-    return factSourceQueryExecutor.query(
-        "merge-request-commit-fact-source-query",
-        sourceInstance,
-        factSourceSqlProvider.mergeRequestCommitSourceSql(),
-        "",
-        null,
-        (resultSet, rowNumber) ->
-            mergeRequestRowMapper.mapCommit(resultSet, sourceInstance));
   }
 
   /**

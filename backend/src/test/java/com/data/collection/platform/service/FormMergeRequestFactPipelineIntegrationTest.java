@@ -57,6 +57,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
       "platform.form-directory-event.worker-enabled=false",
       "platform.form-publication.worker-enabled=false",
       "platform.gitlab-mirror.scheduler-enabled=false",
+      "platform.gitlab-mirror.fact-full-build-chunk-size=2",
       "platform.gitlab-mirror.delete-reconciliation-enabled=false",
       "platform.gitlab-mirror.customer-issue-delay-pre-writeback-sync-enabled=false",
       "platform.gitlab-mirror.customer-issue-delay-writeback-worker-enabled=false",
@@ -272,6 +273,36 @@ class FormMergeRequestFactPipelineIntegrationTest {
                 configService.getConfig(), target, true, FactBuildProgress.NO_OP));
     assertActiveCandidateCaptured();
     publishPreparedCandidate();
+  }
+
+  @Test
+  void fullBuildReadsEverySparseRootAcrossBatchesAndExcludesDeletedRows() {
+    formRecordService.create(
+        codeReviewRequest(UUID.randomUUID().toString(), 10, 2, true), actor, "127.0.0.1", "JUnit");
+    jdbcTemplate.update("""
+        insert into ods_gitlab_merge_requests(
+            id, iid, target_project_id, title, author_id, merge_user_id, target_branch,
+            source_branch, state_id, created_at, updated_at, mirror_deleted)
+        select id + delta, iid + delta, target_project_id, title, author_id, merge_user_id,
+               target_branch, source_branch, state_id, created_at, updated_at, delta = 4
+          from ods_gitlab_merge_requests cross join (values (2), (4), (7)) additions(delta)
+         where id = ?
+        """, MR_ROOT);
+    List<Long> progressRows = new java.util.ArrayList<>();
+    buildInStableTransaction(target -> factBuildService.rebuildMergeRequestFactsForQueuedTask(
+        configService.getConfig(), target, true,
+        (completed, total, rows) -> {
+          assertThat(total).isEqualTo(2);
+          assertThat(completed).isEqualTo(progressRows.size() + 1);
+          progressRows.add(rows);
+        }));
+    assertThat(progressRows).containsExactly(2L, 3L);
+    publishPreparedCandidate();
+    assertThat(jdbcTemplate.queryForList(
+        "select merge_request_id from merge_request_fact where "
+            + FactReadVisibility.liveRevisionPredicate("merge_request_fact")
+            + " order by merge_request_id", Long.class))
+        .containsExactly(MR_ROOT, MR_ROOT + 2, MR_ROOT + 7);
   }
 
   private void buildInStableTransaction(
