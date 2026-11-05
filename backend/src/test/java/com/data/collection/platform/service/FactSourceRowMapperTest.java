@@ -26,6 +26,33 @@ import org.mockito.MockedStatic;
 
 class FactSourceRowMapperTest {
 
+  @Test
+  void latestCommentPlanBeyondEighteenDaysKeepsDeadlineDaysAndDelayConsistent()
+      throws Exception {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 10, 1, 0, 0);
+    LocalDateTime now = LocalDateTime.of(2026, 11, 5, 0, 0);
+    ResultSet resultSet = mock(ResultSet.class);
+    Array labels = sqlArray("P1");
+    when(resultSet.getArray("label_titles")).thenReturn(labels);
+    when(resultSet.getString("notes_text")).thenReturn(
+        "# 问题调研情况说明\n## 计划解决时间：2026年12月30日\n---\n"
+            + "# 问题调研情况说明\n## 计划解决时间：2026年10月10日");
+    when(resultSet.getLong("project_id")).thenReturn(325L);
+    when(resultSet.getString("project_name")).thenReturn("CC_Product");
+    when(resultSet.getTimestamp("created_at")).thenReturn(Timestamp.valueOf(createdAt));
+    when(resultSet.getObject("state_id")).thenReturn(1);
+
+    try (MockedStatic<LocalDateTime> clock = mockStatic(LocalDateTime.class, Answers.CALLS_REAL_METHODS)) {
+      clock.when(() -> LocalDateTime.now(ZoneOffset.UTC)).thenReturn(now);
+      IssueFact fact = new IssueFactSourceRowMapper().mapSource(
+          resultSet, "default", Map.of(), mock(ModuleDictionary.class), Map.of());
+
+      assertThat(fact.getResolveDeadlineAt()).isEqualTo(LocalDateTime.of(2026, 12, 30, 0, 0));
+      assertThat(fact.getResolveSlaDays()).isEqualTo(90);
+      assertThat(fact.getResolveDelayed()).isFalse();
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"状态：未复现", "状态：申请否决", "类别：建议", "需求", "数据异常"})
   void issueMapperShouldExemptBothDelayFlagsWhenTheResponsePlanIsInvalid(String exemption)

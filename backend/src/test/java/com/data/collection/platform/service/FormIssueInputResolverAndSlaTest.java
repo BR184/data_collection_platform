@@ -104,7 +104,7 @@ class FormIssueInputResolverAndSlaTest {
   }
 
   @Test
-  void planBeyondEighteenDaysFallsBackToDefaultDeadline() {
+  void planBeyondEighteenDaysRemainsDeadlineAndOnlyExpiresAfterPlan() {
     IssueBusinessInput input = select(
         List.of(response(11L, LocalDateTime.of(2026, 11, 5, 9, 0),
             LocalDate.of(2026, 12, 5), "CC2026R1", LocalDateTime.of(2026, 11, 5, 9, 0))),
@@ -112,10 +112,14 @@ class FormIssueInputResolverAndSlaTest {
 
     IssueSlaRules.Evaluation evaluation = IssueSlaRules.evaluate(
         sla(input), List.of(), List.of(), ISSUE_CREATED, "P1",
-        LocalDateTime.of(2026, 10, 30, 12, 0), true);
+        LocalDateTime.of(2026, 11, 25, 12, 0), true);
 
-    assertThat(evaluation.resolveDeadlineAt()).isEqualTo(ISSUE_CREATED.plusDays(18));
-    assertThat(evaluation.resolveSlaDays()).isEqualTo(18);
+    assertThat(evaluation.resolveDeadlineAt()).isEqualTo(LocalDateTime.of(2026, 12, 5, 0, 0));
+    assertThat(evaluation.resolveSlaDays()).isEqualTo(34);
+    assertThat(evaluation.resolveDelayed()).isFalse();
+    assertThat(IssueSlaRules.evaluate(
+        sla(input), List.of(), List.of(), ISSUE_CREATED, "P1",
+        LocalDateTime.of(2026, 12, 6, 0, 0), true).resolveDelayed()).isTrue();
   }
 
   @Test

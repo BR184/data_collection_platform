@@ -48,9 +48,12 @@ class IssueFactSourceRowMapper {
             projectId, IssueFactNormalizationRules.normalizeModuleNames(labels));
     String severityLevel = IssueFactNormalizationRules.normalizeSeverityLevel(labels);
     String priorityLevel = IssueFactNormalizationRules.normalizePriorityLevel(labels);
-    int resolveSlaDays = IssueFactNormalizationRules.resolveSlaDays(notesText);
     LocalDateTime resolveDeadlineAt =
         IssueFactNormalizationRules.resolveDeadline(createdAt, notesText);
+    int resolveSlaDays =
+        createdAt == null
+            ? IssueFactNormalizationRules.resolveSlaDays(notesText)
+            : IssueSlaRules.resolveSlaDays(createdAt, resolveDeadlineAt);
     PhaseCalendarEntry phaseCalendar =
         calendar.get(
             new PhaseCalendarKey(

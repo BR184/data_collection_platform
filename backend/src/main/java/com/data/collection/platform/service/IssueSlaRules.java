@@ -27,7 +27,7 @@ final class IssueSlaRules {
   private static final int RESPONSE_SLA_P1_HOURS = 24;
   private static final int RESPONSE_SLA_P2_HOURS = 48;
   private static final int RESPONSE_SLA_P3_HOURS = 72;
-  private static final int MAX_RESOLVE_SLA_DAYS = 18;
+  private static final int DEFAULT_RESOLVE_SLA_DAYS = 18;
 
   private IssueSlaRules() {}
 
@@ -120,8 +120,8 @@ final class IssueSlaRules {
    * 用统一业务事实判定响应/解决延期，供首次事实与周期重算共用。
    *
    * <p>响应延期豁免只取“有效回复存在”或“某份响应给出合法计划时间”（D-21，方向为最新→更早），
-   * 计划字段本身仍整份取自最新响应，不逐字段回退。解决期限取同一份最新响应计划；计划缺失或距创建
-   * 超过 18 天时按 18 天默认值。关闭议题不产生延期。
+   * 计划字段本身仍整份取自最新响应，不逐字段回退。解决期限取同一份最新响应计划；仅计划缺失
+   * 时按 18 天默认值，合法计划不受天数上限截断。关闭议题不产生延期。
    *
    * @param input 已确定的业务事实（表单或评论，不混源）
    * @param labels 当前来源标签（响应 SLA 优先级与延期豁免）
@@ -164,19 +164,12 @@ final class IssueSlaRules {
     if (createdAt == null) {
       return null;
     }
-    LocalDateTime defaultDeadline = createdAt.plusDays(MAX_RESOLVE_SLA_DAYS);
-    if (plannedResolutionAt == null) {
-      return defaultDeadline;
-    }
-    long daysBetween = Duration.between(createdAt, plannedResolutionAt).toDays();
-    if (daysBetween <= MAX_RESOLVE_SLA_DAYS) {
-      return plannedResolutionAt;
-    }
-    return defaultDeadline;
+    return plannedResolutionAt == null
+        ? createdAt.plusDays(DEFAULT_RESOLVE_SLA_DAYS) : plannedResolutionAt;
   }
 
   /**
-   * 按最新响应计划推导展示用解决天数，取值 1—18。
+   * 按最新响应计划推导展示用解决天数，至少一天，合法计划不截断。
    *
    * @param createdAt 议题创建时间
    * @param plannedResolutionAt 最新响应的计划解决时间
@@ -184,10 +177,10 @@ final class IssueSlaRules {
    */
   static int resolveSlaDays(LocalDateTime createdAt, LocalDateTime plannedResolutionAt) {
     if (createdAt == null || plannedResolutionAt == null) {
-      return MAX_RESOLVE_SLA_DAYS;
+      return DEFAULT_RESOLVE_SLA_DAYS;
     }
     long days = Duration.between(createdAt, plannedResolutionAt).toDays();
-    return (int) Math.min(MAX_RESOLVE_SLA_DAYS, Math.max(1L, days));
+    return Math.toIntExact(Math.max(1L, days));
   }
 
   static int resolveSlaDays(String notesText) {
@@ -205,16 +198,11 @@ final class IssueSlaRules {
     if (createdAt == null) {
       return null;
     }
-    LocalDateTime defaultDeadline = createdAt.plusDays(MAX_RESOLVE_SLA_DAYS);
     LocalDateTime planSolutionTime = templateSnapshot(notesText).planSolutionTime();
     if (planSolutionTime == null) {
       return resolveDeadline(createdAt, resolveSlaDays(notesText));
     }
-    long daysBetween = Duration.between(createdAt, planSolutionTime).toDays();
-    if (daysBetween <= MAX_RESOLVE_SLA_DAYS) {
-      return planSolutionTime;
-    }
-    return defaultDeadline;
+    return resolveDeadline(createdAt, planSolutionTime);
   }
 
   static boolean hasFixCaseNote(String notesText) {

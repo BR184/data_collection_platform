@@ -578,7 +578,7 @@ class IssueFactNormalizationRulesTest {
 
     String laterPlan = "# 问题调研情况说明\n## 计划解决时间：2026年5月1日";
     assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, laterPlan))
-        .isEqualTo(LocalDateTime.of(2026, 4, 19, 10, 0));
+        .isEqualTo(LocalDateTime.of(2026, 5, 1, 0, 0));
 
     LocalDateTime earlierDeadline = IssueFactNormalizationRules.resolveDeadline(createdAt, earlierPlan);
     assertThat(IssueFactNormalizationRules.isResolveDelayed(
@@ -634,14 +634,14 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldCapTheLatestResolutionPlanInsteadOfUsingAnOlderDateWithinEighteenDays() {
+  void shouldKeepTheLatestResolutionPlanEvenBeyondEighteenDays() {
     LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
     String notes =
         "# 问题调研情况说明\n## 计划解决时间：2026.05.01\n---\n"
             + "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
 
     assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, notes))
-        .isEqualTo(LocalDateTime.of(2026, 4, 19, 10, 0));
+        .isEqualTo(LocalDateTime.of(2026, 5, 1, 0, 0));
   }
 
   @Test
