@@ -100,7 +100,7 @@ class FactBuildServiceTest {
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
 
     service.rebuildMergeRequestFactsForConfig(config, true);
 
@@ -169,7 +169,7 @@ class FactBuildServiceTest {
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
 
     assertThatThrownBy(() -> service.rebuildAllFacts(true)).isSameAs(preflightFailure);
 
@@ -233,7 +233,7 @@ class FactBuildServiceTest {
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
 
     assertThatThrownBy(() -> service.rebuildAllFactsForConfig(config, true, 16L))
         .isSameAs(preflightFailure);
@@ -302,7 +302,7 @@ class FactBuildServiceTest {
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
@@ -436,7 +436,7 @@ class FactBuildServiceTest {
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
         new com.data.collection.platform.config.GitlabMirrorProperties(),
         new FactProjectionScopeResolver(jdbcTemplate),
-        new FactProjectionGenerationService(jdbcTemplate));
+        new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
   }
 
   private SyncFactPublicationStateService readyPublicationStateService() {

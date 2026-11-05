@@ -8,6 +8,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -48,12 +49,15 @@ public class CustomerIssueDelayLabelWritebackQueueService {
 
   private final JdbcTemplate jdbcTemplate;
   private final CustomerIssueDelayLabelWritebackPlanner planner;
+  private final FormIssueInputResolver formIssueInputResolver;
 
   public CustomerIssueDelayLabelWritebackQueueService(
       JdbcTemplate jdbcTemplate,
-      CustomerIssueDelayLabelWritebackPlanner planner) {
+      CustomerIssueDelayLabelWritebackPlanner planner,
+      FormIssueInputResolver formIssueInputResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.planner = planner;
+    this.formIssueInputResolver = formIssueInputResolver;
   }
 
   /**
@@ -84,10 +88,13 @@ public class CustomerIssueDelayLabelWritebackQueueService {
       int limit) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     List<IssueFact> candidates = loadCandidates(sourceInstance, afterIssueId, Math.max(1, limit));
+    Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> inputs =
+        resolvePageInputs(sourceInstance, candidates);
     LocalDateTime labelRefreshFinishedAt = labelRefreshFinishedAt(mirrorRunId);
     int enqueued = 0;
     for (IssueFact candidate : candidates) {
-      CustomerIssueDelayLabelWritebackPlan plan = planner.plan(candidate);
+      CustomerIssueDelayLabelWritebackPlan plan =
+          planner.plan(candidate, replyOf(inputs, candidate));
       if (!plan.hasChanges()) {
         continue;
       }
@@ -108,6 +115,34 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         candidates.isEmpty() ? afterIssueId : candidates.getLast().getIssueId();
     return new PageResult(
         enqueued, lastIssueId, candidates.size() >= Math.max(1, limit));
+  }
+
+  /** 本页候选的回复输入：单次批量解析，沿用事实构建同一权威与版本规则。 */
+  private Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> resolvePageInputs(
+      String sourceInstance, List<IssueFact> candidates) {
+    List<FormIssueInputResolver.IssueRef> refs =
+        candidates.stream()
+            .filter(candidate -> candidate.getProjectId() != null && candidate.getIssueIid() != null)
+            .map(
+                candidate ->
+                    new FormIssueInputResolver.IssueRef(
+                        candidate.getProjectId(), candidate.getIssueIid()))
+            .distinct()
+            .toList();
+    if (refs.isEmpty()) {
+      return Map.of();
+    }
+    return formIssueInputResolver.resolveAll(sourceInstance, refs).inputs();
+  }
+
+  private IssueBusinessInput.ReplySnapshot replyOf(
+      Map<FormIssueInputResolver.IssueRef, IssueBusinessInput> inputs, IssueFact fact) {
+    if (fact.getProjectId() == null || fact.getIssueIid() == null) {
+      return null;
+    }
+    IssueBusinessInput input =
+        inputs.get(new FormIssueInputResolver.IssueRef(fact.getProjectId(), fact.getIssueIid()));
+    return input == null ? null : input.reply();
   }
 
   /**
@@ -446,6 +481,9 @@ public class CustomerIssueDelayLabelWritebackQueueService {
          where f.source_system = ?
            and f.source_instance = ?
            and f.deleted = false
+           and """
+            + " coalesce(f.deleted, false) = false "
+            + """
            and f.project_id = ?
            and lower(coalesce(f.issue_state, 'opened')) <> 'closed'
            and f.created_at_source >= ?
@@ -498,6 +536,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
             round_mirror_run_id,
             authorization_revision,
             required_fact_version,
+            form_input_hash,
             task_revision,
             lease_owner,
             lease_until,
@@ -507,7 +546,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
             finished_at,
             created_at,
             updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, ?, ?, ?, 1, null, null, null, null, null, null, current_timestamp, current_timestamp)
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, ?, ?, ?, ?, 1, null, null, null, null, null, null, current_timestamp, current_timestamp)
         on conflict (source_instance, project_id, issue_iid) do update
           set config_id = excluded.config_id,
               issue_id = excluded.issue_id,
@@ -519,6 +558,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
               round_mirror_run_id = excluded.round_mirror_run_id,
               authorization_revision = excluded.authorization_revision,
               required_fact_version = excluded.required_fact_version,
+              form_input_hash = excluded.form_input_hash,
               task_revision = customer_issue_delay_label_writeback_jobs.task_revision + 1,
               status = case
                   when customer_issue_delay_label_writeback_jobs.status = 'DEAD'
@@ -597,6 +637,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         mirrorRunId,
         authorizationRevision,
         requiredFactVersion,
+        fact.getFormInputHash(),
         Boolean.TRUE.equals(fact.getResponseDelayed()),
         Boolean.TRUE.equals(fact.getResolveDelayed()),
         joinLabels(plan.change().addLabels()),
@@ -651,6 +692,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
     fact.setIllegalReasons(text(rs, "illegal_reasons", null));
     fact.setResponseDelayed(rs.getBoolean("is_response_delayed"));
     fact.setResolveDelayed(rs.getBoolean("is_resolve_delayed"));
+    fact.setFormInputHash(text(rs, "form_input_hash", null));
     return fact;
   }
 
@@ -678,6 +720,7 @@ public class CustomerIssueDelayLabelWritebackQueueService {
         nullableLong(rs, "round_mirror_run_id"),
         nullableLong(rs, "authorization_revision"),
         nullableLong(rs, "required_fact_version"),
+        rs.getString("form_input_hash"),
         rs.getString("claim_token"),
         rs.getLong("claim_revision"),
         rs.getLong("task_revision"));

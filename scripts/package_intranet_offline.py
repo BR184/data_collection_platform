@@ -81,6 +81,7 @@ class BuildContext:
     baseline_env_path: Path | None = None
     extra_services: tuple[str, ...] = ()
     preserve_baseline_topology: bool = False
+    allow_out_of_order_migrations: bool = False
 
 
 def log(message: str) -> None:
@@ -483,6 +484,8 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
             fail("incremental-update does not use --template-package-dir")
     if args.template_package_dir is not None and not args.include_offline_docker_debs:
         fail("--template-package-dir requires --include-offline-docker-debs")
+    if getattr(args, "allow_out_of_order_migrations", False) and args.mode != "incremental-update":
+        fail("--allow-out-of-order-migrations is only valid for an approved incremental upgrade")
 
     branch = git_value("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
     commit = git_value("rev-parse", "HEAD") or "unknown"
@@ -554,6 +557,7 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         baseline_name=baseline_name,
         container_names=container_names,
         expected_flyway_version=latest_flyway_version(),
+        allow_out_of_order_migrations=getattr(args, "allow_out_of_order_migrations", False),
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
@@ -765,6 +769,7 @@ BACKUP_CHECKSUM_FILES=(
   postgres.inspect.json
   compose-images.txt
   flyway-before.txt
+  flyway-history.txt
   counts-before.txt
   database.dump
   critical-tables.dump
@@ -1859,7 +1864,7 @@ sha256sum -c SHA256SUMS.txt
 cd -
 ```
 
-备份内容包括完整数据库 `database.dump`、关键表 `critical-tables.dump`、两份可恢复内容清单、关键表行数、Flyway 版本、Compose 配置和 PostgreSQL 容器证据。完整数据库备份是灾备恢复权威；关键表备份用于快速核验和经审批的定向恢复。
+备份内容包括完整数据库 `database.dump`、关键表 `critical-tables.dump`、两份可恢复内容清单、关键表行数、Flyway 最新版本与完整已应用集合 `flyway-history.txt`、Compose 配置和 PostgreSQL 容器证据。完整数据库备份是灾备恢复权威；关键表备份用于快速核验和经审批的定向恢复。升级脚本在校验备份后把本次目录写入 `upgrade-backups/current-attempt-backup.txt`，失败恢复以该指针为准；`latest-backup.txt` 只记录最近一次成功升级。
 
 ## 4. 执行受控升级
 
@@ -1932,6 +1937,7 @@ sudo docker compose --env-file .env exec -T postgres sh -c 'psql -U "$POSTGRES_U
 - 应用回滚只恢复升级前的 `docker-compose.yml` 和基线前后端镜像；不回退数据库、ODS、事实、统计或 Flyway 迁移，也不执行 `pg_restore`。
 - 回滚期旧应用可能继续写入数据，回滚前必须暂停同步和后台任务（7.2）。
 - 正常升级并继续运行目标版本不需要本节流程；只有回滚到旧应用时才需要。
+- `rollback.sh` 先比较当前库已应用迁移集合（版本+checksum）与本次备份的 `flyway-history.txt`：完全一致才安装旧 Compose 并启动旧应用；不一致时停止 backend/frontend、写入 `ROLLBACK_REQUIRES_DATABASE_RESTORE` 并以退出码 3 结束，先按 7.5 恢复配套数据库后再用同一备份目录重跑。
 - {rollback_ods_note}
 
 回滚流程只使用平台已有的后台调度开关、同步配置开关、活跃任务处理和现场维护窗口，不新增数据库表、函数或触发器。
@@ -1979,14 +1985,15 @@ SQL
 
 最后一行必须输出 `0`。
 
-4. 执行应用回滚：
+4. 执行应用回滚。`current-attempt-backup.txt` 由本次升级在校验备份后写入，失败时直接指向本次使用的备份，不会误用上一次成功升级的 `latest-backup.txt`：
 
 ```bash
-BACKUP_DIR="$(cat upgrade-backups/latest-backup.txt)"
+BACKUP_DIR="$(cat upgrade-backups/current-attempt-backup.txt)"
+echo "$BACKUP_DIR"
 bash ../{ctx.package_name}/rollback.sh "$PWD" "$BACKUP_DIR"
 ```
 
-`rollback.sh` 在替换 Compose 前会停止 backend/frontend，再次确认没有活动任务且所有同步开关为关闭，然后用 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 启动旧 backend；它不修改 `.env`。
+`rollback.sh` 在替换 Compose 前会停止 backend/frontend，再次确认没有活动任务且所有同步开关为关闭，然后比较迁移集合；一致时用 `PLATFORM_BACKGROUND_JOBS_ENABLED=false` 启动旧 backend，不一致时按 7.5 处理并退出 3。它不修改 `.env`。
 
 5. 验证旧应用处于暂停态：
 
@@ -2049,6 +2056,25 @@ diff -u sync-config-flags.before.tsv sync-config-flags.after.tsv
 ### 7.4 手动事实重建的边界
 
 {manual_rebuild_note}
+
+### 7.5 迁移集合不一致：先恢复配套数据库
+
+`rollback.sh` 检测到当前库已应用迁移集合（版本+checksum）与本次备份的 `flyway-history.txt` 不一致时，会停止 backend/frontend、写入 `ROLLBACK_REQUIRES_DATABASE_RESTORE` 并以退出码 3 结束；它不会启动旧应用，也不会自动改写数据库。
+
+1. 确认维护窗口未开放，记录脚本输出的 `$BACKUP_DIR`。
+2. 按经批准的数据库恢复流程，把该目录的 `database.dump` 恢复到平台库。
+3. 在停机状态核对恢复后的集合与备份完全一致：
+
+```bash
+BACKUP_DIR="$(cat upgrade-backups/current-attempt-backup.txt)"
+sudo docker compose --env-file .env exec -T postgres sh -c \\
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select version || chr(124) || coalesce(checksum::text, chr(39) || chr(39)) from flyway_schema_history where success order by installed_rank;"' > live-flyway-history.txt
+diff -u "$BACKUP_DIR/flyway-history.txt" live-flyway-history.txt
+```
+
+`diff` 必须无输出。
+
+4. 再次执行同一回滚命令；只有集合一致后才会安装旧 Compose 并启动旧应用。
 """
 
 
@@ -2121,6 +2147,7 @@ printf '%s\n' "$POSTGRES_ID" > "$BACKUP_DIR/postgres.container-id"
 "${{DOCKER[@]}}" inspect "$POSTGRES_ID" > "$BACKUP_DIR/postgres.inspect.json"
 compose images > "$BACKUP_DIR/compose-images.txt"
 db_query "select coalesce(version,'') || '|' || success from flyway_schema_history order by installed_rank desc limit 1;" > "$BACKUP_DIR/flyway-before.txt"
+db_query "select version || '|' || coalesce(checksum::text,'') from flyway_schema_history where success order by installed_rank;" > "$BACKUP_DIR/flyway-history.txt"
 
 CRITICAL_TABLES=(gitlab_sync_configs ods_gitlab_issues ods_gitlab_merge_requests issue_fact merge_request_fact integration_test_fact issue_fact_customer_members sync_runs sync_run_table_tasks fact_build_tasks review_records review_problem_items review_data_match_mode_reports review_data_match_mode_problem_details code_review_match_mode_records platform_ldap_users platform_ldap_roles platform_ldap_user_roles platform_permissions platform_role_permissions platform_default_role_permissions issue_scope_catalogs issue_scope_groups issue_scope_members statistic_board_snapshots page_record_snapshots)
 TABLE_ARGS=()
@@ -2212,6 +2239,8 @@ read_backup_manifest "$BACKUP_DIR/backup-manifest.env"
 [[ "$BACKUP_DIR" == "$(realpath -e -- "$BACKUP_DIR")" ]] || fail "backup path must be canonical"
 cmp -s "$BACKUP_DIR/.env" .env || fail "live .env differs from the verified pre-deployment backup"
 [[ "$(<"$BACKUP_DIR/postgres.container-id")" == "$BACKUP_MANIFEST_POSTGRES_ID" ]] || fail "backup PostgreSQL container identity is inconsistent"
+printf '%s\n' "$BACKUP_DIR" > "$TARGET_DIR/upgrade-backups/current-attempt-backup.txt"
+log "upgrade attempt backup: $BACKUP_DIR"
 
 compose() {{ env -u COMPOSE_PROJECT_NAME -u POSTGRES_VOLUME_NAME -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" "$@"; }}
 db_query() {{
@@ -2323,7 +2352,7 @@ if ! timeout --signal=TERM --kill-after=30s 900 env -u COMPOSE_PROJECT_NAME -u P
     -u BACKEND_LOG_VOLUME_NAME -u COMPOSE_FILE -u COMPOSE_PROFILES "${{DOCKER[@]}}" compose \
     --project-directory "$TARGET_DIR" --env-file "$TARGET_DIR/.env" run --rm --no-deps -T \
     --name "$MIGRATION_CONTAINER" --label "com.qaflex.migration-token=$MIGRATION_TOKEN" \
-    -e PLATFORM_RUN_MODE=migrate -e PLATFORM_BACKGROUND_JOBS_ENABLED=false backend \
+    -e PLATFORM_RUN_MODE=migrate -e PLATFORM_BACKGROUND_JOBS_ENABLED=false -e SPRING_FLYWAY_OUT_OF_ORDER={str(ctx.allow_out_of_order_migrations).lower()} backend \
     > "$BACKUP_DIR/backend-migration.log" 2>&1; then
   cat "$BACKUP_DIR/backend-migration.log" >&2
   fail "one-shot migration failed or exceeded its process deadline; service was not started"
@@ -2476,6 +2505,22 @@ cp -p "$TEMP_COMPOSE" "$RECOVERY_DIR/rollback-candidate-compose.yml" || fail "ca
 printf '%s\n' "PREFLIGHT_PASSED" > "$RECOVERY_DIR/state.txt"
 log "rollback recovery evidence: $RECOVERY_DIR"
 
+CURRENT_HISTORY="$(db_query "select version || '|' || coalesce(checksum::text,'') from flyway_schema_history where success order by installed_rank;")" || fail "cannot read the current Flyway migration set"
+BACKUP_HISTORY=""
+if [[ -f "$BACKUP_DIR/flyway-history.txt" ]]; then
+  BACKUP_HISTORY="$(<"$BACKUP_DIR/flyway-history.txt")"
+fi
+if [[ -z "$BACKUP_HISTORY" || "$CURRENT_HISTORY" != "$BACKUP_HISTORY" ]]; then
+  log "database migration set differs from the pre-upgrade backup; the old application will not be started"
+  compose stop backend frontend >/dev/null 2>&1 || true
+  printf '%s\n' "ROLLBACK_REQUIRES_DATABASE_RESTORE" > "$RECOVERY_DIR/state.txt"
+  log "restore the approved database backup first: $BACKUP_DIR/database.dump"
+  log "after restore, compare the live history with $BACKUP_DIR/flyway-history.txt and rerun rollback.sh with the same backup directory"
+  log "recovery evidence: $RECOVERY_DIR"
+  exit 3
+fi
+log "database migration set matches the pre-upgrade backup"
+
 wait_healthy() {{
   local service="$1" timeout_seconds="$2" started container status
   started="$(date +%s)"
@@ -2612,6 +2657,7 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
             "os": "ubuntu-24.04-amd64",
             "offline": True,
             "flywayVersion": ctx.expected_flyway_version,
+            "outOfOrderMigration": ctx.allow_out_of_order_migrations,
             "images": {
                 "backend": {
                     "reference": f"{BACKEND_IMAGE}:{ctx.backend_tag}",
@@ -2885,6 +2931,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="include Ubuntu 24.04 Docker/Compose debs in a fresh package from the template directory",
     )
     parser.add_argument("--require-fact-rebuild", action="store_true")
+    parser.add_argument(
+        "--allow-out-of-order-migrations",
+        action="store_true",
+        help="allow reviewed missing lower-version migrations in the one-shot upgrade process only",
+    )
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
     parser.add_argument(
         "--require-ods-correction",

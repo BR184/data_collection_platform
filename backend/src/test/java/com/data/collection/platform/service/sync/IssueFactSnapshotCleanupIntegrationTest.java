@@ -79,7 +79,7 @@ class IssueFactSnapshotCleanupIntegrationTest {
             mock(IssueFactMapper.class),
             null,
             jdbcTemplate,
-            new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext()));
+            new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext()), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
   }
 
   @Test

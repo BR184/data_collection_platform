@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableAsync
 @MapperScan("com.data.collection.platform.mapper")
 @EnableConfigurationProperties({
+    FormIssueLinkProperties.class,
     GitlabMirrorProperties.class,
     PlatformAuthProperties.class,
     ReviewDataProperties.class,

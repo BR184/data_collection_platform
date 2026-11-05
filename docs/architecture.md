@@ -75,6 +75,15 @@
 - `issue_fact.handler_name` 与 `issue_fact.assignee_name` 是独立人员事实；当前 GitLab ODS 只暴露一份规范指派身份时，事实构建可以写入相同值，但查询、筛选、排序和导出不得把两个字段重新合并。`testing_phase` 原始空值保持为空，CC_PRODUCT 仅在响应投影中显示“未设定测试阶段”。
 - `code_review_external_metrics` 是 GitLab diff 派生行数和 MR 标题功能名的权威补齐模型。既有或手工导入指标默认视为 `SUCCESS`，只有历史/已完成运行扫描明确发现的 CC MR 才进入补齐队列；后台以持久化 keyset 游标分别扫描历史 MR 和已完成镜像运行，队列按 `source_instance` 隔离并经历 `PENDING/RUNNING/RETRY/ENRICHED/SUCCESS/FAILED`。网络、限流和服务端错误使用封顶指数退避持续重试，认证、资源不存在、非法地址和截断响应进入确定性失败。补齐只通过 API Token 访问 GitLab v4 changes 接口，页面请求不得实时访问 GitLab；成功指标在事实构建互斥内定向发布到 `merge_request_fact`，构建忙时保持 `ENRICHED` 等待下一批次。全局调度关闭时补齐任务必须停止。
 
+### 表单与旧事实引擎接入
+
+- 本发布线保留`20261102T110730Z-796cecc1d40a`的同步、任务、水位及单行事实发布算法，不引入`read_publications`、候选多修订或可见区间列。表单功能以用户验收的20203包为对照；独立适配入口为`FormIssueFactAdapter`。
+- 表单范围、不可变版本、记录位置、审计和变更head使用既有表单模型。新记录进入当前已发布版本，历史记录在原版本维护。FORM/COMMENT身份在首次登记时冻结，响应与回复分别判定；生产MR继续COMMENT，代码走查统计保持原来源。
+- 表单响应/回复配置保存在`gitlab_sync_configs.form_issue_settings`的项目项，默认关闭；管理页CAS保存。自动链接沿用该来源的API token，无独立令牌。链接使用平台外部地址加`/#/external/forms`，双入口合并为一条评论。
+- 旧事实批次事务冻结表单范围、权威与head，覆盖采用FORM的业务列；事实、输入签名、消费水位和链接就绪登记一起提交或回滚。写回作业保存同一输入签名，发送前后比对当前/事实/作业，输入变化交回正常事实链收敛。周期延期刷新只重算与已消费签名一致的表单输入。
+- `FormFactPublicationEvent`在提交后登记既有延期轮次；`requestRound`经代理开启独立短事务，返回后再唤醒原worker。外部链接也只在事实提交后发送，发送时复查项目设置、双模板就绪和评论编号。
+- 本升级从140份旧迁移集合追加15份表单迁移；已交付表单迁移保持原字节，低于旧库最大版本的缺失迁移只在一次性升级进程允许out-of-order。正常服务不开启此选项。其他迁移集合不自动视为同一基线；数据库恢复与应用回滚按离线发布标准处理。
+
 ### 页面与前端底座
 
 - 页面导航和权限入口由 `frontend/src/feature-manifest/` 维护；领域 API 位于 `frontend/src/api-client/`。

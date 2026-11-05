@@ -3,10 +3,11 @@ package com.data.collection.platform.service;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /** 为 GitLab 事实管道集成测试提供唯一的最小镜像表结构。 */
-final class GitlabIssueMirrorFixture {
+public final class GitlabIssueMirrorFixture {
   private GitlabIssueMirrorFixture() {}
 
-  static void ensureSchema(JdbcTemplate jdbcTemplate) {
+  /** 为事实接入测试建立真实查询需要的镜像表。 */
+  public static void ensureSchema(JdbcTemplate jdbcTemplate) {
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_projects (

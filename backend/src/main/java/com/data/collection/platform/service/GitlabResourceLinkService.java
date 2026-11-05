@@ -38,12 +38,23 @@ public class GitlabResourceLinkService {
     return resourceUrl(sourceInstance, projectId, issueIid, "issues");
   }
 
+  /** 按调用方提供的来源基址生成 Issue 链接；项目路径仍取自已镜像元数据。 */
+  public String issueUrl(String sourceInstance, String baseUrl, Long projectId, Integer issueIid) {
+    return resourceUrl(sourceInstance, baseUrl, projectId, issueIid, "issues");
+  }
+
   public String mergeRequestUrl(Long projectId, Integer mergeRequestIid) {
     return mergeRequestUrl(null, projectId, mergeRequestIid);
   }
 
   public String mergeRequestUrl(String sourceInstance, Long projectId, Integer mergeRequestIid) {
     return resourceUrl(sourceInstance, projectId, mergeRequestIid, "merge_requests");
+  }
+
+  /** 按调用方提供的来源基址生成合并请求链接；项目路径仍取自已镜像元数据。 */
+  public String mergeRequestUrl(
+      String sourceInstance, String baseUrl, Long projectId, Integer mergeRequestIid) {
+    return resourceUrl(sourceInstance, baseUrl, projectId, mergeRequestIid, "merge_requests");
   }
 
   public String legacyCodeReviewMergeRequestUrl(
@@ -78,17 +89,26 @@ public class GitlabResourceLinkService {
   }
 
   private String resourceUrl(String sourceInstance, Long projectId, Integer iid, String resourcePath) {
-    String baseUrl = baseUrl(sourceInstance);
-    if (!StringUtils.hasText(baseUrl) || projectId == null || iid == null) {
+    return resourceUrl(sourceInstance, baseUrl(sourceInstance), projectId, iid, resourcePath);
+  }
+
+  private String resourceUrl(
+      String sourceInstance, String baseUrl, Long projectId, Integer iid, String resourcePath) {
+    String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+    if (!StringUtils.hasText(normalizedBaseUrl) || projectId == null || iid == null) {
       return null;
     }
     return projectPath(sourceInstance, projectId)
-        .map(path -> baseUrl + "/" + path + "/-/" + resourcePath + "/" + iid)
+        .map(path -> normalizedBaseUrl + "/" + path + "/-/" + resourcePath + "/" + iid)
         .orElse(null);
   }
 
   private Optional<String> projectPath(String sourceInstance, Long projectId) {
-    ProjectPathCacheKey key = new ProjectPathCacheKey(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, projectId);
+    String normalizedSource =
+        TextQuerySupport.trimToNull(sourceInstance) == null
+            ? GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE
+            : sourceInstance.trim();
+    ProjectPathCacheKey key = new ProjectPathCacheKey(normalizedSource, projectId);
     Optional<String> cached = projectPathCache.get(key);
     if (cached != null) { return cached; }
     Optional<String> found = loadProjectPath(key);

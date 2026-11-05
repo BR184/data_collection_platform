@@ -12,8 +12,8 @@ describe('UX interaction regressions', () => {
   it('keeps edit forms submittable with Enter', () => {
     expect(reviewRecordDialogSource).toContain('@submit.prevent="handleSubmit"');
     expect(reviewProblemDialogSource).toContain('@submit.prevent="handleSubmit"');
-    expect(databaseBrowserSource).toContain('@submit.prevent="saveCollectFormEdit"');
-    expect(collectFormSource).toContain('@submit.prevent="saveForm"');
+    expect(databaseBrowserSource).not.toContain('updateCollectFormRecord');
+    expect(collectFormSource).toContain('@submit.prevent="submitBlock(block)"');
   });
 
   it('focuses the first invalid field instead of only showing a toast', () => {

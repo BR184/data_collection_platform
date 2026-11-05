@@ -98,12 +98,10 @@ class DatabaseBrowserPublicColumnsTest {
   }
 
   @Test
-  void collectFormEditorFieldsAreAllDeclaredAndProjected() {
-    // 声明/SQL 契约层：数据库浏览器内联编辑器（frontend DatabaseBrowserView.vue openCollectFormEditor /
-    // saveCollectFormEdit）从行数据回填并回写这些物理列，后端 CollectFormService.updateRecord 对空
-    // remark 会写空串。本用例仅断言表定义与 buildSql 投影都覆盖编辑器消费的字段；运行期 JSON 往返由
-    // collectFormRemarkRoundTripsThroughSerializedResponse 覆盖。
-    List<String> editorConsumedColumns = List.of(
+  void legacyCollectFormReadFieldsAreAllDeclaredAndProjected() {
+    // 旧表仅供数据库浏览与历史迁移读取；表单修改统一走目录/版本写服务。
+    // 此处保持旧物理列的只读投影完整，JSON往返由下一项用例覆盖。
+    List<String> legacyReadColumns = List.of(
         "id", "form_title", "reviewer", "review_duration_minutes",
         "specification_score", "logic_score", "performance_score", "design_score", "other_score",
         "remark", "deleted", "gitlab_base_url", "project_id", "request_iid",
@@ -111,13 +109,13 @@ class DatabaseBrowserPublicColumnsTest {
 
     DatabaseBrowserTableDefinition definition = DatabaseBrowserTableCatalog.findDefinition("collect_form_records");
     List<String> declared = definition.columns().stream().map(DatabaseTableColumn::getKey).toList();
-    assertThat(declared).containsAll(editorConsumedColumns);
+    assertThat(declared).containsAll(legacyReadColumns);
 
     DatabaseBrowserSqlBundle bundle =
         DatabaseBrowserQuerySupport.buildSql(definition, "collect_form_records", null, "id", "desc", 1, 20);
     // 显式投影必须逐列覆盖编辑器消费的字段，尤其是历史上仅靠 select * 隐式带出的 remark。
     assertThat(bundle.rowsSql()).doesNotContain("select *");
-    for (String column : editorConsumedColumns) {
+    for (String column : legacyReadColumns) {
       assertThat(bundle.rowsSql()).contains("\"" + column + "\"");
     }
   }

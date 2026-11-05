@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
-import { Edit, Refresh, WarningFilled } from '@element-plus/icons-vue';
+import { Refresh, WarningFilled } from '@element-plus/icons-vue';
 import { api } from '../api';
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import type { DatabaseTableRefreshResponse } from '../api-client/database-browser-api';
@@ -78,7 +78,6 @@ const pageReady = computed(() => {
 const showInitialTableSkeleton = computed(
   () => tableOptions.value.length > 0 && (!selectedTable.value || !firstRowsResolved.value),
 );
-const isCollectFormTable = computed(() => selectedTable.value === 'collect_form_records');
 const syncStatusTagType = computed(() => {
   const status = rowsResponse.value?.syncStatus ?? selectedOption.value?.syncStatus;
   switch (status) {
@@ -103,32 +102,6 @@ const syncStatusLabels: Record<string, string> = {
   CANCELLED: '已取消',
 };
 const tableHeight = computed(() => Math.max(460, viewportHeight.value - 272));
-const editDialogVisible = ref(false);
-const editSaving = ref(false);
-const editingContext = reactive({
-  gitlabBaseUrl: '',
-  projectId: '',
-  requestIid: '',
-  resourceType: '',
-  resourceId: '',
-  templateCode: '',
-  createdAt: '',
-  updatedAt: '',
-});
-const editForm = reactive({
-  id: 0,
-  formTitle: '',
-  reviewer: '',
-  reviewDurationMinutes: 0,
-  specificationScore: 0,
-  logicScore: 0,
-  performanceScore: 0,
-  designScore: 0,
-  otherScore: 0,
-  remark: '',
-  deleted: false,
-});
-
 async function loadTables() {
   tablesLoading.value = true;
   try {
@@ -247,65 +220,6 @@ function formatCellValue(value: unknown) {
 
 function formatTime(value?: string | null) {
   return value || '-';
-}
-
-function normalizeNumber(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function openCollectFormEditor(row: Record<string, unknown>) {
-  editForm.id = normalizeNumber(row.id);
-  editForm.formTitle = String(row.form_title ?? '');
-  editForm.reviewer = String(row.reviewer ?? '');
-  editForm.reviewDurationMinutes = normalizeNumber(row.review_duration_minutes);
-  editForm.specificationScore = normalizeNumber(row.specification_score);
-  editForm.logicScore = normalizeNumber(row.logic_score);
-  editForm.performanceScore = normalizeNumber(row.performance_score);
-  editForm.designScore = normalizeNumber(row.design_score);
-  editForm.otherScore = normalizeNumber(row.other_score);
-  editForm.remark = String(row.remark ?? '');
-  editForm.deleted = Boolean(row.deleted);
-
-  editingContext.gitlabBaseUrl = String(row.gitlab_base_url ?? '-');
-  editingContext.projectId = String(row.project_id ?? '-');
-  editingContext.requestIid = String(row.request_iid ?? '-');
-  editingContext.resourceType = String(row.resource_type ?? '-');
-  editingContext.resourceId = String(row.resource_id ?? '-');
-  editingContext.templateCode = String(row.template_code ?? '-');
-  editingContext.createdAt = String(row.created_at ?? '-');
-  editingContext.updatedAt = String(row.updated_at ?? '-');
-  editDialogVisible.value = true;
-}
-
-async function saveCollectFormEdit() {
-  if (!editForm.id) {
-    ElMessage.warning('缺少记录 ID，无法更新');
-    return;
-  }
-  editSaving.value = true;
-  try {
-    await api.updateCollectFormRecord({
-      id: editForm.id,
-      formTitle: editForm.formTitle,
-      reviewer: editForm.reviewer,
-      reviewDurationMinutes: editForm.reviewDurationMinutes,
-      specificationScore: editForm.specificationScore,
-      logicScore: editForm.logicScore,
-      performanceScore: editForm.performanceScore,
-      designScore: editForm.designScore,
-      otherScore: editForm.otherScore,
-      remark: editForm.remark,
-      deleted: editForm.deleted,
-    });
-    ElMessage.success('collect_form_records 已更新');
-    editDialogVisible.value = false;
-    await reload();
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '表记录更新失败'));
-  } finally {
-    editSaving.value = false;
-  }
 }
 
 function syncStatusText() {
@@ -527,11 +441,6 @@ onBeforeUnmount(() => {
               </template>
             </el-table-column>
 
-            <el-table-column v-if="isCollectFormTable" label="操作" width="100" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link :icon="Edit" @click="openCollectFormEditor(row)">编辑</el-button>
-              </template>
-            </el-table-column>
           </el-table>
 
           <div class="db-pagination">
@@ -551,66 +460,6 @@ onBeforeUnmount(() => {
     </div>
   </PageStateShell>
 
-  <el-dialog
-    v-model="editDialogVisible"
-    title="编辑 collect_form_records"
-    width="820px"
-    destroy-on-close
-  >
-    <div class="db-edit-context">
-      <div class="db-edit-context-item"><span>ID</span><strong>{{ editForm.id || '-' }}</strong></div>
-      <div class="db-edit-context-item"><span>GitLab 来源地址</span><strong>{{ editingContext.gitlabBaseUrl }}</strong></div>
-      <div class="db-edit-context-item"><span>Project ID</span><strong>{{ editingContext.projectId }}</strong></div>
-      <div class="db-edit-context-item"><span>请求类型 IID</span><strong>{{ editingContext.requestIid }}</strong></div>
-      <div class="db-edit-context-item"><span>资源类型</span><strong>{{ editingContext.resourceType }}</strong></div>
-      <div class="db-edit-context-item"><span>资源编号</span><strong>{{ editingContext.resourceId }}</strong></div>
-      <div class="db-edit-context-item"><span>模板编码</span><strong>{{ editingContext.templateCode }}</strong></div>
-      <div class="db-edit-context-item"><span>更新时间</span><strong>{{ editingContext.updatedAt }}</strong></div>
-      <div class="db-edit-context-item"><span>创建时间</span><strong>{{ editingContext.createdAt }}</strong></div>
-    </div>
-
-    <el-form label-position="top" class="db-edit-form" @submit.prevent="saveCollectFormEdit">
-      <div class="db-edit-grid">
-        <el-form-item label="表单标题">
-          <el-input v-model="editForm.formTitle" />
-        </el-form-item>
-        <el-form-item label="走查人">
-          <el-input v-model="editForm.reviewer" />
-        </el-form-item>
-        <el-form-item label="走查时间(分钟)">
-          <el-input-number v-model="editForm.reviewDurationMinutes" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="是否作废">
-          <el-switch v-model="editForm.deleted" />
-        </el-form-item>
-        <el-form-item label="规范">
-          <el-input-number v-model="editForm.specificationScore" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="逻辑">
-          <el-input-number v-model="editForm.logicScore" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="性能">
-          <el-input-number v-model="editForm.performanceScore" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="设计">
-          <el-input-number v-model="editForm.designScore" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="其他">
-          <el-input-number v-model="editForm.otherScore" :min="0" :step="1" controls-position="right" />
-        </el-form-item>
-      </div>
-      <el-form-item label="备注">
-        <el-input v-model="editForm.remark" type="textarea" :rows="4" />
-      </el-form-item>
-    </el-form>
-
-    <template #footer>
-      <div class="db-edit-footer">
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="editSaving" @click="saveCollectFormEdit">保存修改</el-button>
-      </div>
-    </template>
-  </el-dialog>
 </template>
 
 <style scoped>
@@ -726,47 +575,4 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
 }
 
-.db-edit-context {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid rgba(5, 5, 5, 0.08);
-  border-radius: 10px;
-  background: #fafafa;
-}
-
-.db-edit-context-item {
-  display: grid;
-  gap: 4px;
-}
-
-.db-edit-context-item span {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.db-edit-context-item strong {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.88);
-  word-break: break-all;
-}
-
-.db-edit-form {
-  display: grid;
-  gap: 8px;
-}
-
-.db-edit-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.db-edit-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
 </style>

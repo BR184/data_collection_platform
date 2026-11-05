@@ -23,7 +23,7 @@ class IssueFactPersistenceServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(
-            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     IssueFact currentFact = mock(IssueFact.class);
     List<IssueFact> currentFacts = List.of(currentFact);
 
@@ -56,7 +56,7 @@ class IssueFactPersistenceServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(
-            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
 
     service.replaceRootFacts(
         "GITLAB",
@@ -77,7 +77,7 @@ class IssueFactPersistenceServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(
-            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     org.mockito.Mockito.when(
             jdbcTemplate.queryForObject(
                 org.mockito.ArgumentMatchers.contains("from issue_fact_delete_ids"),
@@ -108,7 +108,7 @@ class IssueFactPersistenceServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(
-            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     IssueFact keptFact = mock(IssueFact.class);
     org.mockito.Mockito.when(keptFact.getProjectId()).thenReturn(9L);
     org.mockito.Mockito.when(keptFact.getIssueId()).thenReturn(101L);
@@ -134,7 +134,7 @@ class IssueFactPersistenceServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     IssueFactPersistenceService service =
         new IssueFactPersistenceService(
-            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate));
+            factMapper, membershipRepository, jdbcTemplate, cleanupGuard(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     org.mockito.Mockito.when(
             jdbcTemplate.queryForObject(
                 org.mockito.ArgumentMatchers.contains("(project_id is null or issue_id is null)"),

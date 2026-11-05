@@ -3,7 +3,7 @@ import { Expand, Fold, Lock, User } from '@element-plus/icons-vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
-import { ElMessage } from './element-plus-services';
+import { ElMessage, ElMessageBox } from './element-plus-services';
 import { api } from './api';
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
@@ -21,6 +21,7 @@ import { shellDataScopeState } from './composables/shell-data-scope';
 import { authState, ensureCurrentUser, refreshCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
 import { AUTH_REQUIRED_EVENT } from './api-client/request';
+import { announceFormLogout, hasFormDrafts } from './features/collect-forms/draft-store';
 import { getErrorMessage } from './utils/user-message';
 import GlobalProgressIndicator from './components/GlobalProgressIndicator.vue';
 
@@ -40,7 +41,7 @@ const usernameInputRef = ref<InputFocusTarget>();
 const passwordInputRef = ref<InputFocusTarget>();
 
 const currentUser = computed(() => authState.currentUser);
-// 登录主体或分析看板切换时重新挂载当前页面，让仅在首次挂载时加载数据的业务页重新请求数据。
+// 登录主体或分析看板拥有者切换时重建组件，不能将上一拥有者的读取身份复用于新页。
 const pageRenderKey = computed(
   () => `${currentUser.value.authenticated ? 'authenticated' : 'guest'}:${currentUser.value.username}:${String(route.meta.analyticsDashboardKey ?? '')}`,
 );
@@ -209,8 +210,25 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
+  const account = currentUser.value.username;
+  if (account && hasFormDrafts(account)) {
+    try {
+      await ElMessageBox.confirm(
+        '退出登录会清除本平台各标签页中该账号的全部表单草稿，尚未正式提交的内容将无法恢复。确认退出吗？',
+        '退出登录',
+        {
+          type: 'warning',
+          confirmButtonText: '退出并清除草稿',
+          cancelButtonText: '取消',
+        },
+      );
+    } catch {
+      return;
+    }
+  }
   try {
     await logout();
+    announceFormLogout(account);
     ElMessage.success('已退出登录');
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '退出登录失败'));

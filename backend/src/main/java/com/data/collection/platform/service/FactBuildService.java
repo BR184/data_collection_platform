@@ -56,6 +56,7 @@ public class FactBuildService {
   private final GitlabMirrorProperties mirrorProperties;
   private final FactProjectionScopeResolver projectionScopeResolver;
   private final FactProjectionGenerationService projectionGenerationService;
+  private final FormIssueFactAdapter formAdapter;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -78,7 +79,7 @@ public class FactBuildService {
       FactPublicationTransaction publicationTransaction,
       GitlabMirrorProperties mirrorProperties,
       FactProjectionScopeResolver projectionScopeResolver,
-      FactProjectionGenerationService projectionGenerationService) {
+      FactProjectionGenerationService projectionGenerationService, FormIssueFactAdapter formAdapter) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactPersistenceService = issueFactPersistenceService;
     this.issueCustomerNameAliasService = issueCustomerNameAliasService;
@@ -100,6 +101,7 @@ public class FactBuildService {
     this.mirrorProperties = mirrorProperties;
     this.projectionScopeResolver = projectionScopeResolver;
     this.projectionGenerationService = projectionGenerationService;
+    this.formAdapter = formAdapter;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -342,6 +344,7 @@ public class FactBuildService {
     List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
     List<IssueFact> changedFacts = new ArrayList<>();
     LocalDateTime now = currentGitlabSourceTime();
+    Map<Long, IssueSlaRules.Evaluation> formEvaluations = formAdapter.delayEvaluations(sourceInstance, facts, now);
     for (IssueFact fact : facts) {
       boolean nextResponseDelayed =
           IssueFactNormalizationRules.isResponseDelayed(
@@ -356,6 +359,11 @@ public class FactBuildService {
               IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload()),
               fact.getResolveDeadlineAt(),
               now);
+      IssueSlaRules.Evaluation formEvaluation = formEvaluations.get(fact.getId());
+      if (formEvaluation != null) {
+        nextResponseDelayed = formEvaluation.responseDelayed();
+        nextResolveDelayed = formEvaluation.resolveDelayed();
+      }
       if (Boolean.TRUE.equals(fact.getResponseDelayed()) == nextResponseDelayed
           && Boolean.TRUE.equals(fact.getResolveDelayed()) == nextResolveDelayed
           && Boolean.TRUE.equals(fact.getResponseOverdue()) == nextResponseDelayed) {

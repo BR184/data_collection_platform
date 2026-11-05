@@ -221,6 +221,7 @@ class IssueFactSourceRowMapper {
     fact.setReasonCategory(defaultText(resultSet.getString("reason_category")));
     fact.setSystemTestLabel(defaultText(resultSet.getString("system_test_label")));
     fact.setLabelNames(defaultText(resultSet.getString("current_label_names")));
+    fact.setFormInputHash(resultSet.getString("form_input_hash"));
     fact.setExcluded(resultSet.getBoolean("is_excluded"));
     fact.setExclusionReason(defaultText(resultSet.getString("exclusion_reason")));
     fact.setFixed(resultSet.getBoolean("is_fixed"));

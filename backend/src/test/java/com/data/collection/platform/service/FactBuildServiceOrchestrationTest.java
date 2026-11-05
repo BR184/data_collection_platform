@@ -110,7 +110,7 @@ class FactBuildServiceOrchestrationTest {
             new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
         new com.data.collection.platform.config.GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
   }
 
   @Test

@@ -138,5 +138,20 @@
   "V20260930_01__fact_publication_authoritative_heads.sql": "0eca090aef2982619c41855bf0d2b96a9332f2c0e6a794078c5e8dcd1e3f8658",
   "V20260930_02__fact_task_manual_disposition.sql": "36c3105a1ec70719509eb71b5d9aabe85e1b71caa3931adbae08f663ac012824",
   "V20261019_01__source_fact_publication_pending_intent.sql": "29d324c2f08e4f1c77beb46d1a36b32a426fe841e54bdf75d68dadcfa45f6697",
-  "V20261022_03__customer_issue_delay_closure_progress.sql": "0c9d8bb9165276b86cfedb65c6e8713879d801290f7fabb0c84c2489e4ca37b9"
+  "V20261022_03__customer_issue_delay_closure_progress.sql": "0c9d8bb9165276b86cfedb65c6e8713879d801290f7fabb0c84c2489e4ca37b9",
+  "V20261022_01__unified_form_storage_foundation.sql": "801049c6748ab97abbbb6c52d7ce1fe9b10a3531c9aa661e38dd59a71e8ddd09",
+  "V20261022_02__form_permissions.sql": "96aa8e53a8ebde0570ccb7ca173df8f95938d642b25906a88d4f3406ffb118f7",
+  "V20261022_04__retire_legacy_form_permissions.sql": "feddc2cc1e9d8c60d365291772e6282321f82b820f16356bdf69e8a848c6a437",
+  "V20261027_01__form_v6_directory.sql": "e5d29292ee399395360e29b8b53134ad87d95dda97d68c7ad4f163c3dfc1b182",
+  "V20261029_01__form_v6_publication_protocol.sql": "0393c52bb4fc3d0948cc9668a9685a5ff50a7532a5e8393c9635638cb711964f",
+  "V20261029_02__form_publication_origin_binding.sql": "4187375a9574bdcbdf3cc7fb049ea8ddc634f2ecdc7f50076a9d546cfc3b0be1",
+  "V20261030_01__form_consumption_capture_foundation.sql": "fd000167229d0d56220c5a731faec32609841dd474ebd7bcea60d596932c10fa",
+  "V20261102_02__form_review_fact_projection.sql": "6954772d39871ad93932d9a9d86c1ea9ef2cb13d07cbd40e0d28d0de0b71a10e",
+  "V20261102_03__form_record_export.sql": "35b0ba67a53dd89dbdede75ebc6527ae856f510c38c48f17d7090f6517d8978c",
+  "V20261102_06__form_project_candidates.sql": "abd005621f4af2562a7ce7a484ef8e493dbba1cc500e255e573439ae34125de9",
+  "V20261102_08__form_project_candidate_state.sql": "4e90c4a8e5d655e451380bc5e5f0c35611a22a01af7e28c2474bc45be6e4f664",
+  "V20261104_01__form_issue_link_delivery.sql": "55fbfc8d4369ccbce2dbbc4d4f9ed47d94835afc221bcfac31dc28683e0a7bed",
+  "V20261105_01__independent_form_definitions.sql": "b9e74a6e5bbfeca3a098e6a63df9c7ae980d3bf153ec7ae287e67cf621bfa1b1",
+  "V20261105_02__form_issue_project_settings.sql": "c926b1b39bc00edb3b8b7606ee9713b1a0a91272de3ee88487673d4488f9b4c6",
+  "V20261105_03__form_input_on_single_row_facts.sql": "ff34c1db94d7a07ca78d5f15c20bc45d42173b7ce1b8464a13968e301bea9f60"
 }

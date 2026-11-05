@@ -4,6 +4,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.config.PlatformAsyncConfiguration;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
+import com.data.collection.platform.service.form.FormHeadCaptureService;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,6 +46,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
   private final CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
   private final CustomerIssueDelayClosureProgressRepository progressRepository;
   private final CustomerIssueDelaySourceReadinessService readinessService;
+  private final FormHeadCaptureService formHeadCaptureService;
+  private final FormIssueBuildInputService formIssueBuildInputService;
   private final Executor writebackExecutor;
   private final String workerOwner = "customer-delay-label-worker-" + UUID.randomUUID();
   private final AtomicBoolean running = new AtomicBoolean(false);
@@ -59,6 +62,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
       CustomerIssueDelayClosureProgressRepository progressRepository,
       CustomerIssueDelaySourceReadinessService readinessService,
+      FormHeadCaptureService formHeadCaptureService,
+      FormIssueBuildInputService formIssueBuildInputService,
       @Qualifier(PlatformAsyncConfiguration.CUSTOMER_ISSUE_DELAY_WRITEBACK_EXECUTOR)
           Executor writebackExecutor) {
     this.properties = properties;
@@ -69,6 +74,8 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     this.preWritebackSyncService = preWritebackSyncService;
     this.progressRepository = progressRepository;
     this.readinessService = readinessService;
+    this.formHeadCaptureService = formHeadCaptureService;
+    this.formIssueBuildInputService = formIssueBuildInputService;
     this.writebackExecutor = writebackExecutor;
   }
 
@@ -179,11 +186,6 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       queueService.markSkipped(job, "议题已不在延期标签写回范围内");
       return;
     }
-    CustomerIssueDelayLabelWritebackPlan plan = planner.plan(candidate.get());
-    if (!plan.hasChanges()) {
-      queueService.markSkipped(job, "GitLab 标签已与延期事实一致");
-      return;
-    }
     AuthorizationCheck finalCheck = authorize(job, config);
     if (!finalCheck.allowed()) {
       if (finalCheck.obsolete()) {
@@ -191,6 +193,12 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       } else {
         defer(job, finalCheck.reason());
       }
+      return;
+    }
+    CustomerIssueDelayLabelWritebackPlan plan =
+        planner.plan(candidate.get(), finalCheck.reply());
+    if (!plan.hasChanges()) {
+      queueService.markSkipped(job, "GitLab 标签已与延期事实一致");
       return;
     }
     if (!queueService.renewLease(job, properties.getCustomerIssueDelayWritebackLeaseSeconds())) {
@@ -301,7 +309,37 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
       }
       return AuthorizationCheck.waitingFor(readiness.reason());
     }
-    return AuthorizationCheck.granted();
+    if (formHeadCaptureService.hasUnconsumedFormEvidence(
+        job.sourceInstance(), job.projectId(), job.issueIid())) {
+      return AuthorizationCheck.waitingFor("表单证据已推进但事实尚未刷新，等待消费完成后再发送");
+    }
+    Optional<IssueFact> fact;
+    try {
+      fact = queueService.loadCandidate(job.sourceInstance(), job.projectId(), job.issueIid());
+    } catch (DataAccessException error) {
+      return AuthorizationCheck.waitingFor("读取当前事实或表单输入失败，等待重试：" + error.getMessage());
+    }
+    if (fact.isEmpty()) {
+      return AuthorizationCheck.obsoleteReason("议题已不在延期标签写回范围内");
+    }
+    String factHash = fact.get().getFormInputHash();
+    if (!java.util.Objects.equals(job.formInputHash(), factHash)) {
+      return AuthorizationCheck.obsoleteReason("表单输入已变化，旧写回作业作废");
+    }
+    FormIssueBuildInputService.Snapshot snapshot =
+        formIssueBuildInputService.current(
+            job.sourceInstance(), job.projectId(), job.issueIid());
+    if (snapshot.status() == FormIssueBuildInputService.Snapshot.Status.PENDING) {
+      return AuthorizationCheck.waitingFor("表单输入证据待登记，等待事实刷新后再发送");
+    }
+    if (snapshot.status() == FormIssueBuildInputService.Snapshot.Status.OK) {
+      if (!java.util.Objects.equals(snapshot.hash(), factHash)) {
+        return AuthorizationCheck.waitingFor("表单输入已推进但事实尚未刷新，等待消费完成后再发送");
+      }
+    } else if (factHash != null) {
+      return AuthorizationCheck.waitingFor("表单权威已移除但事实尚未刷新，等待消费完成后再发送");
+    }
+    return AuthorizationCheck.granted(snapshot.reply());
   }
 
   private void handleHttpFailure(
@@ -360,17 +398,21 @@ public class CustomerIssueDelayLabelWritebackWorkerService {
     return config;
   }
 
-  private record AuthorizationCheck(boolean allowed, boolean obsolete, String reason) {
-    static AuthorizationCheck granted() {
-      return new AuthorizationCheck(true, false, null);
+  private record AuthorizationCheck(
+      boolean allowed,
+      boolean obsolete,
+      String reason,
+      IssueBusinessInput.ReplySnapshot reply) {
+    static AuthorizationCheck granted(IssueBusinessInput.ReplySnapshot reply) {
+      return new AuthorizationCheck(true, false, null, reply);
     }
 
     static AuthorizationCheck waitingFor(String reason) {
-      return new AuthorizationCheck(false, false, reason);
+      return new AuthorizationCheck(false, false, reason, null);
     }
 
     static AuthorizationCheck obsoleteReason(String reason) {
-      return new AuthorizationCheck(false, true, reason);
+      return new AuthorizationCheck(false, true, reason, null);
     }
   }
 }

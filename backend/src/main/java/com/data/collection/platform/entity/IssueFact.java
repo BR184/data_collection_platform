@@ -198,6 +198,9 @@ public class IssueFact {
 
   private Boolean deleted;
 
+  /** 表单输入修订签名，与事实批次共同提交。 */
+  private String formInputHash;
+
   @TableField("fact_refreshed_at")
   private LocalDateTime factRefreshedAt;
 

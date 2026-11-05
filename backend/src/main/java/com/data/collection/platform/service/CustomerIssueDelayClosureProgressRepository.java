@@ -42,6 +42,7 @@ public class CustomerIssueDelayClosureProgressRepository {
    * @param config 当前数据源配置
    * @param reason 请求原因，仅用于日志
    */
+  @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
   public void requestRound(GitlabSyncConfig config, String reason) {
     if (config == null || config.getId() == null) {
       return;

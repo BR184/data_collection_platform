@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -8,7 +7,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,21 +32,20 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   private static final long AUTHORIZATION_REVISION = 7L;
   private static final long FACT_VERSION = 42L;
 
-  private GitlabMirrorProperties properties;
   private GitlabConfigService configService;
   private CustomerIssueDelayLabelWritebackService writebackService;
   private CustomerIssueDelayLabelWritebackQueueService queueService;
   private CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
   private CustomerIssueDelayClosureProgressRepository progressRepository;
   private CustomerIssueDelaySourceReadinessService readinessService;
-  private RecordingExecutor writebackExecutor;
+  private com.data.collection.platform.service.form.FormHeadCaptureService formHeadCaptureService;
+  private FormIssueBuildInputService formIssueBuildInputService;
   private CustomerIssueDelayLabelWritebackWorkerService workerService;
   private GitlabSyncConfig config;
 
   @BeforeEach
   void setUp() {
-    properties = new GitlabMirrorProperties();
-    properties.setCustomerIssueDelayWritebackWorkerDelayMs(0);
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
     configService = mock(GitlabConfigService.class);
     writebackService = mock(CustomerIssueDelayLabelWritebackService.class);
     CustomerIssueDelayLabelWritebackPlanner planner = new CustomerIssueDelayLabelWritebackPlanner(writebackService);
@@ -56,7 +53,15 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     preWritebackSyncService = mock(CustomerIssueDelayPreWritebackSyncService.class);
     progressRepository = mock(CustomerIssueDelayClosureProgressRepository.class);
     readinessService = mock(CustomerIssueDelaySourceReadinessService.class);
-    writebackExecutor = new RecordingExecutor(true);
+    formHeadCaptureService =
+        mock(com.data.collection.platform.service.form.FormHeadCaptureService.class);
+    formIssueBuildInputService = mock(FormIssueBuildInputService.class);
+    when(formIssueBuildInputService.current(any(), anyLong(), anyLong()))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.NONE,
+                null,
+                IssueBusinessInput.ReplySnapshot.absent()));
     workerService =
         new CustomerIssueDelayLabelWritebackWorkerService(
             properties,
@@ -67,7 +72,9 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
             preWritebackSyncService,
             progressRepository,
             readinessService,
-            writebackExecutor);
+            formHeadCaptureService,
+            formIssueBuildInputService,
+            Runnable::run);
     config = new GitlabSyncConfig();
     config.setId(CONFIG_ID);
     config.setSourceInstance("default");
@@ -85,11 +92,69 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   }
 
   @Test
+  void shouldSkipOldJobWithoutSendingAfterFormInputAdvancesFactRevision() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFactVersion(FACT_VERSION - 1);
+    when(queueService.loadCandidate("default", 325L, 1001L))
+        .thenReturn(Optional.of(fact("", true, false)));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService)
+        .markSkipped(job, "该作业的授权事实版本已过期，已由新一轮候选重新评估");
+  }
+
+  @Test
+  void shouldNotSendWhenOnlyFormEvidenceAdvancedAndFactVersionIsUnchanged() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFactVersion(FACT_VERSION);
+    when(formHeadCaptureService.hasUnconsumedFormEvidence("default", 325L, 1001L))
+        .thenReturn(true);
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService).defer(eq(job), org.mockito.ArgumentMatchers.contains("表单证据已推进"), any());
+  }
+
+  @Test
+  void shouldSkipOldJobWhenFormInputHashChangedAfterPlanning() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("", true, false);
+    fact.setFormInputHash("b".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService).markSkipped(job, "表单输入已变化，旧写回作业作废");
+  }
+
+  @Test
+  void shouldNotSendWhenLiveFormInputAdvancedBeyondFact() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("", true, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "b".repeat(64),
+                IssueBusinessInput.ReplySnapshot.absent()));
+
+    workerService.process(job);
+
+    verify(writebackService, never()).sendLabelUpdate(any(), anyLong(), anyLong(), any());
+    verify(queueService)
+        .defer(eq(job), org.mockito.ArgumentMatchers.contains("表单输入已推进"), any());
+  }
+
+  @Test
   void shouldSkipWithoutCallingGitlabWhenCurrentLabelsAlreadyMatch() {
     CustomerIssueDelayLabelWritebackJob job = job(1, 0, 10);
     IssueFact fact = fact("响应已延期", true, false);
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of("响应已延期"), true, false))
+    when(writebackService.labelChange(List.of("响应已延期"), true, false, false, ""))
         .thenReturn(new CustomerIssueDelayLabelWritebackService.LabelChange(List.of(), List.of()));
 
     workerService.process(job);
@@ -104,7 +169,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change))
         .thenThrow(new IOException("timeout"));
 
@@ -122,7 +187,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(403, "forbidden");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -139,7 +204,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(429, "rate limited");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -154,53 +219,13 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
     when(queueService.markSucceeded(job)).thenReturn(true);
 
     workerService.process(job);
 
     verify(queueService).markSucceeded(job);
-  }
-
-  @Test
-  void shouldAcknowledgeAdvancedRevisionWhenItRequiresTheSameChange() throws Exception {
-    CustomerIssueDelayLabelWritebackJob job = job(12, 0, 10);
-    IssueFact fact = fact("", true, false);
-    CustomerIssueDelayLabelWritebackService.LabelChange change =
-        new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
-    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
-    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
-    when(queueService.markSucceeded(job)).thenReturn(false);
-    when(queueService.markSucceededIfSameChange(job, List.of("响应已延期"), List.of()))
-        .thenReturn(true);
-
-    workerService.process(job);
-
-    verify(queueService).markSucceededIfSameChange(job, List.of("响应已延期"), List.of());
-    verify(queueService, never()).releaseForNewRevision(any());
-    verify(queueService, never()).markRetry(any(), anyString(), any());
-  }
-
-  @Test
-  void shouldReleaseForNewRevisionWhenItRequiresDifferentWork() throws Exception {
-    CustomerIssueDelayLabelWritebackJob job = job(14, 0, 10);
-    IssueFact fact = fact("", true, false);
-    CustomerIssueDelayLabelWritebackService.LabelChange change =
-        new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
-    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
-    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
-    when(queueService.markSucceeded(job)).thenReturn(false);
-    when(queueService.markSucceededIfSameChange(job, List.of("响应已延期"), List.of()))
-        .thenReturn(false);
-    when(queueService.releaseForNewRevision(job)).thenReturn(true);
-
-    workerService.process(job);
-
-    verify(queueService).releaseForNewRevision(job);
-    verify(queueService, never()).markRetry(any(), anyString(), any());
   }
 
   @Test
@@ -212,7 +237,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException error =
         new CustomerIssueDelayLabelWritebackService.GitlabLabelWritebackException(502, "bad gateway");
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenThrow(error);
 
     workerService.process(job);
@@ -328,7 +353,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
     CustomerIssueDelayLabelWritebackService.LabelChange change =
         new CustomerIssueDelayLabelWritebackService.LabelChange(List.of("响应已延期"), List.of());
     when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
-    when(writebackService.delayLabelChange(List.of(), true, false)).thenReturn(change);
+    when(writebackService.labelChange(List.of(), true, false, false, "")).thenReturn(change);
     when(queueService.renewLease(job, 120)).thenReturn(false);
 
     workerService.process(job);
@@ -338,129 +363,88 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
   }
 
   @Test
-  void shouldRequestRecoveryWhenAuthorizationFactVersionExpired() {
-    CustomerIssueDelayLabelWritebackJob job = job(15, 0, 10);
-    when(readinessService.validateRoundAuthorization(any(), any(), any()))
-        .thenReturn(new CustomerIssueDelaySourceReadinessService.AuthorizationCheck(
-            false, "相关事实版本已从 42 变为 43", 43L));
+  void shouldSendMergedDeferralChangeWhenLatestReplyChangesReason() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("状态：申请延期, 技术卡点", false, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "a".repeat(64),
+                deferredReply("RESOURCE_BLOCKER")));
+    CustomerIssueDelayLabelWritebackService.LabelChange change =
+        new CustomerIssueDelayLabelWritebackService.LabelChange(
+            List.of("资源卡点"), List.of("技术卡点"));
+    when(writebackService.labelChange(
+            List.of("状态：申请延期", "技术卡点"), false, false, true, "RESOURCE_BLOCKER"))
+        .thenReturn(change);
+    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
+    when(queueService.markSucceeded(job)).thenReturn(true);
 
     workerService.process(job);
 
-    verify(progressRepository)
-        .requestRecoveryIfIdleWithExpiredAuthorization("default", CONFIG_ID, 43L);
-    verify(queueService).defer(eq(job), anyString(), any());
+    verify(writebackService).sendLabelUpdate(config, 325L, 1001L, change);
+    verify(queueService).markSucceeded(job);
   }
 
   @Test
-  void shouldNotRequestRecoveryWhenFactVersionDidNotAdvance() {
-    CustomerIssueDelayLabelWritebackJob job = job(16, 0, 10);
-    when(readinessService.validateRoundAuthorization(any(), any(), any()))
-        .thenReturn(new CustomerIssueDelaySourceReadinessService.AuthorizationCheck(
-            false, "仍有 2 项待发布", FACT_VERSION));
+  void shouldClearManagedLabelsWhenAllNewVersionRepliesWereVoided() throws Exception {
+    CustomerIssueDelayLabelWritebackJob job = jobWithFormInputHash("a".repeat(64));
+    IssueFact fact = fact("状态：申请延期, 技术卡点, 资源卡点, 数据异常", false, false);
+    fact.setFormInputHash("a".repeat(64));
+    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.of(fact));
+    when(formIssueBuildInputService.current("default", 325L, 1001L))
+        .thenReturn(
+            new FormIssueBuildInputService.Snapshot(
+                FormIssueBuildInputService.Snapshot.Status.OK,
+                "a".repeat(64),
+                IssueBusinessInput.ReplySnapshot.absent(true)));
+    CustomerIssueDelayLabelWritebackService.LabelChange change =
+        new CustomerIssueDelayLabelWritebackService.LabelChange(
+            List.of(), List.of("状态：申请延期", "技术卡点", "资源卡点", "数据异常"));
+    when(writebackService.labelChange(
+            List.of("状态：申请延期", "技术卡点", "资源卡点", "数据异常"),
+            false,
+            false,
+            true,
+            ""))
+        .thenReturn(change);
+    when(writebackService.sendLabelUpdate(config, 325L, 1001L, change)).thenReturn(200);
+    when(queueService.markSucceeded(job)).thenReturn(true);
 
     workerService.process(job);
 
-    verify(progressRepository, never())
-        .requestRecoveryIfIdleWithExpiredAuthorization(anyString(), anyLong(), anyLong());
-    verify(queueService).defer(eq(job), anyString(), any());
+    verify(writebackService).sendLabelUpdate(config, 325L, 1001L, change);
+    verify(queueService).markSucceeded(job);
   }
 
-  @Test
-  void shouldProcessAtMostSixJobsPerBatch() {
-    when(queueService.claimNext(anyString(), anyInt()))
-        .thenReturn(job(21, 0, 10), job(22, 0, 10), job(23, 0, 10),
-            job(24, 0, 10), job(25, 0, 10), job(26, 0, 10), job(27, 0, 10));
-    when(queueService.loadCandidate("default", 325L, 1001L)).thenReturn(Optional.empty());
-
-    workerService.runOnce();
-
-    verify(queueService, times(6)).claimNext(anyString(), anyInt());
-    verify(queueService, times(6)).markSkipped(any(), anyString());
-  }
-
-  @Test
-  void shouldKeepSingleFlightUntilSubmittedBatchFinishes() {
-    writebackExecutor = new RecordingExecutor(false);
-    workerService = newWorker(writebackExecutor);
-    when(queueService.claimNext(anyString(), anyInt())).thenReturn(null);
-
-    workerService.runOnce();
-    workerService.runOnce();
-    assertThat(writebackExecutor.tasks()).hasSize(1);
-
-    writebackExecutor.drain();
-    workerService.runOnce();
-    assertThat(writebackExecutor.tasks()).hasSize(1);
-  }
-
-  @Test
-  void shouldReleaseSingleFlightWhenExecutorRejects() {
-    java.util.concurrent.atomic.AtomicInteger attempts =
-        new java.util.concurrent.atomic.AtomicInteger();
-    workerService =
-        newWorker(
-            command -> {
-              attempts.incrementAndGet();
-              throw new java.util.concurrent.RejectedExecutionException("busy");
-            });
-
-    workerService.runOnce();
-    workerService.runOnce();
-
-    assertThat(attempts.get()).isEqualTo(2);
-  }
-
-  @Test
-  void sendIntervalMustNotShortenAfterSlowHttp() {
-    properties.setCustomerIssueDelayWritebackWorkerDelayMs(5_000);
-    long start = 1_000_000_000L;
-
-    assertThat(workerService.remainingSendIntervalNanos(0L, start)).isZero();
-    assertThat(workerService.remainingSendIntervalNanos(start, start + 2_000_000_000L))
-        .isEqualTo(3_000_000_000L);
-    assertThat(workerService.remainingSendIntervalNanos(start, start + 6_000_000_000L)).isZero();
-  }
-
-  private CustomerIssueDelayLabelWritebackWorkerService newWorker(
-      java.util.concurrent.Executor executor) {
-    return new CustomerIssueDelayLabelWritebackWorkerService(
-        properties,
-        configService,
-        writebackService,
-        new CustomerIssueDelayLabelWritebackPlanner(writebackService),
-        queueService,
-        preWritebackSyncService,
-        progressRepository,
-        readinessService,
-        executor);
-  }
-
-  private static final class RecordingExecutor implements java.util.concurrent.Executor {
-    private final boolean runImmediately;
-    private final java.util.List<Runnable> tasks = new java.util.ArrayList<>();
-
-    private RecordingExecutor(boolean runImmediately) {
-      this.runImmediately = runImmediately;
-    }
-
-    @Override
-    public void execute(Runnable command) {
-      if (runImmediately) {
-        command.run();
-      } else {
-        tasks.add(command);
-      }
-    }
-
-    private java.util.List<Runnable> tasks() {
-      return tasks;
-    }
-
-    private void drain() {
-      java.util.List<Runnable> pending = new java.util.ArrayList<>(tasks);
-      tasks.clear();
-      pending.forEach(Runnable::run);
-    }
+  private IssueBusinessInput.ReplySnapshot deferredReply(String reason) {
+    return new IssueBusinessInput.ReplySnapshot(
+        true,
+        21L,
+        java.time.LocalDateTime.of(2026, 11, 12, 9, 0),
+        "u-jia",
+        "甲",
+        "DEFERRED",
+        List.of("standard_error"),
+        List.of("编码规范错误"),
+        "原因",
+        "方案",
+        false,
+        List.of("NONE"),
+        null,
+        null,
+        "NOT_APPLICABLE",
+        false,
+        null,
+        "NOT_APPLICABLE",
+        null,
+        reason,
+        "DEFERRED",
+        true,
+        true);
   }
 
   private CustomerIssueDelayClosureProgress progress(Long authorizationRevision, Long factVersion) {
@@ -482,6 +466,68 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         null,
         null,
         null);
+  }
+
+  private CustomerIssueDelayLabelWritebackJob jobWithFormInputHash(String hash) {
+    CustomerIssueDelayLabelWritebackJob base = job(99L, 0, 10);
+    return new CustomerIssueDelayLabelWritebackJob(
+        base.id(),
+        base.sourceInstance(),
+        base.configId(),
+        base.projectId(),
+        base.issueIid(),
+        base.issueId(),
+        base.desiredResponseDelayed(),
+        base.desiredResolveDelayed(),
+        base.currentLabelNames(),
+        base.addLabels(),
+        base.removeLabels(),
+        base.status(),
+        base.attemptCount(),
+        base.maxAttempts(),
+        base.nextRunAt(),
+        base.leaseOwner(),
+        base.leaseUntil(),
+        base.lastError(),
+        base.lastHttpStatus(),
+        base.roundMirrorRunId(),
+        base.authorizationRevision(),
+        base.requiredFactVersion(),
+        hash,
+        base.claimToken(),
+        base.claimRevision(),
+        base.taskRevision());
+  }
+
+  private CustomerIssueDelayLabelWritebackJob jobWithFactVersion(long factVersion) {
+    CustomerIssueDelayLabelWritebackJob base = job(99L, 0, 10);
+    return new CustomerIssueDelayLabelWritebackJob(
+        base.id(),
+        base.sourceInstance(),
+        base.configId(),
+        base.projectId(),
+        base.issueIid(),
+        base.issueId(),
+        base.desiredResponseDelayed(),
+        base.desiredResolveDelayed(),
+        base.currentLabelNames(),
+        base.addLabels(),
+        base.removeLabels(),
+        base.status(),
+        base.attemptCount(),
+        base.maxAttempts(),
+        base.nextRunAt(),
+        base.leaseOwner(),
+        base.leaseUntil(),
+        base.lastError(),
+        base.lastHttpStatus(),
+        base.roundMirrorRunId(),
+        base.authorizationRevision(),
+        factVersion,
+        base.formInputHash(),
+        base.claimToken(),
+        base.claimRevision(),
+        base.taskRevision());
   }
 
   private CustomerIssueDelayLabelWritebackJob job(long id, int attemptCount, int maxAttempts) {
@@ -508,6 +554,7 @@ class CustomerIssueDelayLabelWritebackWorkerServiceTest {
         MIRROR_RUN_ID,
         AUTHORIZATION_REVISION,
         FACT_VERSION,
+        null,
         "token",
         1L,
         1L);

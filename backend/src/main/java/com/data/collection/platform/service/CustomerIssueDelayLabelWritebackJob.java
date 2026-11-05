@@ -33,6 +33,7 @@ record CustomerIssueDelayLabelWritebackJob(
     Long roundMirrorRunId,
     Long authorizationRevision,
     Long requiredFactVersion,
+    String formInputHash,
     String claimToken,
     long claimRevision,
     long taskRevision) {

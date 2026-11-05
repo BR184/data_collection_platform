@@ -153,4 +153,76 @@ final class IssueSlaRules {
     return IssueTemplateParsingSupport.parse(
         notesText, IssueClassificationRules.REASON_CATEGORY_TOKENS, RESPONSE_HEADER_TOKENS);
   }
+
+  // 表单接入使用结构化输入；原评论入口及其判定保持旧基线行为。
+  record Evaluation(boolean responseDelayed, boolean resolveDelayed, LocalDateTime resolveDeadlineAt, int resolveSlaDays) {}
+  private static final List<String> NON_FIXED_CLOSURE_MEMBERS = List.of("申请延期", "数据异常", "需求如此", "设计如此", "未复现");
+  private static final List<String> FIXED_CLOSURE_MEMBERS = List.of("已修复", com.data.collection.platform.domain.customerissue.CustomerIssueActivityTimeRules.EXACT_COMPLETION_MEMBER, "待合并", "未更新");
+  static boolean isResponsePlanExempt(String notesText) {
+    return IssueResponseTemplateParser.hasParseablePlanSolutionTime(notesText);
+  }
+
+  static boolean isResponseDelayedByClock(
+      List<String> labels,
+      LocalDateTime createdAt,
+      String priorityLevel,
+      LocalDateTime now) {
+    if (createdAt == null || now == null) {
+      return IssueRuleSupport.containsAnyLabel(labels, RESPONSE_DELAY_LABELS);
+    }
+    return Duration.between(createdAt, now).toHours() > responseSlaHours(labels, priorityLevel);
+  }
+
+  static LocalDateTime resolveDeadline(
+      LocalDateTime createdAt, LocalDateTime plannedResolutionAt) {
+    if (createdAt == null) {
+      return null;
+    }
+    return plannedResolutionAt == null
+        ? createdAt.plusDays(MAX_RESOLVE_SLA_DAYS) : plannedResolutionAt;
+  }
+
+  static int resolveSlaDays(LocalDateTime createdAt, LocalDateTime plannedResolutionAt) {
+    if (createdAt == null || plannedResolutionAt == null) {
+      return MAX_RESOLVE_SLA_DAYS;
+    }
+    long days = Duration.between(createdAt, plannedResolutionAt).toDays();
+    return Math.toIntExact(Math.max(1L, days));
+  }
+
+  static boolean isResolveDelayedWithStatusMembers(
+      List<String> labels,
+      List<String> statusMembers,
+      boolean hasReply,
+      boolean hasFixCaseNote,
+      LocalDateTime resolveDeadlineAt,
+      LocalDateTime now) {
+    if (resolveDeadlineAt == null || now == null) {
+      return false;
+    }
+    if (hasCommonDelayExemption(labels, hasFixCaseNote)) {
+      return false;
+    }
+    if (hasAnyClosureMember(statusMembers, NON_FIXED_CLOSURE_MEMBERS)) {
+      return false;
+    }
+    if (hasReply && hasAnyClosureMember(statusMembers, FIXED_CLOSURE_MEMBERS)) {
+      return false;
+    }
+    return now.isAfter(resolveDeadlineAt);
+  }
+
+  private static boolean hasAnyClosureMember(List<String> values, List<String> expectedMembers) {
+    if (values == null) {
+      return false;
+    }
+    for (String value : values) {
+      String normalized = value == null ? "" : value.trim();
+      String status = STATUS_LABEL_PREFIX.matcher(normalized).replaceFirst("").trim();
+      if (expectedMembers.contains(normalized) || expectedMembers.contains(status)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

@@ -111,7 +111,7 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
                 new FactTaskExecutionGuard(jdbcTemplate, new FactTaskExecutionContext())),
             new GitlabMirrorProperties(),
             new FactProjectionScopeResolver(jdbcTemplate),
-            new FactProjectionGenerationService(jdbcTemplate));
+            new FactProjectionGenerationService(jdbcTemplate), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
   }
 
   @Test
@@ -262,11 +262,11 @@ class FactBuildServiceCustomerIssueDelayFlagsTest {
     assertThat(memberRows()).isEqualTo(membersBefore);
     CustomerIssueDelayLabelWritebackPlanner planner = new CustomerIssueDelayLabelWritebackPlanner(
         new CustomerIssueDelayLabelWritebackService());
-    IssueFact actual = new CustomerIssueDelayLabelWritebackQueueService(jdbcTemplate, planner)
+    IssueFact actual = new CustomerIssueDelayLabelWritebackQueueService(jdbcTemplate, planner, org.mockito.Mockito.mock(FormIssueInputResolver.class))
         .loadCandidate("default", CC_PROJECT_ID, 80L).orElseThrow();
     assertThat(actual.getResponseDelayed()).isFalse();
     assertThat(actual.getResolveDelayed()).isFalse();
-    CustomerIssueDelayLabelWritebackPlan plan = planner.plan(actual);
+    CustomerIssueDelayLabelWritebackPlan plan = planner.plan(actual, null);
     assertThat(plan.change().addLabels()).isEmpty();
     assertThat(plan.change().removeLabels()).containsExactly("响应已延期", "解决已延期");
     assertThat(plan.currentLabels()).contains(exemption);

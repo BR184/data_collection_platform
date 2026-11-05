@@ -160,7 +160,7 @@ class FactCleanupLoadBenchmarkTest {
             mock(IssueFactMapper.class),
             null,
             rollbackTemplate,
-            new FailingGuard(rollbackTemplate, allowedBatches));
+            new FailingGuard(rollbackTemplate, allowedBatches), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     long rollbackStart = System.nanoTime();
     assertThatThrownBy(
             () ->
@@ -333,7 +333,7 @@ class FactCleanupLoadBenchmarkTest {
             mock(IssueFactMapper.class),
             null,
             instrumented,
-            new FactTaskExecutionGuard(instrumented, new FactTaskExecutionContext()));
+            new FactTaskExecutionGuard(instrumented, new FactTaskExecutionContext()), org.mockito.Mockito.mock(com.data.collection.platform.service.FormIssueFactAdapter.class));
     long parentsBefore = countIssueFacts(SOURCE_INSTANCE);
     long childrenBefore = countIssueChildren(SOURCE_INSTANCE);
     long[] inside = new long[1];

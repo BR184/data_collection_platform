@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+from dataclasses import replace
 import hashlib
 import importlib.util
 import json
@@ -23,6 +24,21 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IntranetLdapPackagingTest(unittest.TestCase):
+    def test_fresh_package_rejects_out_of_order_upgrade_option(self):
+        args = MODULE.parse_args(["--mode", "fresh-empty", "--allow-out-of-order-migrations"])
+        with self.assertRaisesRegex(MODULE.PackageError, "only valid for an approved incremental upgrade"):
+            MODULE.resolve_context(args)
+
+    def test_out_of_order_is_explicit_and_only_in_one_shot_migration(self):
+        ordinary = MODULE.upgrade_helper(self.build_context())
+        self.assertIn("-e SPRING_FLYWAY_OUT_OF_ORDER=false backend", ordinary)
+        context = replace(self.build_context(), allow_out_of_order_migrations=True)
+        content = MODULE.upgrade_helper(context)
+        migration = content[content.index('log "running one-shot'):content.index('log "verifying Flyway')]
+        self.assertIn("-e SPRING_FLYWAY_OUT_OF_ORDER=true backend", migration)
+        service = content[content.index('log "recreating backend'):]
+        self.assertNotIn("SPRING_FLYWAY_OUT_OF_ORDER=true", service)
+
     def test_upgrade_uses_one_shot_migration_before_starting_service(self):
         content = MODULE.upgrade_helper(self.build_context())
         self.assertIn("PLATFORM_RUN_MODE=migrate", content)
@@ -1174,7 +1190,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
 
     ROLLBACK_BACKUP_FILES = (
         ".env", "docker-compose.yml", "postgres.container-id", "postgres.inspect.json",
-        "compose-images.txt", "flyway-before.txt", "counts-before.txt", "database.dump",
+        "compose-images.txt", "flyway-before.txt", "flyway-history.txt", "counts-before.txt", "database.dump",
         "critical-tables.dump", "database.restore-list.txt", "critical-tables.restore-list.txt",
         "backup-manifest.env",
     )
@@ -1199,6 +1215,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
         (backup / "postgres.inspect.json").write_text("{}\n", encoding="utf-8", newline="\n")
         (backup / "compose-images.txt").write_text("images\n", encoding="utf-8", newline="\n")
         (backup / "flyway-before.txt").write_text("20260714.01|true\n", encoding="utf-8", newline="\n")
+        (backup / "flyway-history.txt").write_text("20260714.01|1234567890\n", encoding="utf-8", newline="\n")
         (backup / "counts-before.txt").write_text("example_table=1\n", encoding="utf-8", newline="\n")
         (backup / "database.dump").write_bytes(b"database dump")
         (backup / "critical-tables.dump").write_bytes(b"critical table dump")
@@ -1491,7 +1508,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 )
 
                 self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-                expected_message = "Compose application image identity mismatch" if case == "backend-image" else "candidate Compose changes project, volume, network, port, or mount identity"
+                expected_message = "Compose application image identity mismatch" if case == "backend-image" else "candidate Compose changes project, volume, network, service, port, or mount identity"
                 self.assertIn(expected_message, result.stderr)
                 self.assertEqual(before, ((deployment / ".env").read_bytes(), (deployment / "docker-compose.yml").read_bytes()))
                 self.assertFalse(mutation_log.exists())
@@ -1596,11 +1613,17 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
             "if [[ \"${1:-}\" == compose && \"$*\" == *' ps -q frontend'* ]]; then [[ -f \"$state/frontend.running\" ]] && printf '%s\\n' \"$(cat \"$state/frontend.id\")\"; exit 0; fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' exec -T postgres '* ]]; then\n"
             "  sql=\"${@: -1}\"\n"
-            "  if [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
+            "  if [[ \"$sql\" == *flyway_schema_history* && \"$sql\" == *checksum* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_HISTORY\";\n"
+            "  elif [[ \"$sql\" == *flyway_schema_history* ]]; then printf '%s\\n' \"$FAKE_FLYWAY_VERSION\";\n"
             "  elif [[ \"$sql\" == *string_agg* ]]; then printf '\\n';\n"
             "  elif [[ \"$sql\" == *'max(id)'* ]]; then printf '0\\n';\n"
             "  else printf '0\\n'; fi\n"
             "  exit 0;\n"
+            "fi\n"
+            "if [[ \"${1:-}\" == compose && \"$*\" == *' stop backend frontend'* ]]; then\n"
+            "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
+            "  rm -f \"$state/backend.running\" \"$state/frontend.running\"\n"
+            "  exit 0\n"
             "fi\n"
             "if [[ \"${1:-}\" == compose && \"$*\" == *' up '* ]]; then\n"
             "  printf '%s\\n' \"$*\" >> \"$FAKE_DOCKER_MUTATIONS\"\n"
@@ -1651,6 +1674,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "FAKE_CURRENT_JSON": self._msys_path(current_path),
                 "FAKE_CANDIDATE_JSON": self._msys_path(candidate_path),
                 "FAKE_FLYWAY_VERSION": "20260714.01",
+                "FAKE_FLYWAY_HISTORY": "20260714.01|1234567890",
                 "FAKE_BACKEND_LABEL": backend_label,
                 "FAKE_BACKEND_MOUNTS": backend_mounts,
                 "FAKE_UP_FAILURES": str(up_failures),
@@ -1660,6 +1684,8 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
     def _run_rollback_execution(self, root: Path, fixture: dict, *, extra_env: dict[str, str] | None = None):
         bash = self._git_bash_path()
         env = os.environ.copy()
+        # Linux 容器挂载点是被测协议值，Git Bash 不应将其转换成 Windows 本地路径。
+        env["MSYS2_ARG_CONV_EXCL"] = "*"
         env["PATH"] = f"{self._msys_path(fixture['fake_bin'])}:/usr/bin:/bin:" + env.get("PATH", "")
         env["FAKE_DOCKER_MUTATIONS"] = self._msys_path(fixture["mutation_log"])
         env.update(fixture["extra_env"])
@@ -1721,6 +1747,38 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 result.stdout + result.stderr,
             )
             self.assertIn("ROLLBACK_SUCCEEDED", self._recovery_state(fixture["deployment"]))
+
+    def test_generated_rollback_refuses_old_application_when_migration_set_differs(self):
+        with self._rollback_execution_case(backend_state="stopped") as (_, fixture):
+            deployment = fixture["deployment"]
+            compose_before = (deployment / "docker-compose.yml").read_bytes()
+            result = self._run_rollback_execution(
+                deployment.parent,
+                fixture,
+                extra_env={"FAKE_FLYWAY_HISTORY": "20260714.01|1234567890\n20261104.01|999"},
+            )
+
+            self.assertEqual(3, result.returncode, result.stdout + result.stderr)
+            self.assertIn("ROLLBACK_REQUIRES_DATABASE_RESTORE", self._recovery_state(deployment))
+            self.assertIn("old application will not be started", result.stdout + result.stderr)
+            self.assertEqual(compose_before, (deployment / "docker-compose.yml").read_bytes())
+            mutations = fixture["mutation_log"].read_text(encoding="utf-8")
+            self.assertTrue(any(line.endswith(" stop backend frontend") for line in mutations.splitlines()), mutations)
+            self.assertFalse(any(" up " in line for line in mutations.splitlines()), mutations)
+
+    def test_upgrade_records_attempt_backup_and_readme_uses_it_for_failure_recovery(self):
+        context = self.build_context()
+        backup = MODULE.backup_helper(context)
+        upgrade = MODULE.upgrade_helper(context)
+        readme = MODULE.incremental_readme(context)
+
+        self.assertIn("flyway-history.txt", backup)
+        self.assertIn("checksum", backup)
+        self.assertIn("current-attempt-backup.txt", upgrade)
+        self.assertIn("cat upgrade-backups/current-attempt-backup.txt", readme)
+        self.assertIn("latest-backup.txt", readme)
+        self.assertIn("ROLLBACK_REQUIRES_DATABASE_RESTORE", readme)
+        self.assertIn("flyway-history.txt", readme)
 
     def test_generated_rollback_rejects_a_backend_container_from_another_project(self):
         with self._rollback_execution_case(backend_state="running", backend_label="qaflex-other/backend") as (_, fixture):

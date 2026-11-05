@@ -23,7 +23,9 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
     jdbcTemplate = mock(JdbcTemplate.class);
     CustomerIssueDelayLabelWritebackPlanner planner =
         new CustomerIssueDelayLabelWritebackPlanner(new CustomerIssueDelayLabelWritebackService());
-    queueService = new CustomerIssueDelayLabelWritebackQueueService(jdbcTemplate, planner);
+    queueService =
+        new CustomerIssueDelayLabelWritebackQueueService(
+            jdbcTemplate, planner, mock(FormIssueInputResolver.class));
   }
 
   @Test
@@ -161,6 +163,7 @@ class CustomerIssueDelayLabelWritebackQueueServiceTest {
         77L,
         7L,
         42L,
+        null,
         "token",
         1L,
         2L);

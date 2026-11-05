@@ -173,6 +173,10 @@ public class MergeRequestFact {
 
   private Boolean deleted;
 
+  /** 构建期冻结的输入权威；仅用于随修订写入权威表，不映射事实表列。 */
+  @TableField(exist = false)
+  private String formAuthority;
+
   @TableField("fact_refreshed_at")
   private LocalDateTime factRefreshedAt;
 

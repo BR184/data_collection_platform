@@ -386,6 +386,16 @@ export const modules: ShellModule[] = [
         permission: 'system.dropdown_option.view',
       },
       {
+        key: 'form-template-settings',
+        label: '表单管理',
+        icon: Tickets,
+        description: '维护统一表单字段草稿、范围绑定、预览、受控发布与退役。',
+        path: '/system-settings/form-templates',
+        requiresLogin: true,
+        hiddenForApproval: true,
+        permission: 'form.template.manage',
+      },
+      {
         key: 'backup-settings',
         label: '备份管理',
         icon: Box,

@@ -457,4 +457,27 @@ public class CustomerIssueDelayClosureOrchestrator {
   private int retryDelayMinutes(int failures) {
     return BACKOFF_MINUTES.get(Math.min(Math.max(0, failures - 1), BACKOFF_MINUTES.size() - 1));
   }
+
+  /** 表单事实提交后登记来源轮次，沿用既有写回编排。 */
+  public void requestSourceRound(String sourceInstance, String reason) {
+    if (sourceInstance == null || sourceInstance.isBlank()) {
+      return;
+    }
+    for (GitlabSyncConfig config : enabledConfigs()) {
+      if (!sourceInstance.equals(GitlabSourceInstanceSupport.sourceInstanceOf(config))) {
+        continue;
+      }
+      try {
+        progressRepository.requestRound(config, reason);
+        submitAdvance(sourceInstance);
+      } catch (RuntimeException error) {
+        log.warn(
+            "Failed to request form-driven customer issue delay round, configId={}, sourceInstance={}",
+            config.getId(),
+            sourceInstance,
+            error);
+      }
+      return;
+    }
+  }
 }

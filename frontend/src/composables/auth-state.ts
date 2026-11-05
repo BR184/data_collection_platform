@@ -42,6 +42,11 @@ let operationSequence = 0;
 let latestReadId = 0;
 let activeOperation: IdentityOperation | null = null;
 
+/** 当前身份代次；登录、退出与身份失效都会推进，用于让旧请求失去写回权。 */
+export function currentIdentityGeneration(): number {
+  return identityGeneration;
+}
+
 function setCurrentUser(user: AuthUserResponse) {
   authState.currentUser = user;
   authState.status = user.authenticated ? 'authenticated' : 'anonymous';

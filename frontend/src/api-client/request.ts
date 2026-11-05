@@ -31,11 +31,13 @@ export class RequestTimeoutError extends Error {
 /** HTTP 请求失败时保留状态码，供页面区分鉴权失败与业务加载失败。 */
 export class HttpRequestError extends Error {
   readonly status: number;
+  readonly code: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code = '') {
     super(message);
     this.name = 'HttpRequestError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -98,6 +100,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
       throw new HttpRequestError(
         message || `请求失败，状态码：${response.status}`,
         response.status,
+        isJsonObject(payload) && typeof payload.code === 'string' ? payload.code : '',
       );
     }
 

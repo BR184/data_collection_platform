@@ -19,16 +19,18 @@ public class IssueFactPersistenceService {
   private final IssueFactCustomerMembershipRepository customerMembershipRepository;
   private final JdbcTemplate jdbcTemplate;
   private final FactTaskExecutionGuard executionGuard;
+  private final FormIssueFactAdapter formAdapter;
 
   public IssueFactPersistenceService(
       IssueFactMapper issueFactMapper,
       IssueFactCustomerMembershipRepository customerMembershipRepository,
       JdbcTemplate jdbcTemplate,
-      FactTaskExecutionGuard executionGuard) {
+      FactTaskExecutionGuard executionGuard, FormIssueFactAdapter formAdapter) {
     this.issueFactMapper = issueFactMapper;
     this.customerMembershipRepository = customerMembershipRepository;
     this.jdbcTemplate = jdbcTemplate;
     this.executionGuard = executionGuard;
+    this.formAdapter = formAdapter;
   }
 
   /**
@@ -41,11 +43,21 @@ public class IssueFactPersistenceService {
     if (facts == null || facts.isEmpty()) {
       return;
     }
+    List<FormIssueFactAdapter.Batch> formBatches = formAdapter.prepare(facts);
+    persistPreparedFacts(facts, formBatches);
+  }
+
+  /** 准备与写入处于同一事务；定向替换也必须先持有表单锁再删除旧事实。 */
+  private void persistPreparedFacts(List<IssueFact> facts, List<FormIssueFactAdapter.Batch> formBatches) {
+    if (facts == null || facts.isEmpty()) {
+      return;
+    }
     for (int offset = 0; offset < facts.size(); offset += BATCH_SIZE) {
       List<IssueFact> batch = facts.subList(offset, Math.min(offset + BATCH_SIZE, facts.size()));
       issueFactMapper.batchUpsert(batch);
       customerMembershipRepository.replaceForFacts(batch);
     }
+    formAdapter.complete(formBatches);
   }
 
   /**
@@ -68,6 +80,8 @@ public class IssueFactPersistenceService {
     if (safeRootIds.isEmpty()) {
       throw new IllegalArgumentException("议题事实目标替换必须指定非空目标范围");
     }
+    List<FormIssueFactAdapter.Batch> formBatches =
+        facts == null || facts.isEmpty() ? List.of() : formAdapter.prepare(facts);
     List<Object> args = targetArgs(sourceSystem, sourceInstance, safeRootIds);
     String predicate = rootPredicate(safeRootIds, "fact.issue_id");
     jdbcTemplate.update(
@@ -86,7 +100,7 @@ public class IssueFactPersistenceService {
         "delete from issue_fact fact where fact.source_system = ? and fact.source_instance = ?"
             + predicate,
         args.toArray());
-    upsertIssueFacts(facts);
+    persistPreparedFacts(facts, formBatches);
   }
 
   /**
