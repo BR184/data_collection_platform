@@ -4,6 +4,21 @@
 <!-- DOC_STATUS_END -->
 
 # QA Flex Platform
+
+## 接手入口
+
+本仓库的运行代码以已部署的 `qaflex-update-20261105T170324Z-25219abeda3c.tar.gz` 为基准，源码提交为 `d9fbdca7f30b4f3ab3d7b425611d380292a3fecf`。2026-11-09按用户要求归并正式版本与main历史；本次交接不增加业务功能。版本差异、验证与后续工作见[当前进度](docs/progress.md)，不要从历史任务分支恢复运行代码。
+
+建议按以下顺序阅读：
+
+1. [当前进度](docs/progress.md)：确认生产版本、main变化、当前待办和验证边界。
+2. [架构与接手导航](docs/architecture.md#接手导航)：理解模块职责、数据流和源码入口。
+3. [产品范围](docs/product.md)和[页面业务规则](docs/platform-page-business-rules.md)：确认页面行为和数据口径。
+4. [BI入口](docs/bi-dashboard/README.md)：查询BI独立口径、CAT契约及模块说明。
+5. [部署标准](deploy/intranet-offline-packaging-standard.md)、[本次生产包手册](deploy/runbooks/dashboard-timeout-update.md)和[数据库恢复手册](deploy/runbooks/database-backup-restore.md)：接管环境与发布。
+
+开发脚本统一用PowerShell 7执行，例如 `pwsh -File backend/run-backend.ps1`。下面本机路径和端口只是开发默认值，实际环境以所接管实例的配置为准；开始前必须分离测试数据库、服务端口和外部写入目标。
+
 Standard separated project structure:
 
 - `backend/`: Java 21 + Spring Boot

@@ -7,6 +7,102 @@
 > 更新触发：新增/移除/重构模块、变更模块边界或数据所有权、修改不变量或性能契约、技术选型替换、发现并确认长期技术风险。纯实现细节、临时工具或测试辅助代码不进入本文。
 > 保持行文紧凑，使用最少的 token 表达完整约束，优先用代码标识、ID、数字和简短断言，避免叙述性解释和展示性列表。所有陈述必须可被验证（代码、测试、运行结果），否则不得写入。
 
+## 接手导航
+
+平台把GitLab及老平台等来源的数据转换为可查询的业务事实，向研发、质量和项目管理人员提供评审、代码走查、系统测试、客户问题及看板。它是一个Spring Boot后端和一个Vue前端，共用一个平台PostgreSQL；BI是进程内模块，不是另一个网站或微服务。生产版本与当前待办以[progress.md](progress.md)为准。
+
+### 先理解一条完整数据链
+
+```text
+GitLab源数据库或受控连接
+  → ODS镜像表与同步水位
+  → 变化登记 fact_change_heads
+  → FACT_REFRESH任务与事实表
+  → 范围投影及统计快照
+  → 页面查询、下钻、Excel下载
+
+表单保存 → 版本记录、审计与form_change_heads
+  → FormIssueChangeBridge登记既有事实任务
+  → FormIssueFactAdapter在事实事务中消费FORM输入
+  → 同一统计读取链；事务提交后唤醒链接投放与延期标签写回
+```
+
+同步成功只说明镜像阶段成功。用户说“数据没有更新”时，必须继续核查事实任务和消费范围的投影状态。GitLab数据库根ID和页面Issue IID不是同一编号；排查始终携带来源实例、项目和资源身份，不能只按显示编号关联。
+
+本正式线使用单行事实与原有发布算法，没有实验读发布模型的`read_publications`。旧工作树中出现的`FactReadSelection`等实现不能作为当前开发入口。表单按版本独立存储与这个事实发布边界并不冲突：表单历史版本保留，当前事实从已登记权威记录派生。
+
+### 模块与第一阅读点
+
+后端类的公共前缀为`backend/src/main/java/com/data/collection/platform/`，下表后端路径均相对该目录。
+
+| 模块 | 接手时先理解的职责 | 第一阅读点 |
+|---|---|---|
+| 登录和权限 | LDAP验证身份，平台Session承载会话，本地RBAC决定业务权限 | `controller/AuthController.java`、`security/`、前端`composables/auth-state.ts` |
+| GitLab镜像 | 数据源配置、全量/增量/删除对账、租约、失败恢复 | `controller/GitlabSyncController.java`、`service/sync/` |
+| 事实构建 | 把ODS转成议题/MR等业务事实，处理来源与事务边界 | `service/FactBuildService.java`、`service/IssueFactPersistenceService.java` |
+| 评审数据 | 主记录、问题清单、导入导出与老平台兼容读源 | `controller/ReviewDataController.java`、`service/`中的评审服务 |
+| 代码走查 | MR解析、正式走查记录与CC/DGM来源选择 | `controller/CodeReviewController.java`、`service/`中的走查服务 |
+| 表单 | 模板、范围、不可变版本、记录维护、导出及Issue接入 | `controller/CollectFormAdminController.java`、`controller/CollectFormController.java`、`service/form/` |
+| 系统测试和客户问题 | 事实筛选、统计、非法判定、明细与下载 | `controller/QuestionMetricsController.java`、`controller/CustomerIssueController.java`、`service/statistics/` |
+| 质量看板 | 聚合已有质量数据、组合版本、明细与导出 | `controller/QualityBoardController.java`、`service/DashboardVersionScopeService.java` |
+| BI与CAT | 模块职责、入口和约束统一由BI文档维护 | [BI文档入口](bi-dashboard/README.md) |
+| 设置与备份 | 标签组、候选配置、范围目录、数据库浏览及备份 | `controller/DatabaseBrowserController.java`、`controller/DatabaseBackupController.java`、`service/backup/` |
+
+前端从`frontend/src/feature-manifest/modules.ts`找菜单、路径和权限，再读`router.ts`、对应`views/`页面和`api-client/`接口。统计表的公共运行时与记录页组件位于`components/`，页面不得私自改写业务计算。表单管理入口为`views/FormTemplateAdminView.vue`，填写入口为`views/CollectFormView.vue`及`features/collect-forms/`。
+
+### 数据所有权速查
+
+| 数据层 | 代表对象 | 谁可以改变它 |
+|---|---|---|
+| 上游 | GitLab源库、老平台数据库 | 来源系统；平台业务写回走受控GitLab API |
+| ODS | 动态镜像表、同步状态与水位 | 镜像同步控制面与worker |
+| 调度与变更 | `sync_runs`、`fact_change_heads`、`fact_build_task_roots` | 同步与事实编排服务 |
+| 业务事实 | `issue_fact`、`merge_request_fact`、`integration_test_fact` | 对应事实构建服务 |
+| 正式及兼容评审 | `review_visible_*`、`code_review_formal_records` | 对应评审服务及显式兼容接管流程 |
+| 表单 | `form_template_scopes`、`form_template_versions`、动态版本记录表、`form_change_heads` | 模板发布与表单记录服务 |
+| 消费投影 | `fact_projection_generations`及相关快照 | 投影任务；页面只读完整已提交结果 |
+
+字段为空、没有该字段与数值0有不同含义。不能在展示层补0、跨来源去重或绕过非法判定来修正统计。具体业务语义查[页面业务规则](platform-page-business-rules.md)，BI查该域入口。
+
+### 表单维护必须掌握的边界
+
+1. 模板是业务身份，范围是适用对象集合，版本是已发布的字段结构，记录是用户填写结果。新版本从空记录开始，旧记录仍由原版本解释和维护。
+2. 新增采用请求身份去重；编辑与作废校验创建人、状态及记录版本。`FormRecordWriteService`在事务内写记录、定位目录、审计和变更head，冲突返回业务错误，不能覆盖他人修改。
+3. 模板发布由`FormPublicationTxService`负责领取、构建、切换和失败恢复。修改字段不能直接修改历史物理表来迁移旧值。
+4. `IssueFactPersistenceService`调用`FormIssueFactAdapter.prepare/complete`，把FORM输入、事实、消费水位和链接就绪状态放在相同事务中；外部评论在提交后发送。
+5. FORM/COMMENT由来源、项目、启用时间和持久权威身份决定。CC Issue响应与回复分开维护；生产MR继续评论，DGM本期保持原流程。自定义表单字段同名不代表自动进入现有统计。
+
+### 接手开发的最短路径
+
+先核对`git status --short --branch`、main远端提交和所运行实例的发布清单，再从main建独立任务树。准备Java 21、Maven、Node/npm、Python及用于集成测试的Docker。仓库`tools/`是本地工具位置，不是随Git克隆自动得到的依赖。生产源码的开发脚本引用`tools/jdk/jdk-21.0.10+7`，环境调整不得无记录改变正式构建。
+
+开发默认入口为后端18080、前端18181、平台库15432/qaflex。配置示例为`backend/.env.local.example`；本机`.env.local`被忽略，进程环境优先。LDAP地址、数据库口令、GitLab令牌和备份密钥由负责人另行安全交接。直接运行与Compose实例必须隔离；不得把生产配置复制进测试后启动同步。
+
+| 验证目的 | 命令与执行位置 |
+|---|---|
+| 后端编译 | backend目录，`mvn -DskipTests compile` |
+| 后端回归 | backend目录，`mvn test`；含真实PostgreSQL集成测试，先检查Docker与测试对象 |
+| 前端依赖与验证 | frontend目录，`npm ci`，再执行`npm run typecheck`、`npm run lint`、`npm test`、`npm run build` |
+| 迁移不可变 | 仓库根，`python scripts/check_flyway_migration_immutability.py` |
+| API边界 | 仓库根，`python scripts/check_api_contract_drift.py`、`python scripts/check_frontend_api_boundary.py` |
+| 提交护栏 | 仓库根，`check_worktree_artifacts.py`、`check_runtime_artifact_locations.py`、`check_text_whitespace.py`及`git diff --check` |
+
+开发服务用`pwsh -File backend/run-backend.ps1`及`pwsh -File frontend/run-frontend.ps1`，生产发布使用包内Compose和升级脚本。发布前黄金基线要求见本文后续章节及AGENTS.md；历史某次豁免不延续为当前豁免。
+
+### 按症状定位
+
+| 现象 | 优先检查 | 处理边界 |
+|---|---|---|
+| 登录失败或403 | LDAP连通性、Session/CSRF、用户状态及角色权限 | 403先查权限，不能放宽端点鉴权 |
+| GitLab有变更但页面没更新 | 来源→ODS→运行终态→事实head→事实任务→投影 | 不把同步SUCCESS等同于页面已最新 |
+| 表单保存成功但统计未变化 | 记录所属版本、FORM权威、变更head、输入签名、事实任务 | 不直接改事实表绕过输入消费 |
+| 延期标签重复或不撤销 | 事实就绪、labels/label_links刷新证据、作业修订与owner | 不清任务强行重发；对外写入先确认实例归属 |
+| 合并版本统计异常 | 组合资源、稳定key、成员并集和明细身份 | 不修改原系统测试或CAT目录来迎合看板显示 |
+| 查询超时 | 实际SQL、来源规模、执行计划、连接池和任务状态 | 1800秒是查询预算，不是性能达标证明 |
+| 升级失败 | 清单基线、Flyway历史、健康检查和备份可恢复性 | 应用回滚不撤销迁移；数据库恢复按runbook |
+
+排障记录应包括发布ID、源码提交、来源实例、资源身份、runId/taskId、错误发生时间和相应日志。SQL与日志只读取定位所需范围，不把口令或令牌带进工单。运维接管按[离线部署标准](../deploy/intranet-offline-packaging-standard.md)和[数据库恢复手册](../deploy/runbooks/database-backup-restore.md)执行。
+
 ## 系统基线
 
 - 形态：Spring Boot 单体后端 + Vue 3/TypeScript/Vite 前端 + PostgreSQL；前端默认 `18181`，后端默认 `18080`。
