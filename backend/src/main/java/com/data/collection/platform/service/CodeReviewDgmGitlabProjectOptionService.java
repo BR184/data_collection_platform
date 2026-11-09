@@ -201,7 +201,7 @@ public class CodeReviewDgmGitlabProjectOptionService {
       return List.of();
     }
     //兼容模式-MatchMode：DGM 项目下拉候选来自 GitLab API 本地缓存，供兼容读源和正式读源共同使用；
-    //该表不参与老平台 MySQL 兼容表、merge_request_fact 或 webhook 数据写入。
+    //该表不参与老平台 MySQL 兼容表、merge_request_fact 或 webhook 数据写入；兼容退役时保留本能力，先迁出挂在兼容设置入口下的 API 与权限。
     return jdbcTemplate.query(
         """
         select name

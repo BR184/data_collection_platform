@@ -238,6 +238,60 @@ GitLab源数据库或受控连接
 - 老平台评审禁止批量转正式或建立 `LEGACY_MANAGED` 副本；`V20260730_07` 清理错误副本并恢复评审读源设置。代码走查仍是可审计、幂等的正式交接，执行前校验已保存设置版本和源范围，使用 PostgreSQL advisory lock 防并发，并在 `REPEATABLE_READ` 事务内提交；失败写入审计任务，不报告为成功。历史无创建人保持 `created_by = null`。
 - 兼容模式 MR 专用测试环境资源固定为 `qaflex-matchmode-mr-*` 容器和 `qaflex_matchmode_mr_pgdata` volume；未经授权不得删除或改名。
 
+### 兼容模式交接：开关、数据与代码入口
+
+2026-11-09按正式包源码核对。本节描述现有实现及退役前提，不代表已关闭兼容模式；生产实际开关、数据量和停写时间仍需现场确认。
+
+兼容模式是老平台数据接入与过渡机制，不是浏览器兼容或旧接口别名。读源设置保存在 `code_review_match_mode_db_settings`。从 `CodeReviewMatchModeConfigService`、`CodeReviewMatchModeSwitchService` 进入，可避免把总开关误当成所有业务的最终读源。
+
+| 配置/状态 | 当前含义 | 接手时应注意 |
+|---|---|---|
+| `enabled` | 兼容总开关 | 关闭会使两类有效兼容读取均为false，不会自动迁移数据 |
+| `code_review_read_mode` | 代码走查为compatibility或formal | 有效兼容读取为enabled且本项为compatibility |
+| `review_data_read_mode` | 评审为compatibility或formal | 与代码走查独立；总开关开启也可能仅一类读兼容源 |
+| `sync_enabled` | MySQL/Mongo常规定时同步的启用条件之一 | 切formal不等于停止后台同步；手动和正式交接专用入口还须分别核查 |
+| 正式交接状态 | 代码走查可有老平台来源的正式事实 | 正式读源不等于无老平台依赖，更不等于数据已全部由GitLab接管 |
+
+代码走查链路：老平台MySQL → `CodeReviewMatchModeSyncService` → `code_review_match_mode_records` → 兼容读取。CC/DGM按来源隔离；具体库和表以已保存配置为准，不能把界面默认表名当作生产事实。正式交接由 `LegacyPlatformFormalImportService.importToFormal` 刷新快照后，在事务中导入 `merge_request_fact`、记录审计并将代码走查读源改为formal。`code_review_formal_records` 按来源选择已提升的 `LEGACY_PLATFORM` 正式事实或GitLab正式范围，不能理解成两侧无条件求并集。
+
+代码走查的行级刷新仍需特别交接：`CodeReviewIllegalRecordService` 检测到该来源有已提升的老平台数据时，调用 `refreshAndPromoteCodeReviewRecord`，继续经过老平台刷新再提升为正式事实。因此，即使页面已读formal，也不能直接撤销旧平台地址或删除刷新服务。应先明确后续数据由谁生产、人工指标如何录入、历史值如何保留，再验证新增/更新/删除链路。
+
+评审链路：老平台Mongo → `CodeReviewMatchModeMongoReviewSyncService` → `review_data_match_mode_*` 快照及关联表 → `review_visible_records` / `review_visible_problem_items`。兼容记录以负ID对外识别；首次修改经 `ReviewDataMatchModeMaterializeService` 在事务内生成正式评审及子项，并建立接管映射，后续由平台独占维护。同步继续更新快照，但不能覆盖已接管正式记录。切formal后，尚未接管的快照不再可见；这不等于已迁移或已删除它们。既有规则禁止批量转正式，不能为退役方便重新引入批量搬运。
+
+| 调查对象 | 代码入口（后端位于service包，除非另注） |
+|---|---|
+| 设置、测试连接、同步、正式交接、DGM候选配置 | `controller/CodeReviewMatchModeDbSettingsController`；URL前缀 `/api/code-review/match-mode-db-settings` |
+| 前端设置与请求 | `views/LegacyDatabaseSettingsView.vue`、`api-client/legacy-database-api.ts`、`router.ts`、`feature-manifest/modules.ts` |
+| 代码走查读取/刷新 | `CodeReviewMatchModeRecordLoader`、`CodeReviewIllegalRecordService`、`CodeReviewMatchModeLegacyRefreshService` |
+| 质量与统计读取 | `QualityBoardCodeReviewReadSupport`、`CodeReviewMultiBoardAnalyticsQueryService`、`statistics/SystemTestHorizontalComparisonExportService` |
+| 评审读取与首次接管 | `ReviewDataMatchModeRecordRepository`、`ReviewDataMatchModeMaterializeService`；数据库可见视图见 `V20260730_07` |
+| 缓存与来源版本 | `PageRecordSnapshotService`；模式切换不能复用另一模式的旧快照 |
+| 正式模式也使用的DGM候选 | `CodeReviewDgmGitlabProjectOptionService`、`code_review_dgm_project_options`、`code_review_dgm_gitlab_project_source_settings` |
+
+BI的模式冻结、消费者和来源身份边界只维护在[BI架构“平台兼容模式边界”](bi-dashboard/architecture.md#平台兼容模式边界)。退役检查必须同时覆盖该域，不能只搜索MatchMode类名。
+
+### 兼容模式退役：删除边界与验收顺序
+
+代码里的 `兼容模式-MatchMode` 是定位标记，不是整文件删除授权。2026-11-09核对发现Controller、前端页面/API/路由/模块入口中的“整体删除”说明未交代DGM共享依赖，现已补正。部分方法仅有标记，不能代替数据所有权与事务说明；查读源从配置门面开始，查接管从上述两个交接服务开始。
+
+必须保留或先迁出的内容：
+
+- DGM项目候选来自GitLab API本地缓存，正式和兼容读源共用。配置、连接测试、同步、读取入口目前挂在兼容Controller和页面上；删除前须迁出这组API、类型依赖、设置界面及权限，并验证正式模式候选仍完整可用。
+- `merge_request_fact` 中 `source_system=LEGACY_PLATFORM` 的正式历史数据、已接管的正式评审及其子项，不因关闭兼容模式而失效。接管映射与来源身份是否可删，须先证明正式读取、刷新、审计和引用不再依赖。
+- 历史Flyway迁移及校验和保持不可变。删除数据库对象通过新的前向迁移完成；先清视图依赖，再处理表、设置与权限。不得删历史SQL、改旧迁移来实现“关键词清零”。
+- `Legacy` 命名的业务口径、Excel导出、历史来源标识及普通浏览器兼容逻辑，不自动属于本次退役范围。`code_review_external_metrics` 等正式指标结构不能按命名或旧计划整体删除。
+
+后续实施按依赖顺序验收，每一步须保留可复现证据，未满足前提不能跳到删表：
+
+1. **现场盘点**：只读确认两类有效读源、同步状态、MySQL/Mongo来源范围、最近成功/失败任务、各来源正式提升情况、未接管评审数量、DGM候选配置和下游使用者。记录时间、负责人和来源身份，不将凭据写入文档。
+2. **补齐正式生产能力**：确认代码走查新数据及人工指标的权威生产入口；证明正式刷新不再调用旧平台；先迁出DGM共享配置。现有正式表或单次导入成功不能代替持续更新能力。
+3. **分别验收代码走查与评审**：逐来源核对行数、身份、关键字段、统计和导出；评审对未接管记录逐项确定保留、通过现有入口接管或业务确认不再使用的处置方案，不能擅自批量转正式。列出切换导致的可见性变化并由业务确认。
+4. **切读源并停止旧生产链**：在约定窗口验证formal路径，再停止旧同步和行级刷新，明确观察周期、回退条件与备份。切开关不会恢复被删数据或撤销迁移；回退必须覆盖数据库、应用、配置及期间新写入。
+5. **删除实现及入口**：在正式能力验收后移除专用任务、适配器、条件分支、前端页面、API、权限及测试中的废弃路径，同步端点目录与当前文档。保留正式路径的正向及失败回归，不能靠删测试通过验收。
+6. **最后清数据库对象并发布**：确认无运行读写、视图依赖及必要审计引用后，评审新的前向迁移与恢复方案。按当前AGENTS执行常规回归、真实PostgreSQL事务验证及发布黄金门禁；有意产出或快照变化需先展示并确认。
+
+最低回归清单：两类读源组合、CC/DGM来源隔离、代码走查交接并发/失败回滚/幂等、已提升数据的行级刷新、负ID首次编辑及重复编辑、Mongo重同步不覆盖接管记录、未接管数据切formal的可见性、正式DGM候选、质量/多元/系统测试相关统计与导出、外部数据集及BI对应消费者、缓存与来源版本切换。现有测试入口包括 `MatchModeOwnershipBoundaryTest`、`LegacyPlatformFormalImportServiceTest`、`ReviewDataMatchModeMaterializeServiceTest`、`CodeReviewMatchModeMongoMergeIntegrationTest`、`CodeReviewMatchModeSyncSnapshotIntegrationTest`；这些是后续选测起点，不代表本次已运行。
+
 ## 外部数据集 API
 
 - `/api/external/v1/datasets` 仅面向经过确认的进程外消费者。通用边界见 `docs/decisions.md`（D-02）；新增 Provider 前必须有真实消费者、schema、权限和移除条件。

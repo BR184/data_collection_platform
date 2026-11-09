@@ -15,7 +15,7 @@ import type {
 import { request } from './request';
 
 // 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置专用 API；
-// 老平台数据交接完成后可连同 LegacyDatabaseSettingsView 和后端 CodeReviewMatchModeDbSettingsController 整体删除。
+// 本模块还承载正式模式共用的 DGM 候选 API；须先迁出候选配置、测试连接、同步、读取及类型依赖，再删除兼容专用入口。
 const basePath = '/api/code-review/match-mode-db-settings';
 
 export const legacyDatabaseApi = {

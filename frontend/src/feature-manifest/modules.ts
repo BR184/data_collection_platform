@@ -344,7 +344,7 @@ export const modules: ShellModule[] = [
         hiddenForApproval: true,
         permission: 'system.mirror.view',
       },
-      // 兼容模式-MatchMode：临时页面入口，老平台数据库交接完成后可整体删除该 pageKey/path 及对应路由、API、后端 Controller。
+      // 兼容模式-MatchMode：临时页面入口；先迁出正式模式共用的 DGM 候选配置及权限，再删除专用 pageKey/path、路由和 API。
       {
         key: 'database-settings',
         label: '数据库兼容模式临时设置',

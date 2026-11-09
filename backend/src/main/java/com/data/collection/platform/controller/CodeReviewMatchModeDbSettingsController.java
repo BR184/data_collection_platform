@@ -33,7 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/code-review/match-mode-db-settings")
 @RequirePermission(PlatformPermissionCodes.SYSTEM_MATCH_MODE_VIEW)
-//兼容模式-MatchMode：系统设置/数据库兼容模式临时设置后端入口；老平台交接完成后可整体删除本 Controller 及相关 Service/表。
+//兼容模式-MatchMode：兼容设置与交接入口，同时承载正式模式共用的 DGM 项目候选配置。
+// 删除本 Controller 前须迁出 DGM 候选 API、类型和权限；不能连带删除正式数据及历史迁移，见 docs/architecture.md“兼容模式退役”。
 public class CodeReviewMatchModeDbSettingsController {
   private final CodeReviewMatchModeConfigService configService;
   private final CodeReviewMatchModeSyncService syncService;

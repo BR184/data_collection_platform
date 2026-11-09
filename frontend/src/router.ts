@@ -17,7 +17,7 @@ import { getErrorMessage } from './utils/user-message';
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const LabelGroupSettingsView = () => import('./views/LabelGroupSettingsView.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
-// 兼容模式-MatchMode：数据库兼容模式临时设置页，老平台交接完成后可连同路由入口和 API 一起删除。
+// 兼容模式-MatchMode：临时设置页；删除路由前须先迁出正式模式共用的 DGM 候选配置界面、API 和权限。
 const LegacyDatabaseSettingsView = () => import('./views/LegacyDatabaseSettingsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
