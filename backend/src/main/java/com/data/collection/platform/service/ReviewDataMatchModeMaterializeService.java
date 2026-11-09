@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 //兼容模式-MatchMode：把老平台 Mongo 评审数据物化为新平台正式表。
-// 后续老平台交接完成并删除兼容模式时，本 Service 可整体删除；正式新增/编辑评审不依赖本类。
+// 退役前须处理仍可见的未接管快照；删除此服务不代表可删除已接管正式记录、子项或仍被引用的接管映射。
 public class ReviewDataMatchModeMaterializeService {
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
