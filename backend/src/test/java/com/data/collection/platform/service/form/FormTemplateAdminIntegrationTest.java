@@ -333,23 +333,6 @@ class FormTemplateAdminIntegrationTest {
   }
 
   @Test
-  void shouldPreviewAndPublishFieldGuidanceWithoutChangingEarlierVersion() {
-    long scopeId = createScope("editable-guidance");
-    ObjectNode spec = seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY);
-    boundDraft(scopeId, spec, "说明一版");
-    long first = publish(scopeId, "说明一版").toVersionId();
-    String before = jdbcTemplate.queryForObject("select field_spec::text from form_template_versions where id = ?", String.class, first);
-    ((ObjectNode) spec.path("fields").get(0)).put("format", "补丁分支请写明 SP 编号");
-    boundDraft(scopeId, spec, "说明二版");
-    FormAdminViews.PreviewView preview = adminService.preview(scopeId, currentRevision(scopeId), admin);
-    assertThat(preview.blockingErrors()).isEmpty();
-    assertThat(preview.diff().path("fields").toString()).contains("FORMAT", "补丁分支请写明 SP 编号");
-    long second = publish(scopeId, "说明二版").toVersionId();
-    assertThat(jdbcTemplate.queryForObject("select field_spec::text from form_template_versions where id = ?", String.class, second)).contains("补丁分支请写明 SP 编号");
-    assertThat(jdbcTemplate.queryForObject("select field_spec::text from form_template_versions where id = ?", String.class, first)).isEqualTo(before);
-  }
-
-  @Test
   void versionDetailExposesServerExportEligibilityAndBoundProjects() {
     long scopeId = createScope("export-metadata");
     boundDraft(scopeId, seedSpec(FormTemplateSpecCatalog.ISSUE_REPLY), "CC2026R1");

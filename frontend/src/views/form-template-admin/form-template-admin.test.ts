@@ -63,15 +63,6 @@ function spec(): FormTemplateSpecView {
 }
 
 describe('form template admin helpers', () => {
-  it('preserves editable field guidance through draft serialization', () => {
-    const initial = spec();
-    const rows = fieldRowsFromSpec(initial);
-    rows[0].format = '分支名称自由填写，多个用 & 分隔';
-    const saved = applyFieldRows(initial, rows);
-    expect(saved.fields[0].format).toBe(rows[0].format);
-    expect(fieldRowsFromSpec(saved)[0].format).toBe(rows[0].format);
-    expect(initial.fields[0].format).not.toBe(rows[0].format);
-  });
   it('renames and reorders business fields without changing identity or history', () => {
     const source = spec();
     const rows = fieldRowsFromSpec(source);

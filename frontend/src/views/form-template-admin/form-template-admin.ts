@@ -45,8 +45,6 @@ export interface FieldRow {
   type: FormFieldSpecView['type'];
   required: boolean;
   maxLength: number | null;
-  /** 管理员填写的说明，仅展示，不参与校验。 */
-  format?: string;
   options: FormFieldOptionView[];
   /** 词典来源；非空时选项由标准词典提供，界面不再编辑内联选项。 */
   dictionary: string | null;
@@ -94,7 +92,6 @@ export function fieldRowsFromSpec(spec: FormTemplateSpecView): FieldRow[] {
     type: field.type,
     required: Boolean(field.required),
     maxLength: field.maxLength ?? null,
-    format: field.format ?? '',
     options: (field.options ?? []).map((option) => ({ ...option })),
     dictionary: field.dictionary ?? null,
     isNew: false,
@@ -123,7 +120,6 @@ export function applyFieldRows(
       type: row.type,
       required: row.required,
       control: row.control,
-      format: row.format || undefined,
       maxLength: row.type === 'string' ? (row.maxLength ?? undefined) : undefined,
       storage: storageFor(previous, row),
     };
@@ -1067,8 +1063,6 @@ function changeLabelOf(kind: string): string {
   switch (kind) {
     case 'LABEL':
       return '名称调整';
-    case 'FORMAT':
-      return '填写细则调整';
     case 'CONTROL':
       return '填写方式调整';
     case 'REQUIRED':
@@ -1086,9 +1080,6 @@ function changeLabelOf(kind: string): string {
 
 function describeField(raw: Record<string, unknown>, side: 'old' | 'new'): string {
   const parts: string[] = [];
-  if (`${side}Format` in raw) {
-    parts.push(`填写细则「${text(raw[`${side}Format`]) || '未设置'}」`);
-  }
   const label = text(raw[`${side}Label`]);
   if (label) {
     parts.push(`名称「${label}」`);

@@ -5,12 +5,6 @@ import { comparisonSpec, fieldChanges, formTitle, publicationFailure } from './f
 const base: FormTemplateSpecView = { spec_version: 1, template_key: 'issue_reply', fields: [{ name: 'note', apiKey: 'note', label: '补充说明', type: 'string', control: 'textarea', required: false }] };
 
 describe('管理页业务变化投影', () => {
-  it('shows changed guidance without treating it as a validation rule', () => {
-    const next = { ...base, fields: [{ ...base.fields[0], format: '补丁版本请写明 SP 编号' }] };
-    expect(fieldChanges(base, next)[0].text).toContain('填写细则由“未设置”改为“补丁版本请写明 SP 编号”');
-    const prior = { diff: { fields: [{ name: 'note', oldFormat: null, newFormat: '补丁版本请写明 SP 编号' }] } } as unknown as FormAdminPreviewView;
-    expect(comparisonSpec(next, prior).fields[0].format).toBe('');
-  });
   it('returns just the changed name', () => {
     const next = { ...base, fields: [{ ...base.fields[0], label: '备注' }] };
     expect(fieldChanges(base, next).map(change => change.text)).toEqual(['补充说明：名称改为「备注」']);
