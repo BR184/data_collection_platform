@@ -1053,10 +1053,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="external-form-shell form-filling-shell">
-    <header class="form-platform-header">
-      <div class="form-platform-brand"><span class="form-platform-mark" aria-hidden="true">F</span>数据采集平台<span class="form-platform-divider">/</span><span class="form-platform-section">表单中心</span></div>
-      <span class="form-platform-account">{{ detail?.account.displayName || authState.currentUser.displayName || authState.currentUser.username }}</span>
-    </header>
     <div class="external-form-page form-fill-page">
       <template v-if="contextIssue">
         <el-card class="external-form-card" shadow="never">
@@ -1071,7 +1067,6 @@ onBeforeUnmount(() => {
       <template v-else-if="entriesMode">
         <header class="form-page-header">
           <h1 class="external-form-title">选择填写模板</h1>
-          <p class="form-page-description">选择需要填写的表单，查看已有记录或新增填写。</p>
           <div class="form-resource-bar">
             <span class="form-resource-segment">{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}</span>
             <span class="form-resource-segment">项目 {{ routeContext.projectId }} / #{{ routeContext.resourceId }}</span>
@@ -1095,7 +1090,6 @@ onBeforeUnmount(() => {
               :key="item.templateKey"
               class="form-entry-card"
             >
-              <span class="form-entry-icon" aria-hidden="true">▤</span>
               <div class="form-entry-main">
                 <div class="form-entry-title">
                   {{ item.title }}
@@ -1364,7 +1358,6 @@ onBeforeUnmount(() => {
                 </div>
 
                 <p v-if="block.key === blocks[0]?.key" class="external-form-footnote">草稿仅保存在当前浏览器，点击“保存”后才正式提交。</p>
-                <div class="form-edit-layout">
                 <el-form
                   v-if="blockSpec(block)"
                   class="external-form-layout form-single-column"
@@ -1398,18 +1391,6 @@ onBeforeUnmount(() => {
                     </div>
                   </el-form-item>
                 </el-form>
-                <aside class="form-writing-guide" aria-label="填写说明">
-                  <h3>填写说明</h3>
-                  <p>请完整填写必填内容，保存后可在已有记录中查看。</p>
-                  <template v-if="visibleFields(block).some(field => field.control === 'version-members')">
-                    <h3>分支填写示例</h3>
-                    <p>dev<br>CC2026R4SP1<br>dev&amp;CC2026R4SP1</p>
-                    <p>分支名称可自由填写，多个分支统一用半角 &amp; 分隔。</p>
-                  </template>
-                  <h3>当前填写人</h3>
-                  <p>{{ detail?.account.displayName || '—' }}</p>
-                </aside>
-                </div>
 
                 <div class="form-block-footer">
                   <div class="form-block-footer-status">
