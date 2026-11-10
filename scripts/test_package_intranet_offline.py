@@ -24,6 +24,20 @@ SPEC.loader.exec_module(MODULE)
 
 
 class IntranetLdapPackagingTest(unittest.TestCase):
+    def test_preserved_runtime_replaces_only_application_artifacts(self):
+        image = "sha256:" + "a" * 64
+        self.assertEqual(f"FROM {image}\nCOPY app.jar /app/app.jar\n", MODULE.backend_dockerfile(image))
+        frontend = MODULE.frontend_dockerfile(image)
+        self.assertIn(f"FROM {image}\n", frontend)
+        self.assertIn("rm -rf /usr/share/nginx/html", frontend)
+        self.assertIn("COPY dist/ /usr/share/nginx/html/", frontend)
+        self.assertNotIn("nginx-default.conf", frontend)
+
+    def test_preserved_runtime_rejects_fresh_install(self):
+        args = MODULE.parse_args(["--mode", "fresh-empty", "--preserve-baseline-runtime"])
+        with self.assertRaisesRegex(MODULE.PackageError, "requires incremental-update"):
+            MODULE.resolve_context(args)
+
     def test_release_query_timeout_overrides_old_environment_without_mutating_it(self):
         context = self.build_context()
         content = MODULE.compose_content(context)
