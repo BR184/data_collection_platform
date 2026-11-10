@@ -470,6 +470,8 @@ def verify_backend_migrations_match_source(jar_path: Path, migration_dir: Path) 
 def resolve_context(args: argparse.Namespace) -> BuildContext:
     validate_host_ports(args.frontend_port, args.backend_port, args.postgres_port)
     if args.mode == "fresh-empty":
+        if args.preserve_baseline_runtime:
+            fail("--preserve-baseline-runtime requires incremental-update")
         if args.baseline_dir is not None:
             fail("fresh-empty does not accept --baseline-dir")
         if args.require_fact_rebuild:
@@ -647,7 +649,10 @@ def build_products(args: argparse.Namespace) -> tuple[bool, str]:
     return True, "backend jar built with -Dmaven.test.skip=true clean package after -DskipTests testCompile blocker"
 
 
-def backend_dockerfile() -> str:
+def backend_dockerfile(runtime_image: str | None = None) -> str:
+    """可复用直接基线的不可变镜像ID，仅替换应用JAR，避免系统依赖漂移。"""
+    if runtime_image is not None:
+        return f"FROM {runtime_image}\nCOPY app.jar /app/app.jar\n"
     # noble 显式钉住 Ubuntu 24.04 底座：21-jre 浮动 tag 已漂移到 26.04，会导致 apt 源不可预期。
     # postgresql-client-16 提供容器内 pg_dump/pg_restore（数据库备份功能），与目标 PG 16 主版本一致。
     return """\
@@ -663,7 +668,12 @@ ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
 """
 
 
-def frontend_dockerfile() -> str:
+def frontend_dockerfile(runtime_image: str | None = None) -> str:
+    """复用基线时清除旧静态资源，保留原Nginx运行环境与配置。"""
+    if runtime_image is not None:
+        return (f"FROM {runtime_image}\n"
+                "RUN rm -rf /usr/share/nginx/html && mkdir -p /usr/share/nginx/html\n"
+                "COPY dist/ /usr/share/nginx/html/\n")
     return """\
 FROM nginx:1.27-alpine
 COPY nginx-default.conf /etc/nginx/conf.d/default.conf
@@ -1277,7 +1287,9 @@ def initialize_layout(ctx: BuildContext) -> None:
     (ctx.package_dir / "docker-images").mkdir()
 
 
-def prepare_image_build_contexts(root: Path) -> None:
+def prepare_image_build_contexts(
+    root: Path, backend_runtime: str | None = None, frontend_runtime: str | None = None
+) -> None:
     """Create disposable Docker build contexts outside the delivery package."""
     require_path(BACKEND_JAR, "backend jar")
     require_path(FRONTEND_DIST, "frontend dist")
@@ -1286,9 +1298,9 @@ def prepare_image_build_contexts(root: Path) -> None:
     backend_dir.mkdir(parents=True, exist_ok=True)
     frontend_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(BACKEND_JAR, backend_dir / "app.jar")
-    write_text(backend_dir / "Dockerfile", backend_dockerfile())
+    write_text(backend_dir / "Dockerfile", backend_dockerfile(backend_runtime))
     copy_tree(FRONTEND_DIST, frontend_dir / "dist")
-    write_text(frontend_dir / "Dockerfile", frontend_dockerfile())
+    write_text(frontend_dir / "Dockerfile", frontend_dockerfile(frontend_runtime))
     write_text(frontend_dir / "nginx-default.conf", nginx_config())
 
 
@@ -2720,13 +2732,25 @@ def write_release_manifest(ctx: BuildContext, backend_fallback_used: bool, backe
 def build_and_save_images(ctx: BuildContext, args: argparse.Namespace) -> None:
     backend_ref = f"{BACKEND_IMAGE}:{ctx.backend_tag}"
     frontend_ref = f"{FRONTEND_IMAGE}:{ctx.frontend_tag}"
+    runtime_ids: list[str | None] = [None, None]
+    if args.preserve_baseline_runtime:
+        for index, reference in enumerate((
+            f"{BACKEND_IMAGE}:{ctx.baseline_backend_tag}",
+            f"{FRONTEND_IMAGE}:{ctx.baseline_frontend_tag}",
+        )):
+            result = run(("docker", "image", "inspect", reference, "--format", "{{.Id}}"), capture=True)
+            image_id = result.output.strip()
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
+                fail(f"invalid baseline runtime image ID: {reference}")
+            runtime_ids[index] = f"{reference}@{image_id}"
+            log(f"preserved runtime: {reference} -> {image_id}")
 
     if not args.skip_docker_build:
         cache_arg = [] if args.docker_cache else ["--no-cache"]
         ctx.deploy_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="qaflex-image-build-", dir=ctx.deploy_root) as temporary:
             build_root = Path(temporary)
-            prepare_image_build_contexts(build_root)
+            prepare_image_build_contexts(build_root, *runtime_ids)
             run(("docker", "build", *cache_arg, "-t", backend_ref, build_root / "backend"))
             run(("docker", "build", *cache_arg, "-t", frontend_ref, build_root / "frontend"))
     else:
@@ -2964,6 +2988,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--skip-frontend-release-tests", action="store_true")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--skip-docker-build", action="store_true")
+    parser.add_argument("--preserve-baseline-runtime", action="store_true",
+                        help="reuse exact baseline OS/JRE/Nginx; replace only application artifacts")
     parser.add_argument("--skip-archive", action="store_true")
     parser.add_argument("--plan-only", action="store_true", help="print resolved package plan without building or writing files")
     parser.add_argument("--docker-cache", action="store_true", help="allow Docker layer cache; default uses --no-cache")
@@ -3026,6 +3052,8 @@ def main(argv: Sequence[str]) -> int:
             return 0
 
         backend_fallback_used, backend_build_note = build_products(args)
+        if args.preserve_baseline_runtime:
+            backend_build_note += "; OS/JRE/Nginx preserved from direct baseline images; only app artifacts replaced"
         initialize_layout(ctx)
         if ctx.mode == "fresh-empty" and ctx.include_offline_docker_debs:
             copy_offline_debs(ctx)
