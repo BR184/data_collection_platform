@@ -3,6 +3,7 @@ import type { FormTemplateSpecView } from '../../types/api';
 import type { FieldValueMap } from './field-logic';
 import {
   emptyFields,
+  fieldFormatHint,
   formatFieldValue,
   hasFieldChanges,
   hasFieldContent,
@@ -231,6 +232,28 @@ function validReplyFields() {
 }
 
 describe('field logic', () => {
+  it.each(['dev', 'develop', 'CC2026R4SP1', 'release/2027', 'hotfix/login-error', 'feature/中文', 'dev & CC2026R4SP1', 'R1'])('accepts free branch name %s', (value) => {
+    const fields = { ...emptyFields(issueResponseSpec), plannedMergeVersionBranch: value };
+    expect(validateFields(issueResponseSpec, fields, null).errors.plannedMergeVersionBranch).toBeUndefined();
+  });
+
+  it.each(['&dev', 'dev&', 'dev&&release', 'dev & & release', 'dev、release', 'dev,release', 'dev，release', 'dev;release', 'dev；release', 'dev＆release'])('rejects invalid branch separators %s', (value) => {
+    const fields = { ...emptyFields(issueResponseSpec), plannedMergeVersionBranch: value };
+    expect(validateFields(issueResponseSpec, fields, null).errors.plannedMergeVersionBranch).toContain('半角 &');
+  });
+
+  it('keeps required and length limits for free branch names', () => {
+    for (const value of ['', '   ', 'a'.repeat(256)]) {
+      expect(validateFields(issueResponseSpec, { ...emptyFields(issueResponseSpec), plannedMergeVersionBranch: value }, null).errors.plannedMergeVersionBranch).toBeDefined();
+    }
+  });
+
+  it('shows the current branch guidance without rewriting published field metadata', () => {
+    const field = { ...issueResponseSpec.fields.find((item) => item.control === 'version-members')!, format: 'CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留' };
+    expect(fieldFormatHint(field)).toContain('自由填写');
+    expect(field.format).toContain('严格解析');
+    expect(fieldFormatHint({ ...field, format: '补丁分支请写明 SP 编号' })).toBe('补丁分支请写明 SP 编号');
+  });
   it('normalizes typed defaults and compares independently of array order', () => {
     const fields = emptyFields(issueReplySpec);
     expect(fields.causeKeys).toEqual([]);
@@ -341,10 +364,10 @@ describe('field logic', () => {
     fields.problemCause = '原因';
     fields.modificationPlan = '方案';
     fields.plannedResolutionDate = '2019-01-01';
-    fields.plannedMergeVersionBranch = 'R1';
+    fields.plannedMergeVersionBranch = 'dev、CC2026R4SP1';
     let result = validateFields(issueResponseSpec, fields, null);
     expect(result.errors.plannedResolutionDate).toBe('计划解决时间必须是合法日期');
-    expect(result.errors.plannedMergeVersionBranch).toBe('计划合并的版本分支必须是一个或多个 CCyyyyRn，多个以 & 分隔');
+    expect(result.errors.plannedMergeVersionBranch).toBe('计划合并的版本分支多个分支请用半角 & 分隔，分支名称不能为空');
 
     fields.plannedResolutionDate = '2026-02-30';
     result = validateFields(issueResponseSpec, fields, null);

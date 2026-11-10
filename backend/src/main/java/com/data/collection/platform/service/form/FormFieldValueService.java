@@ -374,8 +374,8 @@ public class FormFieldValueService {
     }
     if ("version-members".equals(field.control())) {
       value = IssueResponsePlanFieldRules.normalizePlannedMergeBranchText(value);
-      if (!value.isEmpty() && !IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(value)) {
-        errors.add(label(field) + "必须是一个或多个 CCyyyyRn，多个以 & 分隔");
+      if (!value.isEmpty() && !IssueResponsePlanFieldRules.hasValidBranchMembers(value)) {
+        errors.add(label(field) + "多个分支请用半角 & 分隔，分支名称不能为空");
       }
     }
     if (field.maxLength() != null && codePoints(value) > field.maxLength()) {

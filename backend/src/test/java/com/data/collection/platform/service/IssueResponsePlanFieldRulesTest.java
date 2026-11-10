@@ -3,8 +3,22 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class IssueResponsePlanFieldRulesTest {
+
+  @ParameterizedTest
+  @ValueSource(strings = {"dev", "develop", "CC2026R4SP1", "hotfix/login-error", "release/2027", "dev & CC2026R4SP1", "feature/中文分支", "R1"})
+  void shouldAcceptFreeBranchNames(String value) {
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers(value)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"", " ", "&dev", "dev&", "dev&&release", "dev & & release", "dev、release", "dev,release", "dev，release", "dev;release", "dev；release", "dev＆release"})
+  void shouldRejectEmptyMembersAndAlternativeSeparators(String value) {
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers(value)).isFalse();
+  }
 
   @Test
   void shouldNormalizePlanMergeBranchTextWithoutDiscardingSourceMeaning() {
@@ -21,26 +35,26 @@ class IssueResponsePlanFieldRulesTest {
   }
 
   @Test
-  void shouldKeepCanonicalVersionValidationIndependentFromFactProjection() {
-    assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches("CC2026R4"))
+  void shouldValidateBranchSeparatorsIndependentlyFromFactProjection() {
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers("CC2026R4"))
         .isTrue();
     assertThat(
-            IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(
+            IssueResponsePlanFieldRules.hasValidBranchMembers(
                 "\u00a0CC2026R4\u3000&\u2028CC2026R5\u00a0& CC2026R4"))
         .isTrue();
-    assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches("dev"))
-        .isFalse();
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers("dev"))
+        .isTrue();
     assertThat(
-            IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(
+            IssueResponsePlanFieldRules.hasValidBranchMembers(
                 "CC2026R4 & release/CC2026R5"))
-        .isFalse();
+        .isTrue();
     assertThat(
-            IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(
+            IssueResponsePlanFieldRules.hasValidBranchMembers(
                 "CC2026R4, CC2026R5"))
         .isFalse();
-    assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches("CC2026R4 &"))
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers("CC2026R4 &"))
         .isFalse();
-    assertThat(IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(""))
+    assertThat(IssueResponsePlanFieldRules.hasValidBranchMembers(""))
         .isFalse();
   }
 }

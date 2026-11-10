@@ -12,7 +12,7 @@ public final class IssueResponsePlanFieldRules {
   private static final Pattern PLAN_DATE_PATTERN =
       Pattern.compile(
           "^\\s*(\\d{4})\\s*[.,，、/·`年]\\s*(\\d{1,2})\\s*[.,，、/·`月]\\s*(\\d{1,2})\\s*日?\\s*$");
-  private static final Pattern VERSION_BRANCH_PATTERN = Pattern.compile("CC\\d{4}R[1-9]\\d*");
+  private static final Pattern ALTERNATIVE_SEPARATOR_PATTERN = Pattern.compile("[,，、;；＆]");
   private static final Pattern DISPLAY_WHITESPACE_PATTERN =
       Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
@@ -59,21 +59,21 @@ public final class IssueResponsePlanFieldRules {
   }
 
   /**
-   * 判断计划合并版本分支是否只包含规范版本成员。
+   * 判断自由填写的分支列表是否使用半角 & 分隔且没有空成员。
    *
-   * <p>该契约只供客户问题非法模板判定使用，不能用于生成展示事实。
+   * <p>表单提交与客户问题模板判定共用此规则；不限制分支名称，不改写历史展示事实。
    *
    * @param value 模板字段内容
-   * @return 一个或多个 {@code CCyyyyRn} 成员以 {@code &} 分隔时返回 {@code true}
+   * @return 一个或多个非空分支以 {@code &} 分隔，且没有其他列表分隔符时返回 {@code true}
    */
-  public static boolean hasOnlyCanonicalVersionBranches(String value) {
+  public static boolean hasValidBranchMembers(String value) {
     String normalized = normalizePlannedMergeBranchText(value);
     if (normalized.isEmpty()) {
       return false;
     }
     for (String rawBranch : normalized.split("&", -1)) {
       String branch = normalizePlannedMergeBranchText(rawBranch);
-      if (branch.isEmpty() || !VERSION_BRANCH_PATTERN.matcher(branch).matches()) {
+      if (branch.isEmpty() || ALTERNATIVE_SEPARATOR_PATTERN.matcher(branch).find()) {
         return false;
       }
     }

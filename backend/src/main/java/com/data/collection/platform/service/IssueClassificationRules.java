@@ -240,7 +240,7 @@ final class IssueClassificationRules {
     if (!hasSinglePlanSolutionDate(lines)) {
       return "计划解决时间非法";
     }
-    return !IssueResponsePlanFieldRules.hasOnlyCanonicalVersionBranches(plannedMergeVersionBranch)
+    return !IssueResponsePlanFieldRules.hasValidBranchMembers(plannedMergeVersionBranch)
         ? "计划合并版本分支非法"
         : TEMPLATE_PASSED;
   }
