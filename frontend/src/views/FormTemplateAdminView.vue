@@ -1483,6 +1483,11 @@ watch(() => scope.value?.id, () => closeVersionExport());
                 <div class="field-actions"><button :aria-label="`${expanded === row.name ? '收起' : '展开'}${row.label}`" :aria-expanded="expanded === row.name" @click="expanded = expanded === row.name ? null : row.name"><el-icon :class="{ rotated: expanded === row.name }"><ArrowDown /></el-icon></button><button :aria-label="`删除${row.label}`" @click="removeField(index)"><el-icon><Delete /></el-icon></button></div>
               </div>
               <div v-if="expanded === row.name" class="field-details">
+                <section class="detail-section">
+                  <h4>填写细则</h4>
+                  <el-input v-model="row.format" type="textarea" :rows="3" :aria-label="`${row.label}填写细则`" placeholder="填写示例或注意事项，仅作说明，不限制分支名称" />
+                  <p class="field-hint">发布后显示在对应字段下方，历史版本保留原有说明。</p>
+                </section>
                 <section v-if="row.type === 'enum' || row.type === 'enum-array'" class="detail-section">
                   <h4>选项</h4>
                   <p v-if="row.dictionary" class="field-hint">使用标准原因词典</p>

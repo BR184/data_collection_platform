@@ -377,6 +377,16 @@ describe('表单管理单页工作区', () => {
     expect(mocks.api.saveFormDraft).toHaveBeenCalledTimes(1);
     expect(names(view)[0]).toBe('处理状态');
   });
+
+  it('autosaves editable guidance and shows it in the change summary', async () => {
+    const view = await mountView();
+    await view.get('button[aria-label="展开具体原因"]').trigger('click');
+    await view.get('textarea[aria-label="具体原因填写细则"]').setValue('请写明复现条件和影响范围');
+    expect(view.find('.change-summary').text()).toContain('填写细则');
+    await vi.advanceTimersByTimeAsync(650);
+    await flushPromises();
+    expect(mocks.api.saveFormDraft.mock.lastCall?.[1].fieldSpec.fields.find((field: { name: string }) => field.name === 'specific_reason').format).toBe('请写明复现条件和影响范围');
+  });
   it('uses one page with business fields and only one primary action', async () => {
     const view=await mountView();
     expect(view.findAll('.field-card')).toHaveLength(2);

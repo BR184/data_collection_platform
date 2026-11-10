@@ -860,6 +860,11 @@ public class FormTemplateAdminService {
       if (!Objects.equals(old.required(), current.required())) {
         changedKinds.add("REQUIRED");
       }
+      if (!Objects.equals(old.format(), current.format())) {
+        changedKinds.add("FORMAT");
+        node.put("oldFormat", old.format());
+        node.put("newFormat", current.format());
+      }
       if (!Objects.equals(old.control(), current.control())) {
         changedKinds.add("CONTROL");
       }

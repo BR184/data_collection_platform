@@ -115,8 +115,8 @@ function displayValue(field: FormFieldSpecView): string {
 </template>
 
 <style scoped>
-.form-record-card { min-width: 0; padding: 16px 24px; border: 1px solid #dfe5ec; border-radius: 12px; background: #fff; }
-.form-record-header { align-items: flex-start; gap: 16px; }
+.form-record-card { min-width: 0; padding: 24px 28px; border: 1px solid #dfe5ec; border-radius: 8px; background: #fff; }
+.form-record-header { display: flex; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid #edf0f4; align-items: flex-start; gap: 16px; }
 .form-record-identity { display: flex; flex: 1; align-items: flex-start; gap: 12px; min-width: 0; }
 .form-record-avatar { flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #eaf3fc; color: #1464a0; font-size: 14px; font-weight: 600; }
 .form-record-heading { display: flex; flex: 1; align-items: center; gap: 4px 16px; flex-wrap: wrap; }
@@ -125,15 +125,15 @@ function displayValue(field: FormFieldSpecView): string {
 .form-record-id { font-size: 13px; color: #667487; overflow-wrap: anywhere; }
 .form-record-meta { display: flex; gap: 6px 10px; margin: 0 0 0 auto; font-size: 13px; color: #667487; line-height: 20px; }
 .form-record-version { font-size: 12px; padding: 0 6px; border-radius: 4px; background: #f1f4f8; color: #59697b; overflow-wrap: anywhere; }
-.form-record-actions { flex: 0 0 auto; gap: 12px; padding-top: 2px; }
+.form-record-actions { display: flex; flex: 0 0 auto; gap: 12px; padding-top: 2px; }
 .form-record-actions :deep(.el-button) { height: 28px; margin: 0; padding: 0; font-size: 13px; border: 0 !important; background: transparent !important; box-shadow: none; }
 .form-record-actions :deep(.el-button--primary) { color: #006ebd !important; }
 .form-record-actions :deep(.el-button--danger) { color: #bf3541; }
 .form-record-actions :deep(.el-button:hover) { text-decoration: underline; }
 .form-record-actions :deep(.el-button.is-disabled) { color: #919cab !important; text-decoration: none; }
-.form-record-fields { display: grid; gap: 8px; margin-top: 8px; }
+.form-record-fields { display: grid; gap: 24px; margin-top: 24px; }
 .form-record-numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 12px; }
-.form-record-short-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.form-record-short-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 32px; }
 .form-record-field { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 4px; padding: 0; border: 0; }
 .form-record-label { font-size: 13px; line-height: 18px; color: #667487; }
 .form-record-value { font-size: 15px; line-height: 20px; font-weight: 500; color: #243347; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -142,10 +142,10 @@ function displayValue(field: FormFieldSpecView): string {
 .form-record-long .is-collapsed { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .form-record-expand { padding: 0; border: 0; background: none; color: #006ebd; font: inherit; font-size: 13px; line-height: 24px; cursor: pointer; }
 .form-record-expand:focus-visible { outline: 2px solid #0078d4; outline-offset: 2px; }
-.form-record-empty-fields { margin-top: 8px; font-size: 13px; line-height: 18px; color: #667487; overflow-wrap: anywhere; }
+.form-record-empty-fields { margin-top: 24px; padding-top: 18px; border-top: 1px solid #edf0f4; font-size: 13px; line-height: 18px; color: #667487; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .form-record-card { padding: 16px; }
-  .form-record-header { gap: 8px; }
+  .form-record-header { gap: 8px; flex-wrap: wrap; }
   .form-record-identity { gap: 8px; }
   .form-record-avatar { width: 28px; height: 28px; flex-basis: 28px; font-size: 14px; }
   .form-record-heading { gap: 2px; }

@@ -38,6 +38,7 @@ export function comparisonSpec(baseline: FormTemplateSpecView, prior: FormAdminP
       originals.set(name, {
         ...(source ?? { name, apiKey: name, type: 'string' as const, label: '字段' }),
         ...(raw.oldLabel ? { label: String(raw.oldLabel) } : {}),
+        ...('oldFormat' in raw ? { format: String(raw.oldFormat ?? '') } : {}),
         ...(raw.oldControl ? { control: String(raw.oldControl) } : {}),
         ...(typeof raw.oldRequired === 'boolean' ? { required: raw.oldRequired } : {}),
         ...(Array.isArray(raw.oldOptions) ? { options: raw.oldOptions as FormFieldSpecView['options'] } : {}),
@@ -54,6 +55,7 @@ function compareFields(baseline: FormTemplateSpecView, current: FormTemplateSpec
   for (const field of current.fields) {
     const old = originals.get(field.name);
     if (!old) { push(field, 'added', 'add', `新增${controlLabel(field.control)}字段`); continue; }
+    if ((old.format ?? '') !== (field.format ?? '')) push(field, 'changed', 'format', `填写细则由“${old.format || '未设置'}”改为“${field.format || '未设置'}”`);
     if (old.label !== field.label) {
       changes.push({ key: `${field.name}:label`, name: field.name, label: field.label, kind: 'changed', text: `${old.label}：名称改为「${field.label}」` });
     }
