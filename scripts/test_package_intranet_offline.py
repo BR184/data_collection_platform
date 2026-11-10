@@ -1892,6 +1892,7 @@ class IntranetPreservingUpgradePackagingTest(unittest.TestCase):
                 "entrypoint": "docker-compose.yml",
                 "model": "single-authoritative-file",
                 "environmentPreserved": True,
+                "backendEnvironmentOverrides": {"PLATFORM_QUERY_TIMEOUT_SECONDS": 1800},
             },
             manifest["compose"],
         )

@@ -29,7 +29,16 @@ export interface ValidationResult {
   firstInvalidField: FormFieldSpecView | null;
 }
 
-const VERSION_BRANCH = /^CC\d{4}R[1-9]\d*$/;
+const ALTERNATIVE_BRANCH_SEPARATOR = /[,，、;；＆]/;
+
+/** 已发布快照保留原文；展示时替换已废弃的内置格式提示，自定义说明保持原值。 */
+export function fieldFormatHint(field: FormFieldSpecView): string | null {
+  if (field.control === 'version-members'
+      && (!field.format || field.format === 'CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留')) {
+    return '分支名称可自由填写，例如 dev 或 CC2026R4SP1；多个分支用半角 & 分隔';
+  }
+  return field.format ?? null;
+}
 
 /** 字段在页面出现时按 field_spec 顺序使用，空值统一为 null / 空数组。 */
 export function emptyFieldValue(field: FormFieldSpecView): FieldValue {
@@ -410,7 +419,7 @@ function isValidVersionMembers(value: string): boolean {
   if (!normalized) {
     return false;
   }
-  return normalized.split('&').every((branch) => VERSION_BRANCH.test(branch.trim()));
+  return normalized.split('&').every((branch) => branch.trim().length > 0 && !ALTERNATIVE_BRANCH_SEPARATOR.test(branch));
 }
 
 function validateSingleField(
@@ -425,7 +434,7 @@ function validateSingleField(
   if (field.type === 'string') {
     const text = String(value);
     if (field.control === 'version-members' && !isValidVersionMembers(text)) {
-      return `${label}必须是一个或多个 CCyyyyRn，多个以 & 分隔`;
+      return `${label}多个分支请用半角 & 分隔，分支名称不能为空`;
     }
     if (field.maxLength != null && [...text].length > field.maxLength) {
       return `${label}不能超过${field.maxLength}个字符`;

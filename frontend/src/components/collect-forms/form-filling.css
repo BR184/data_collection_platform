@@ -87,3 +87,22 @@
   .form-block-footer { align-items: flex-start; }
   .form-block-footer > .external-form-actions { margin-left: auto; }
 }
+
+/* 页面独立声明基础布局，避免入口和编辑块依赖其他页面的样式。 */
+.form-record-list, .form-block-list, .form-entry-list { display: flex; flex-direction: column; gap: 16px; }
+.form-block { display: flex; flex-direction: column; background: #fff; }
+.form-block-header, .form-block-footer { display: flex; justify-content: space-between; }
+.form-block-heading, .form-block-status, .form-block-footer-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.form-block-footer { align-items: center; border-top: 1px solid #e9edf2; }
+.form-field-control { width: 100%; min-width: 0; }
+.form-field-hint { line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.form-entry-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border: 1px solid #dfe5ec; border-radius: 12px; }
+.form-entry-main { min-width: 0; }
+.form-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; overflow-wrap: anywhere; }
+.form-entry-meta { margin-top: 8px; }
+.form-conflict-fields { display: grid; gap: 12px; }
+@media (max-width: 480px) {
+  .form-entry-card { padding: 16px; flex-wrap: wrap; }
+  .form-entry-card > :deep(.el-button) { margin-left: auto; }
+  .form-block-footer { flex-wrap: wrap; }
+}

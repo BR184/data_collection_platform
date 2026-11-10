@@ -16,7 +16,7 @@
      "minYear":2020,"maxYear":2040,
      "storage":{"column":"planned_resolution_date","columnType":"date"}},
     {"name":"planned_merge_version_branch","apiKey":"plannedMergeVersionBranch","label":"计划合并的版本分支","type":"string","control":"version-members","required":true,"maxLength":255,
-     "format":"CCyyyyRn，多个以 & 分隔；严格解析，历史原值保留",
+     "format":"分支名称可自由填写，例如 dev、CC2026R4SP1；多个分支用半角 & 分隔",
      "storage":{"column":"planned_merge_version_branch","columnType":"varchar(255)"}},
     {"name":"supplement_note","apiKey":"supplementNote","label":"补充说明","type":"string","control":"textarea","required":false,"maxLength":8192,
      "storage":{"column":"supplement_note","columnType":"text"}}

@@ -752,11 +752,26 @@ class FormRecordServiceIntegrationTest {
         .isInstanceOf(BizException.class)
         .hasMessageContaining("年份");
 
-    ObjectNode badBranch = issueResponseFields("DEFECT", null, "2026-10-20", "2026R1");
+    ObjectNode badBranch = issueResponseFields("DEFECT", null, "2026-10-20", "dev、CC2026R4SP1");
     assertThatThrownBy(
             () -> createIssueResponse(ISSUE_IID_LEVEL2, badBranch, UUID.randomUUID().toString()))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("CCyyyyRn");
+        .hasMessageContaining("半角 &");
+  }
+
+  @Test
+  void shouldPersistAndEditFreeBranchNamesWithAmpersandSeparators() {
+    ObjectNode fields = issueResponseFields("DEFECT", null, "2026-10-20", "dev & CC2026R4SP1");
+    FormRecordView created = createIssueResponse(ISSUE_IID_LEVEL2, fields, UUID.randomUUID().toString()).record();
+    assertThat(created.fields().get("plannedMergeVersionBranch")).isEqualTo("dev & CC2026R4SP1");
+    fields.put("plannedMergeVersionBranch", "release/2027&hotfix/login-error");
+    FormRecordView updated = formRecordService.update(created.id(),
+        new FormUpdateRequest(GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID_LEVEL2),
+            FormTemplateSpecCatalog.ISSUE_RESPONSE, Long.toString(issueResponseScopeId),
+            Long.toString(issueResponseVersionId), Long.toString(issueResponseVersionId), 1,
+            toFields(fields)), actorA, "127.0.0.1", "JUnit");
+    assertThat(updated.fields().get("plannedMergeVersionBranch")).isEqualTo("release/2027&hotfix/login-error");
+    assertThat(updated.recordVersion()).isEqualTo(2);
   }
 
   @Test

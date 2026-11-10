@@ -34,6 +34,7 @@ import {
   type FormStorageSignal,
 } from '../features/collect-forms/draft-store';
 import {
+  fieldFormatHint,
   formatFieldValue,
   isFieldCleared,
   isFieldRequired,
@@ -1386,7 +1387,7 @@ onBeforeUnmount(() => {
                       <div v-if="fieldCleared(block, field)" class="form-field-hint">
                         当前条件下无需填写
                       </div>
-                      <div v-else-if="field.format" class="form-field-hint">{{ field.format }}</div>
+                      <div v-else-if="fieldFormatHint(field)" class="form-field-hint">{{ fieldFormatHint(field) }}</div>
                     </div>
                   </el-form-item>
                 </el-form>

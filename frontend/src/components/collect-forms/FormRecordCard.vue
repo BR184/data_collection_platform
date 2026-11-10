@@ -116,7 +116,7 @@ function displayValue(field: FormFieldSpecView): string {
 
 <style scoped>
 .form-record-card { min-width: 0; padding: 16px 24px; border: 1px solid #dfe5ec; border-radius: 12px; background: #fff; }
-.form-record-header { align-items: flex-start; gap: 16px; }
+.form-record-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .form-record-identity { display: flex; flex: 1; align-items: flex-start; gap: 12px; min-width: 0; }
 .form-record-avatar { flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #eaf3fc; color: #1464a0; font-size: 14px; font-weight: 600; }
 .form-record-heading { display: flex; flex: 1; align-items: center; gap: 4px 16px; flex-wrap: wrap; }
@@ -125,7 +125,7 @@ function displayValue(field: FormFieldSpecView): string {
 .form-record-id { font-size: 13px; color: #667487; overflow-wrap: anywhere; }
 .form-record-meta { display: flex; gap: 6px 10px; margin: 0 0 0 auto; font-size: 13px; color: #667487; line-height: 20px; }
 .form-record-version { font-size: 12px; padding: 0 6px; border-radius: 4px; background: #f1f4f8; color: #59697b; overflow-wrap: anywhere; }
-.form-record-actions { flex: 0 0 auto; gap: 12px; padding-top: 2px; }
+.form-record-actions { display: flex; flex: 0 0 auto; gap: 12px; padding-top: 2px; }
 .form-record-actions :deep(.el-button) { height: 28px; margin: 0; padding: 0; font-size: 13px; border: 0 !important; background: transparent !important; box-shadow: none; }
 .form-record-actions :deep(.el-button--primary) { color: #006ebd !important; }
 .form-record-actions :deep(.el-button--danger) { color: #bf3541; }

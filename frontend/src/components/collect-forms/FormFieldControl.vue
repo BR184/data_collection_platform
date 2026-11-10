@@ -121,7 +121,7 @@ function searchPerson(keyword: string) {
     :disabled="disabled"
     :maxlength="field.maxLength ?? undefined"
     :show-word-limit="field.maxLength != null"
-    :placeholder="field.control === 'version-members' ? '例如：CC2026R1&CC2026R2' : '请输入'"
+    :placeholder="field.control === 'version-members' ? '例如：dev&CC2026R4SP1' : '请输入'"
     @update:model-value="update"
   />
 

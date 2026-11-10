@@ -44,13 +44,13 @@ class CustomerIssueIllegalRuleCompatibilityTest {
   }
 
   @Test
-  void shouldRejectResearchTemplateWithInvalidPlanMergeVersionBranch() {
+  void shouldAcceptResearchTemplateWithCustomPlanMergeVersionBranch() {
     assertThat(IssueFactNormalizationRules.customerIssueIllegalReasons(
         List.of("严重程度：二级缺陷", "模块：工程图"),
         List.of("工程图"),
         researchTemplate("2026.06.16", "release/CC2026R4"),
         false))
-        .containsExactly("未按照要求填写缺陷调研模板");
+        .isEmpty();
   }
 
   @Test
