@@ -91,6 +91,10 @@ class GoldenBaselineChainTest {
 
   @BeforeAll
   void bootstrapChain() throws Exception {
+    List<GoldenEndpointCatalog.EndpointEntry> selected = GoldenRunScope.selectedEntries();
+    System.out.println("黄金验收范围：" + (Boolean.getBoolean("golden.skipCollectForms")
+        ? "非表单（用户批准的局部严格比较，不代表完整黄金通过）" : "全部")
+        + "；保留端点数：" + selected.size());
     GoldenBaselineSupport.importPlatformSeed();
     configId = GoldenBaselineSupport.seedSyncConfig();
     session = GoldenHttpSession.login(
@@ -101,7 +105,7 @@ class GoldenBaselineChainTest {
 
   /** 写用例执行前捕获不在种子文件中的 REPLAY 表基线（迁移播种/协调器重建/同步产物）。 */
   private static void captureWriteReplayBaselines() throws SQLException {
-    List<String> tables = GoldenEndpointCatalog.load().entries().values().stream()
+    List<String> tables = GoldenRunScope.selectedEntries().stream()
         .filter(entry -> entry.category() == GoldenEndpointCatalog.Category.WRITE)
         .flatMap(entry -> entry.writeCases().stream())
         .flatMap(writeCase -> writeCase.affectedTables().stream())
@@ -123,9 +127,8 @@ class GoldenBaselineChainTest {
   /** 按端点目录展开全部读/选项/导出用例为动态测试，逐一执行快照断言。 */
   @TestFactory
   Stream<DynamicTest> readAndExportSnapshots() throws Exception {
-    GoldenEndpointCatalog catalog = GoldenEndpointCatalog.load();
     Map<String, String> vars = resolveGoldenVariables();
-    return catalog.entries().values().stream()
+    return GoldenRunScope.selectedEntries().stream()
         .filter(entry -> entry.category() != GoldenEndpointCatalog.Category.WRITE
             && entry.category() != GoldenEndpointCatalog.Category.EXCLUDED)
         .flatMap(entry -> entry.cases().stream()
@@ -141,9 +144,8 @@ class GoldenBaselineChainTest {
    */
   @TestFactory
   Stream<DynamicTest> writeSnapshots() throws Exception {
-    GoldenEndpointCatalog catalog = GoldenEndpointCatalog.load();
     Map<String, String> vars = resolveGoldenVariables();
-    return catalog.entries().values().stream()
+    return GoldenRunScope.selectedEntries().stream()
         .filter(entry -> entry.category() == GoldenEndpointCatalog.Category.WRITE)
         .flatMap(entry -> entry.writeCases().stream()
             .map(writeCase -> DynamicTest.dynamicTest(
