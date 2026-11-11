@@ -13,7 +13,7 @@
 
 本轮完整黄金在准备阶段因冻结夹具无form_s1_v1_instances失败，未比较快照。用户2026-11-11批准以旧包严格审计、常规回归及升级/回滚替代完整黄金，随后明确要求跑非表单部分：使用golden.skipCollectForms=true只跳过/api/collect-forms/，其余保持严格compare；不改目录、夹具、快照或掩码。对照结果如下。
 
-非表单对照已完成：新旧各200项，旧188通过/12差异、新184通过/16差异。共同12项的失败明细逐字一致，新增4项仅涉及已批准分支放宽后的3条议题（default/325，issue_id41923/41972/42372）；具体说明归发布手册。基线对照树D:/projects/dcp-form-guide-baseline-20261111为d9fbdca7，生产代码和黄金资源未改，仅复制同一测试筛选。证据在本任务.tmp/golden-old-current-comparison.json及两份XML；无未解释新差异。下一步固定干净提交、合入同步main、保运行底座出包并演练。
+非表单对照已完成：新旧各200项，旧188通过/12差异、新184通过/16差异。共同12项的失败明细逐字一致，新增4项仅涉及已批准分支放宽后的3条议题（default/325，issue_id41923/41972/42372）；具体说明归发布手册。基线对照树D:/projects/dcp-form-guide-baseline-20261111为d9fbdca7，生产代码和黄金资源未改，仅复制同一测试筛选。证据在本任务.tmp/golden-old-current-comparison.json及两份XML；无未解释新差异。实现已合入双远端main（1f371e0e）。构建期间用户追加HTML内嵌图片要求，已停止未完成构建；继续在原任务树修订生成器，验证单文件离线显示与下载MD一致性后重新合入、冻结出包并演练。
 
 升级演练使用独立dcp-guide-release-dind-20261111守护进程，目录.tmp/release-test，外部映射28471/28472，内部基线20001/20002，独立卷与LDAP替身。截图联验GitLab的root密码已按用户授权重置，凭据仅在.tmp/gitlab-login.json，不提交。
 

@@ -12,7 +12,7 @@
 
 ## 使用说明随包交付
 
-模板入口及两张Issue表单的上下文栏提供“使用说明”，新标签页打开同站`help/forms/`。Markdown唯一内容源位于`frontend/public/help/forms/guide.md`，图片同目录保存；Vite生成静态HTML，资源一起进入前端镜像。部署无需额外服务、外网连接或修改文档链接。升级验收时分别从三个页面打开，确认六张图片加载及原填写页草稿保留。
+模板入口及两张Issue表单的上下文栏提供“使用说明”，新标签页打开同站`help/forms/`。Markdown唯一内容源位于`frontend/public/help/forms/guide.md`，图片同目录保存；Vite生成内嵌全部图片的静态HTML，可单文件离线查看；下载Markdown由同一内容源内嵌提供，MD配套图片仍随包保存。部署无需额外服务、外网连接或修改文档链接。升级验收时分别从三个页面打开，确认六张图片加载及原填写页草稿保留。
 
 2026-11-11完整黄金再次在准备阶段缺少动态表而失败。用户批准以旧包审计及常规回归/升级回滚替代，并要求额外严格比较非表单部分；入口为`mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest -Dgolden.skipCollectForms=true`。该参数只过滤`/api/collect-forms/`24个端点及其专属准备，不改变其余断言，禁止与update同时使用；默认仍为全量。实际结果由当前进度记录，不将局部验收称为完整黄金通过。
 
