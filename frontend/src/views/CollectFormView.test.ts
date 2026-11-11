@@ -214,6 +214,24 @@ afterEach(() => {
 });
 
 describe('CollectFormView', () => {
+  it.each(['', 'issue_response', 'issue_reply'])('opens the local guide separately from the issue page %s', async (templateKey) => {
+    mockIssueDetails();
+    const path = ISSUE_REPLY_PATH.replace('&templateKey=issue_reply', templateKey ? `&templateKey=${templateKey}` : '');
+    const current = await mountView(path);
+    const guide = current.get('a[href="./help/forms/"]');
+    expect(guide.text()).toContain('使用说明');
+    expect(guide.attributes('target')).toBe('_blank');
+    expect(guide.attributes('rel')).toContain('noopener');
+    if (templateKey) {
+      await findButton(current, '新增填写')!.trigger('click');
+      await flushPromises();
+      await current.get('textarea').setValue('打开说明时保留未提交内容');
+      await guide.trigger('click');
+      expect((current.get('textarea').element as HTMLTextAreaElement).value).toBe('打开说明时保留未提交内容');
+      expect(activeRouter?.currentRoute.value.fullPath).toBe(path);
+    }
+  });
+
   it('discovers independent MR forms and renders their business names', async () => {
     mocks.api.getFormEntries.mockResolvedValue([{ templateKey: 'form_custom', title: '代码自查表' }]);
     mocks.api.getFormDetail.mockResolvedValue(detail({ templateKey: 'form_custom', templateName: '代码自查表' }));

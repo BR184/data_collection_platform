@@ -27,6 +27,7 @@
     "eslint-plugin-vue": "^10.9.1",
     "globals": "^17.6.0",
     "jsdom": "^26.1.0",
+    "marked": "18.2.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.60.0",
     "unplugin-vue-components": "^28.8.0",

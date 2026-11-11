@@ -1068,6 +1068,7 @@ onBeforeUnmount(() => {
         <header class="form-page-header">
           <h1 class="external-form-title">选择填写模板</h1>
           <div class="form-resource-bar">
+            <span v-if="routeContext.resourceType === 'issue'" class="form-resource-segment form-resource-link"><a href="./help/forms/" target="_blank" rel="noopener noreferrer">使用说明 ↗</a></span>
             <span class="form-resource-segment">{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}</span>
             <span class="form-resource-segment">项目 {{ routeContext.projectId }} / #{{ routeContext.resourceId }}</span>
             <span class="form-resource-segment form-source-address">
@@ -1168,6 +1169,7 @@ onBeforeUnmount(() => {
             <span v-if="severityLevel" class="form-resource-segment">{{ severityLevel }}</span>
             <code class="form-template-key">{{ activeContext?.templateKey }}</code>
             <el-button v-if="activeContext?.resourceType === 'issue'" link @click="backToEntries">返回模板入口</el-button>
+            <span v-if="activeContext?.resourceType === 'issue' && ['issue_response', 'issue_reply'].includes(activeContext.templateKey)" class="form-resource-segment form-resource-link"><a href="./help/forms/" target="_blank" rel="noopener noreferrer">使用说明 ↗</a></span>
           </div>
         </header>
 
