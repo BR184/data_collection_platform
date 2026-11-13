@@ -6,6 +6,7 @@ import com.data.collection.platform.domain.form.FormTemplateSpecCatalog;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabResourceRootResolver;
+import com.data.collection.platform.service.FormIssueChangeBridge.FormWriteEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -14,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -49,7 +51,7 @@ public class FormIssueLinkService {
   private final FormIssueLinkProperties properties;
   private final FormIssueSettingsService settingsService;
   private final ObjectMapper objectMapper;
-  private final Executor platformAsyncExecutor;
+  private final Executor commentExecutor;
   private final TransactionTemplate transactionTemplate;
   private final HttpClient httpClient;
   private final FormIssueCommentContentService contentService;
@@ -57,6 +59,10 @@ public class FormIssueLinkService {
   private final AtomicBoolean dispatchRunning = new AtomicBoolean();
   private final AtomicBoolean dispatchRequested = new AtomicBoolean();
   private final AtomicLong dispatchCursor = new AtomicLong(0L);
+  private final AtomicLong deferredHints = new AtomicLong();
+  private record Resource(long configId, String source, long projectId, long resourceId) {}
+  private final LinkedHashSet<Resource> changedResources = new LinkedHashSet<>();
+  private boolean preferChanged = true;
 
   public FormIssueLinkService(
       JdbcTemplate jdbcTemplate,
@@ -65,7 +71,7 @@ public class FormIssueLinkService {
       FormIssueSettingsService settingsService,
       FormIssueCommentContentService contentService,
       ObjectMapper objectMapper,
-      @Qualifier(PlatformAsyncConfiguration.PLATFORM_ASYNC_EXECUTOR) Executor platformAsyncExecutor,
+      @Qualifier(PlatformAsyncConfiguration.FORM_ISSUE_COMMENT_EXECUTOR) Executor commentExecutor,
       PlatformTransactionManager transactionManager) {
     this.jdbcTemplate = jdbcTemplate;
     this.configService = configService;
@@ -76,10 +82,13 @@ public class FormIssueLinkService {
     this.snapshotTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     this.snapshotTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
     this.snapshotTemplate.setReadOnly(true);
+    this.snapshotTemplate.setTimeout(properties.getDatabaseTimeoutSeconds());
     this.objectMapper = objectMapper;
-    this.platformAsyncExecutor = platformAsyncExecutor;
+    this.commentExecutor = commentExecutor;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
     this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    this.transactionTemplate.setTimeout(properties.getDatabaseTimeoutSeconds() * 2
+        + (int) Math.ceil(properties.getRequestTimeout().toMillis() / 1000.0) + 1);
     this.httpClient =
         HttpClient.newBuilder().connectTimeout(properties.getRequestTimeout()).build();
   }
@@ -149,22 +158,57 @@ public class FormIssueLinkService {
         REPLY_TEMPLATE);
   }
 
-  /** 提交发布后由平台异步执行器补发；不阻塞发布线程，失败由下一轮调度重试。 */
+  /** 提交发布后由评论专用执行器补发；不阻塞发布线程，失败由下一轮调度重试。 */
   public void dispatchPendingAsync() {
     dispatchRequested.set(true);
     submitIfIdle();
   }
 
+  /** 提交后的资源提示按完整身份去重，最多保留一批；溢出仍由数据库修订补偿，不丢保存内容。 */
+  public void dispatchChangedAsync(FormWriteEvent event) {
+    Resource resource = new Resource(event.configId(), event.sourceInstance(), event.projectId(), event.resourceId());
+    synchronized (changedResources) {
+      if (!changedResources.contains(resource)) {
+        if (changedResources.size() < properties.getBatchSize()) changedResources.add(resource);
+        else deferredHints.incrementAndGet();
+      }
+    }
+    dispatchPendingAsync();
+  }
+
+  private Resource pollChanged() {
+    synchronized (changedResources) {
+      if (changedResources.isEmpty()) return null;
+      Resource resource = changedResources.iterator().next();
+      changedResources.remove(resource);
+      return resource;
+    }
+  }
+
+  private boolean hasChanged() {
+    synchronized (changedResources) {
+      return !changedResources.isEmpty();
+    }
+  }
+
   private void submitIfIdle() {
     if (!dispatchRunning.compareAndSet(false, true)) return;
     try {
-      platformAsyncExecutor.execute(() -> {
+      commentExecutor.execute(() -> {
         try {
+          long deferred = deferredHints.getAndSet(0);
+          if (deferred > 0) log.warn("表单评论实时提示已达上限，{}次触发转为持久修订补偿", deferred);
           dispatchRequested.set(false);
           dispatchPending(properties.getBatchSize());
+        } catch (RuntimeException error) {
+          synchronized (changedResources) {
+            changedResources.clear();
+          }
+          dispatchRequested.set(false);
+          log.warn("表单评论扫描失败，持久修订留待下一轮补偿：{}", error.getMessage());
         } finally {
           dispatchRunning.set(false);
-          if (dispatchRequested.get()) submitIfIdle();
+          if (dispatchRequested.get() || hasChanged()) submitIfIdle();
         }
       });
     } catch (RejectedExecutionException error) {
@@ -177,24 +221,46 @@ public class FormIssueLinkService {
    * 处理一批待首次投放或待更新的记录。
    *
    * <p>候选先过滤当前不就绪的权威行，避免少量长期不就绪或持续失败的行永久占据队首；批内按稳定
-   * 主键向后扫描，失败也推进游标，到尾回绕。发送仍在资源锁内复核，游标只决定处理顺序。
+   * 主键向后扫描，失败也推进游标，到尾回绕。新保存提示与历史候选交替，总尝试数不超过limit，
+   * 新提示不移动历史游标。由单飞工作线程串行调用；发送仍在资源锁内复核。
    *
    * @param limit 本次最多处理条数
    * @return 本次成功发出评论的数量
    */
   public int dispatchPending(int limit) {
     if (!deliveryConfigured() || limit <= 0) {
+      synchronized (changedResources) {
+        changedResources.clear();
+      }
       return 0;
     }
     long cursor = dispatchCursor.get();
-    List<Long> ids = pendingCandidates(cursor, limit);
+    List<Long> ids = snapshotTemplate.execute(status -> pendingCandidates(cursor, limit));
     if (ids.isEmpty() && cursor > 0L) {
       dispatchCursor.set(0L);
-      ids = pendingCandidates(0L, limit);
+      ids = snapshotTemplate.execute(status -> pendingCandidates(0L, limit));
     }
     int sent = 0;
-    for (Long id : ids) {
-      dispatchCursor.set(id);
+    int historyIndex = 0;
+    for (int attempt = 0; attempt < limit; attempt++) {
+      Resource changed = preferChanged || historyIndex >= ids.size() ? pollChanged() : null;
+      Long id;
+      if (changed != null) {
+        preferChanged = false;
+        List<Long> matches = snapshotTemplate.execute(status -> jdbcTemplate.queryForList("""
+            select id from form_resource_authorities
+             where source_config_id = ? and source_instance = ? and project_id = ? and resource_id = ?
+               and resource_type = 'issue' and template_key = 'issue_response' and authority = 'FORM'
+            """, Long.class, changed.configId(), changed.source(), changed.projectId(), changed.resourceId()));
+        if (matches.isEmpty()) continue;
+        id = matches.getFirst();
+      } else if (historyIndex < ids.size()) {
+        id = ids.get(historyIndex++);
+        dispatchCursor.set(id);
+        preferChanged = true;
+      } else {
+        break;
+      }
       try {
         if (sendOne(id)) {
           sent++;
@@ -279,6 +345,8 @@ public class FormIssueLinkService {
     Boolean sent =
         transactionTemplate.execute(
             status -> {
+              jdbcTemplate.queryForObject("select set_config('lock_timeout', ?, true)", String.class,
+                  properties.getDatabaseTimeoutSeconds() + "s");
               Boolean locked = jdbcTemplate.queryForObject(
                   "select true from (select pg_advisory_xact_lock(hashtextextended(?, 0))) locked", Boolean.class,
                   "form-issue-comment:" + authorityId);
@@ -503,8 +571,8 @@ public class FormIssueLinkService {
   }
 
   private boolean deliveryConfigured() {
-    return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-        "select exists(select 1 from gitlab_sync_configs c, lateral jsonb_each(c.form_issue_settings) e where e.value @> '{\"enabled\":true,\"linkEnabled\":true}'::jsonb)", Boolean.class));
+    return Boolean.TRUE.equals(snapshotTemplate.execute(status -> jdbcTemplate.queryForObject(
+        "select exists(select 1 from gitlab_sync_configs c, lateral jsonb_each(c.form_issue_settings) e where e.value @> '{\"enabled\":true,\"linkEnabled\":true}'::jsonb)", Boolean.class)));
   }
 
   private static String stripTrailingSlash(String value) {

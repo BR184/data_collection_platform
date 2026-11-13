@@ -65,6 +65,33 @@ class PlatformAsyncConfigurationTest {
   }
 
   @Test
+  void slowCommentCannotFillPlatformExecutorAndWaitingCommentsAreBounded() throws Exception {
+    PlatformAsyncConfiguration configuration = new PlatformAsyncConfiguration();
+    ThreadPoolTaskExecutor comments = configuration.formIssueCommentExecutor();
+    ThreadPoolTaskExecutor platform = configuration.platformAsyncExecutor();
+    comments.initialize();
+    platform.initialize();
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    try {
+      comments.execute(() -> {
+        entered.countDown();
+        try { release.await(10, TimeUnit.SECONDS); }
+        catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+      });
+      assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+      comments.execute(() -> {});
+      org.assertj.core.api.Assertions.assertThatThrownBy(() -> comments.execute(() -> {}))
+          .isInstanceOf(java.util.concurrent.RejectedExecutionException.class);
+      CompletableFuture.runAsync(() -> {}, platform).get(5, TimeUnit.SECONDS);
+    } finally {
+      release.countDown();
+      comments.shutdown();
+      platform.shutdown();
+    }
+  }
+
+  @Test
   void writebackExecutorIsSingleThreadedWithNoWaitingQueue() {
     ThreadPoolTaskExecutor executor =
         new PlatformAsyncConfiguration().customerIssueDelayWritebackExecutor();

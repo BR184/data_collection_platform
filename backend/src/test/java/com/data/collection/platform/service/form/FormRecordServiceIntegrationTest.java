@@ -2361,6 +2361,36 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void commentLockContentionTimesOutWithoutBlockingOtherDatabaseWork() throws Exception {
+    issueSettings.save(issueResponseScopeId, PROJECT_ID,
+        new FormIssueSettingsService.SaveRequest(true, java.time.Instant.parse("2026-01-01T00:00:00Z"),
+            true, "http://platform.test", 0));
+    var properties = new com.data.collection.platform.config.FormIssueLinkProperties();
+    properties.setDatabaseTimeoutSeconds(1);
+    var delivery = new FormIssueLinkService(jdbcTemplate,
+        org.mockito.Mockito.mock(com.data.collection.platform.service.GitlabConfigService.class),
+        properties, issueSettings, commentContentService, objectMapper, Runnable::run, transactionManager);
+    try (var connection = java.util.Objects.requireNonNull(jdbcTemplate.getDataSource()).getConnection();
+        ExecutorService worker = Executors.newSingleThreadExecutor()) {
+      connection.setAutoCommit(false);
+      try (var statement = connection.prepareStatement("select pg_advisory_xact_lock(hashtextextended(?,0))")) {
+        statement.setString(1, "form-issue-comment:999999");
+        statement.execute();
+      }
+      try {
+        Future<?> pending = worker.submit(() -> delivery.sendOne(999999L));
+        assertThatThrownBy(() -> pending.get(5, TimeUnit.SECONDS))
+            .isInstanceOf(java.util.concurrent.ExecutionException.class)
+            .hasCauseInstanceOf(org.springframework.dao.DataAccessException.class);
+        assertThat(jdbcTemplate.queryForObject("select 1", Integer.class)).isEqualTo(1);
+      } finally {
+        connection.rollback();
+      }
+      assertThat(delivery.sendOne(999999L)).isFalse();
+    }
+  }
+
+  @Test
   void singleRowFactBatchPublishesFormPlanAndConsumesHeadTogether() {
     createIssueResponse(ISSUE_IID, issueResponseFields("DEFECT", "负责人已确认", "2026-12-20", "CC2026R1"), UUID.randomUUID().toString());
     Long factId = jdbcTemplate.queryForObject("select id from issue_fact where issue_id = ?", Long.class, ISSUE_ROOT);

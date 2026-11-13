@@ -40,7 +40,7 @@ public class FormIssueCommentListener {
   /** 只在事务成功后提交异步任务，失败由补偿节拍继续。 */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void dispatch(FormWriteEvent event) {
-    if (applicable(event)) links.dispatchPendingAsync();
+    if (applicable(event)) links.dispatchChangedAsync(event);
   }
 
   /** 使用平台后台调度总开关；单次扫描受投放批大小约束。 */
