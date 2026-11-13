@@ -116,6 +116,7 @@ class FormRecordServiceIntegrationTest {
   @Autowired private com.data.collection.platform.service.IssueFactPersistenceService factPersistence;
   @Autowired private com.data.collection.platform.mapper.IssueFactMapper factMapper;
   @Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Autowired private FormIssueCommentContentService commentContentService;
   @Autowired private FormIssueSettingsService issueSettings;
   @Autowired private com.data.collection.platform.service.FactBuildService factBuildService;
   @Autowired private com.data.collection.platform.service.FormIssueFactAdapter formFactAdapter;
@@ -2258,7 +2259,7 @@ class FormRecordServiceIntegrationTest {
       config.setApiToken("test-source-token");
       org.mockito.Mockito.when(configs.getConfigById(sourceConfigId)).thenReturn(config);
       var delivery = new FormIssueLinkService(jdbcTemplate, configs,
-          new com.data.collection.platform.config.FormIssueLinkProperties(), issueSettings,
+          new com.data.collection.platform.config.FormIssueLinkProperties(), issueSettings, commentContentService,
           objectMapper, Runnable::run, transactionManager);
       assertThat(delivery.sendOne(authorityId)).isTrue();
       factPersistence.upsertIssueFacts(List.of(fact));
@@ -2266,6 +2267,94 @@ class FormRecordServiceIntegrationTest {
       assertThat(requests).singleElement().asString().contains("http://platform.test/#/external/forms", "templateKey=issue_response", "templateKey=issue_reply");
       assertThat(tokens).containsExactly("test-source-token");
       assertThat(jdbcTemplate.queryForObject("select entry_comment_id from form_resource_authorities where id = ?", Long.class, authorityId)).isEqualTo(123L);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void commentRefreshUsesSavedValuesAndKeepsFailedRevisionPending() throws Exception {
+    issueSettings.save(issueResponseScopeId, PROJECT_ID,
+        new FormIssueSettingsService.SaveRequest(true, java.time.Instant.parse("2026-01-01T00:00:00Z"),
+            true, "http://platform.test", 0));
+    Long factId = jdbcTemplate.queryForObject("select id from issue_fact where issue_id = ?", Long.class, ISSUE_ROOT);
+    com.data.collection.platform.entity.IssueFact fact = factMapper.selectById(factId);
+    fact.setCreatedAtSource(LocalDateTime.of(2026, 11, 1, 0, 0));
+    factPersistence.upsertIssueFacts(List.of(fact));
+    Long authorityId = jdbcTemplate.queryForObject("select id from form_resource_authorities where scope_id = ? and resource_id = ? and entry_registered_at is not null",
+        Long.class, issueResponseScopeId, ISSUE_IID);
+    assertThat(jdbcTemplate.queryForObject("select count(*) from form_resource_authorities where resource_id = ? and authority = 'FORM'", Long.class, ISSUE_IID)).isEqualTo(2L);
+    var requests = new java.util.concurrent.CopyOnWriteArrayList<String>();
+    var methods = new java.util.concurrent.CopyOnWriteArrayList<String>();
+    var entered = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var block = new java.util.concurrent.atomic.AtomicBoolean(false);
+    var fail = new java.util.concurrent.atomic.AtomicBoolean(false);
+    var tokens = new java.util.concurrent.CopyOnWriteArrayList<String>();
+    var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/api/v4/projects/9/issues/21/notes", exchange -> {
+      methods.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
+      requests.add(java.net.URLDecoder.decode(new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.UTF_8));
+      tokens.add(exchange.getRequestHeaders().getFirst("PRIVATE-TOKEN"));
+      byte[] response = "{\"id\":123}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+      if (block.compareAndSet(true, false)) {
+        entered.countDown();
+        try { if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("测试未释放HTTP"); }
+        catch (InterruptedException error) { Thread.currentThread().interrupt(); throw new IllegalStateException(error); }
+      }
+      exchange.sendResponseHeaders(fail.get() ? 503 : 200, response.length);
+      exchange.getResponseBody().write(response);
+      exchange.close();
+    });
+    server.start();
+    try {
+      var configs = org.mockito.Mockito.mock(com.data.collection.platform.service.GitlabConfigService.class);
+      var config = new com.data.collection.platform.entity.GitlabSyncConfig();
+      config.setWebBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+      config.setApiToken("test-source-token");
+      org.mockito.Mockito.when(configs.getConfigById(sourceConfigId)).thenReturn(config);
+      var delivery = new FormIssueLinkService(jdbcTemplate, configs,
+          new com.data.collection.platform.config.FormIssueLinkProperties(), issueSettings, commentContentService,
+          objectMapper, Runnable::run, transactionManager);
+      assertThat(delivery.sendOne(authorityId)).isTrue();
+      ObjectNode fields = issueResponseFields("DEFECT", "负责人已确认", "2026-12-20", "CC2026R4SP1&dev");
+      var created = createIssueResponse(ISSUE_IID, fields, UUID.randomUUID().toString()).record();
+      assertThat(jdbcTemplate.queryForObject("select entry_comment_revision > entry_comment_synced_revision from form_resource_authorities where id = ?", Boolean.class, authorityId)).isTrue();
+      fail.set(true);
+      assertThatThrownBy(() -> delivery.sendOne(authorityId)).isInstanceOf(IllegalStateException.class);
+      assertThat(jdbcTemplate.queryForObject("select entry_comment_revision > entry_comment_synced_revision from form_resource_authorities where id = ?", Boolean.class, authorityId)).isTrue();
+      fail.set(false);
+      assertThat(delivery.sendOne(authorityId)).isTrue();
+      assertThat(requests.getLast()).contains("响应 1 条", "CC2026R4SP1&amp;dev", "<details>", "负责人已确认");
+      fields.put("problemCause", "更新后的原因");
+      formRecordService.update(created.id(), new FormUpdateRequest(GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID),
+          FormTemplateSpecCatalog.ISSUE_RESPONSE, Long.toString(issueResponseScopeId), Long.toString(issueResponseVersionId),
+          Long.toString(issueResponseVersionId), 1, toFields(fields)), actorA, "127.0.0.1", "JUnit");
+      block.set(true);
+      try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+        Future<Boolean> sending = workers.submit(() -> delivery.sendOne(authorityId));
+        try {
+          assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+          fields.put("problemCause", "发送期间再次修改");
+          Future<FormRecordView> saved = workers.submit(() -> formRecordService.update(created.id(),
+              new FormUpdateRequest(GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID),
+                  FormTemplateSpecCatalog.ISSUE_RESPONSE, Long.toString(issueResponseScopeId), Long.toString(issueResponseVersionId),
+                  Long.toString(issueResponseVersionId), 2, toFields(fields)), actorA, "127.0.0.1", "JUnit"));
+          assertThat(saved.get(5, TimeUnit.SECONDS).recordVersion()).isEqualTo(3);
+        } finally { release.countDown(); }
+        assertThat(sending.get(5, TimeUnit.SECONDS)).isTrue();
+      }
+      assertThat(jdbcTemplate.queryForObject("select entry_comment_revision > entry_comment_synced_revision from form_resource_authorities where id = ?", Boolean.class, authorityId)).isTrue();
+      assertThat(delivery.sendOne(authorityId)).isTrue();
+      assertThat(requests.getLast()).contains("发送期间再次修改");
+      formRecordService.voidRecord(created.id(), new FormVoidRequest(GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID),
+          FormTemplateSpecCatalog.ISSUE_RESPONSE, Long.toString(issueResponseScopeId), Long.toString(issueResponseVersionId),
+          Long.toString(issueResponseVersionId), 3, true, "作废"), actorA, "127.0.0.1", "JUnit");
+      assertThat(delivery.sendOne(authorityId)).isTrue();
+      assertThat(requests.getLast()).contains("响应 0 条").doesNotContain("<details>");
+      assertThat(delivery.sendOne(authorityId)).isFalse();
+      assertThat(methods.getFirst()).isEqualTo("POST /api/v4/projects/9/issues/21/notes");
+      assertThat(methods.subList(1, methods.size())).allMatch(m -> m.equals("PUT /api/v4/projects/9/issues/21/notes/123"));
     } finally {
       server.stop(0);
     }
