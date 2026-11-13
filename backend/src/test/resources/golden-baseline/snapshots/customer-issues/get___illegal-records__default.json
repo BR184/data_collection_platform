@@ -524,7 +524,7 @@
       "closedAt" : null,
       "labels" : [ "P1", "响应已延期", "模块：钣金", "解决已延期", "需求" ]
     } ],
-    "total" : 529,
+    "total" : 526,
     "page" : 1,
     "size" : 20,
     "sortField" : "updatedAt",

@@ -1,0 +1,11 @@
+{
+  "success" : true,
+  "code" : "00000",
+  "message" : "成功",
+  "data" : [ {
+    "sourceConfigId" : 1,
+    "name" : "golden-baseline",
+    "sourceInstance" : "default",
+    "canonicalGitlabBaseUrl" : "http://gitlab.test.local:18080"
+  } ]
+}

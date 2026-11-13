@@ -1,0 +1,12 @@
+{
+  "table" : "fact_change_heads",
+  "rows" : [ {
+    "source_instance" : "default",
+    "fact_type" : "ISSUE",
+    "root_id" : "1228",
+    "latest_change_version" : "3",
+    "published_version" : "1",
+    "published_by_fact_build_task_id" : "4",
+    "project_id" : "9"
+  } ]
+}

@@ -51,6 +51,17 @@ class GoldenBaselineChainTest {
   private GoldenHttpSession session;
   private long configId;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private org.springframework.jdbc.core.JdbcTemplate jdbc;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.fasterxml.jackson.databind.ObjectMapper mapper;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.form.FormVersionSchemaService formSchema;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.data.collection.platform.service.form.FormRecordService formRecords;
+  @org.springframework.beans.factory.annotation.Autowired
+  private org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor scheduling;
+
   /**
    * 固定黄金链路的业务日为基线清单 {@code frozen_at} 的日期，使快照不随运行日历漂移。
    *
@@ -59,6 +70,24 @@ class GoldenBaselineChainTest {
    */
   @TestConfiguration
   static class FrozenBusinessDateConfiguration {
+    /** 仅表单写入使用固定时钟，保留真实写事务、审计与事件；同步租约仍用系统时钟。 */
+    @Bean
+    @Primary
+    com.data.collection.platform.service.form.FormRecordWriteService goldenFormWriter(
+        org.springframework.jdbc.core.JdbcTemplate jdbc,
+        com.data.collection.platform.service.form.FormRecordContextService context,
+        com.data.collection.platform.service.form.FormRecordStore store,
+        com.data.collection.platform.service.form.FormRecordViewFactory views,
+        com.data.collection.platform.service.form.FormRecordDirectoryService directory,
+        com.data.collection.platform.service.form.FormRecordDirectoryReader reader,
+        com.data.collection.platform.service.form.FormRecordAuthorityService authority,
+        com.data.collection.platform.service.FormIssueChangeBridge bridge) {
+      return new com.data.collection.platform.service.form.FormRecordWriteService(
+          jdbc, context, store, views, directory, reader, authority, bridge,
+          java.time.Clock.fixed(java.time.Instant.parse("2026-09-01T04:00:00Z"),
+              java.time.ZoneId.of("Asia/Shanghai")));
+    }
+
     @Bean
     @Primary
     BusinessDateProvider frozenBusinessDateProvider() {
@@ -100,6 +129,13 @@ class GoldenBaselineChainTest {
     session = GoldenHttpSession.login(
         "http://localhost:" + port, "admin", "admin-test-2026");
     GoldenBaselineSupport.triggerFullSyncAndAwait(session, configId);
+    if (!Boolean.getBoolean("golden.skipCollectForms")) {
+      long beforeFormRun = jdbc.queryForObject("select coalesce(max(id),0) from sync_runs", Long.class);
+      GoldenFormFixture.seed(jdbc, mapper, formSchema, formRecords, configId);
+      GoldenBaselineSupport.awaitFormFactRefresh(configId, beforeFormRun);
+    }
+    // 基线消费完成后停止调度，写端点只验证事务登记，不与后台消费竞争。
+    scheduling.getScheduledTasks().forEach(task -> task.cancel(false));
     captureWriteReplayBaselines();
   }
 
@@ -165,6 +201,10 @@ class GoldenBaselineChainTest {
     try {
       String responseBody =
           session.exchangeAnyJson(entry.method(), request.path(), request.body());
+      if (entry.path().startsWith("/api/collect-forms/records") && writeCase.id().startsWith("golden-")) {
+        assertThat(mapper.readTree(responseBody).path("httpStatus").asInt())
+            .as("有值表单写用例必须成功，不能将错误响应冻结为基线").isEqualTo(200);
+      }
       String caseSnapshot = GoldenSnapshotSupport.snapshotName(entry, writeCase.id());
       GoldenSnapshotSupport.assertJsonSnapshot(
           caseSnapshot, responseBody, entry.ignorePaths(), entry.ignoreArrayOrder());
@@ -195,13 +235,34 @@ class GoldenBaselineChainTest {
     GoldenCaseRequest request = resolveCaseRequest(entry, readCase, vars);
     String snapshotName = GoldenSnapshotSupport.snapshotName(entry, readCase.id());
     if (entry.response() == GoldenEndpointCatalog.ResponseKind.EXCEL) {
+      if (entry.path().equals("/api/collect-forms/exports/records")) {
+        List<String> granted = jdbc.queryForList("""
+            insert into platform_role_permissions(role_code,permission_code)
+            values ('ADMIN','form.record.export'),('SUPER_ADMIN','form.record.export')
+            on conflict do nothing returning role_code
+            """, String.class);
+        long auditFloor = jdbc.queryForObject("select coalesce(max(id),0) from form_record_export_logs", Long.class);
+        try {
+          GoldenSnapshotSupport.assertExportSnapshot(
+              snapshotName, session.getBytes(request.path()), entry.ignorePaths());
+          assertThat(jdbc.queryForObject("select row_count from form_record_export_logs where id>?", Integer.class, auditFloor))
+              .as("有值表单导出必须包含冻结记录").isEqualTo(1);
+        } finally {
+          jdbc.update("delete from form_record_export_logs where id>?", auditFloor);
+          for (String role : granted) {
+            jdbc.update("delete from platform_role_permissions where role_code=? and permission_code='form.record.export'", role);
+          }
+        }
+        return;
+      }
       GoldenSnapshotSupport.assertExportSnapshot(
           snapshotName, session.getBytes(request.path()), entry.ignorePaths());
       return;
     }
-    String responseBody = "POST".equals(entry.method())
-        ? session.postRawJson(request.path(), request.body())
-        : session.getRawJson(request.path());
+    var response = mapper.readTree(session.exchangeAnyJson(entry.method(), request.path(), request.body()));
+    assertThat(response.path("httpStatus").asInt()).as("目录声明的 HTTP 状态")
+        .isEqualTo(readCase.expectedHttpStatus());
+    String responseBody = mapper.writeValueAsString(response.path("body"));
     GoldenSnapshotSupport.assertJsonSnapshot(
         snapshotName, responseBody, entry.ignorePaths(), entry.ignoreArrayOrder());
   }

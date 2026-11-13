@@ -3,14 +3,14 @@
   "code" : "00000",
   "message" : "Issue Fact 验收诊断已生成",
   "data" : {
-    "generatedAt" : "2026-11-02T18:50:17.8091403+08:00",
+    "generatedAt" : "2026-11-13T17:32:59.0317614+08:00",
     "overall" : {
       "scopeKey" : "overall",
       "scopeLabel" : "全部 Issue Fact",
       "totalCount" : 1200,
       "withReasonCategoryCount" : 54,
       "withMilestoneTitleCount" : 1108,
-      "withTemplateReplyCount" : 81,
+      "withTemplateReplyCount" : 82,
       "responseDelayedCount" : 261,
       "resolveDelayedCount" : 280
     },

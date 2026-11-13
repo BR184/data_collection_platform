@@ -1,0 +1,37 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "表单记录已更新",
+    "data" : {
+      "id" : "1",
+      "recordVersion" : 2,
+      "deleted" : false,
+      "legacyIncomplete" : false,
+      "legacyMissingFields" : [ ],
+      "fields" : {
+        "problemType" : "DEFECT",
+        "problemCause" : "更新后的问题原因",
+        "modificationPlan" : "黄金基线固定修改方案",
+        "ownerConfirmation" : null,
+        "plannedResolutionDate" : "2026-09-30",
+        "plannedMergeVersionBranch" : "CC2026R3",
+        "supplementNote" : "更新后补充"
+      },
+      "fieldNames" : { },
+      "snapshotValues" : {
+        "owner_confirmation_applicable" : false
+      },
+      "createdBy" : "admin",
+      "createdByName" : "管理员",
+      "templateVersion" : "CC2026R3",
+      "originVersionId" : "1",
+      "storageVersionId" : "1",
+      "createdAt" : "2026-09-01T12:00:00+08:00",
+      "updatedAt" : "2026-09-01T12:00:00+08:00",
+      "canEdit" : true,
+      "canVoid" : true
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "httpStatus" : 200,
+  "body" : {
+    "success" : true,
+    "code" : "00000",
+    "message" : "成功",
+    "data" : {
+      "outcome" : "CREATED",
+      "record" : {
+        "id" : "2",
+        "recordVersion" : 1,
+        "deleted" : false,
+        "legacyIncomplete" : false,
+        "legacyMissingFields" : [ ],
+        "fields" : {
+          "problemType" : "REQUIREMENT",
+          "problemCause" : "新增样本问题原因",
+          "modificationPlan" : "新增样本修改方案",
+          "ownerConfirmation" : null,
+          "plannedResolutionDate" : "2026-10-15",
+          "plannedMergeVersionBranch" : "CC2026R3",
+          "supplementNote" : "新增样本"
+        },
+        "fieldNames" : { },
+        "snapshotValues" : {
+          "owner_confirmation_applicable" : false
+        },
+        "createdBy" : "admin",
+        "createdByName" : "管理员",
+        "templateVersion" : "CC2026R3",
+        "originVersionId" : "1",
+        "storageVersionId" : "1",
+        "createdAt" : "2026-09-01T12:00:00+08:00",
+        "updatedAt" : "2026-09-01T12:00:00+08:00",
+        "canEdit" : true,
+        "canVoid" : true
+      },
+      "reviewerUserId" : null
+    }
+  }
+}

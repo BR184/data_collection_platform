@@ -323,7 +323,9 @@ BI的模式冻结、消费者和来源身份边界只维护在[BI架构“平台
 - 运行入口：backend 目录 `mvn test -Pgolden-baseline -Dtest=GoldenBaselineChainTest`（需 Docker；双 Testcontainers PostgreSQL 承载 GitLab 源切片与平台库，真实全量同步后遍历目录用例）。默认快速套件排除 `golden-baseline` 标签，不受影响。
 - 经用户明确批准的非表单局部验收可追加`-Dgolden.skipCollectForms=true`，只排除`/api/collect-forms/`端点和它们专属的写表准备；共享来源配置、事实、统计保持原比较。该模式禁止更新快照，结果必须标明局部范围，不能替代默认完整门禁或自动延续到下次发布。
 - 快照体系：读/导出接口比对 ApiResponse JSON（Excel 规范化为 sheet→行→单元格 JSON）；写接口固定输入执行后快照响应与受影响表状态，逐用例隔离还原。易变字段（墙钟时间戳、端口等）在目录中声明掩码：响应 `ignore-paths` 是比对期忽略；表快照 `ignore-columns` 是生成期剔除，改掩码必须 `-Dgolden.update=true` 重跑重生成并人工审阅 diff。
+- 读用例默认要求HTTP200；错误场景通过`expected-http-status`显式声明并断言，不能把失败响应当成功快照。有值表单新增、编辑、作废另外强制HTTP200。导出用例只在自身执行期间授予测试角色表单导出权，验证冻结记录行数后恢复权限及导出审计，不改变默认角色权限。
+- 完整链路在全量同步后加载manifest登记的固定表单规格与字段，经真实记录服务创建、等待保存触发的事实任务成功，再暂停调度并捕获写用例还原点。仅表单写服务使用固定时钟，租约与同步仍使用真实时钟；非表单局部范围不加载表单输入。表单源权威的评论修订号纳入三种写用例的表状态比较。
 - 有意的行为变更：显式 `-Dgolden.update=true` 重建受影响快照 → git diff 逐项人工审阅 → 与本次变更同单元提交。无意的快照差异视为回归，必须修复实现，禁止更新快照掩盖。
 - 基线夹具（`golden-baseline/fixtures/`）冻结：改动夹具 = 新基线版本，须同步更新 `baseline-manifest.json`（行数与 SHA-256）并在决策记录留痕；夹具与快照由版本库管理。
 - 基线版本状态：快照基线跟随生成它的工作树代码。解耦重构通过内网测试前，基线为开发期状态（见 `docs/decisions.md` D-08）；内网测试通过后必须 `-Dgolden.update=true` 重冻结升级为可信基线。
-- golden 运行档禁用外部活体与调度（GitLab Web API、MySQL/Mongo 老平台、后台调度、富化与回写 worker）；此类路径在目录中 EXCLUDED 并注明由其他测试层覆盖。
+- golden链路构建阶段启用本地同步和事实调度，完成固定输入消费后停止调度再执行端点快照；GitLab Web API、MySQL/Mongo老平台、富化与回写等外部活体路径禁用，目录中EXCLUDED注明替代覆盖层。

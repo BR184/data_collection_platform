@@ -16,14 +16,14 @@
       "inputCount" : 297,
       "outputCount" : 297,
       "samples" : [ {
-        "label" : "#969 CrownCAD",
-        "detail" : "【模板】缺陷修改的回复模板 | 非法类型: 未设定严重程度,未设定模块"
-      }, {
         "label" : "#1708 CrownCAD",
         "detail" : "【特征阵列】特征筋无法阵列 | 非法类型: 未设定模块,未按照模板回复"
       }, {
         "label" : "#2444 CrownCAD",
         "detail" : "【草图-倒角】创建C0.001的倒角，显示大片白色。（中英文版本均存在该问题）"
+      }, {
+        "label" : "#2523 CrownCAD",
+        "detail" : "【6.1 视口工具缺陷汇总】 | 非法类型: 未设定模块,未按照模板回复"
       } ]
     }, {
       "key" : "scope-filter",

@@ -230,9 +230,20 @@ public final class GoldenBaselineSupport {
   /** 触发真实全量同步并等待同步与自动跟随的事实刷新全部到达终态；失败抛 AssertionError。 */
   public static void triggerFullSyncAndAwait(GoldenHttpSession session, long configId)
       throws SQLException, IOException, InterruptedException {
+    long previousRunId;
+    try (Connection connection = platformConnection(); Statement statement = connection.createStatement();
+        ResultSet rs = statement.executeQuery("select coalesce(max(id),0) from sync_runs")) {
+      rs.next();
+      previousRunId = rs.getLong(1);
+    }
     session.postJson("/api/gitlab-sync/full-sync/by-config?configId=" + configId, null);
-    long fullRunId = awaitRunTerminal(configId, SyncRunType.FULL_SYNC, 0L, SYNC_TIMEOUT);
+    long fullRunId = awaitRunTerminal(configId, SyncRunType.FULL_SYNC, previousRunId, SYNC_TIMEOUT);
     awaitRunTerminal(configId, SyncRunType.FACT_REFRESH, fullRunId, FACT_TIMEOUT);
+  }
+
+  /** 等待固定表单输入提交后触发的新事实任务，避免把先前成功运行当作消费完成。 */
+  public static void awaitFormFactRefresh(long configId, long previousRunId) throws SQLException {
+    awaitRunTerminal(configId, SyncRunType.FACT_REFRESH, previousRunId, FACT_TIMEOUT);
   }
 
   /**
