@@ -2324,7 +2324,16 @@ class FormRecordServiceIntegrationTest {
       assertThatThrownBy(() -> delivery.sendOne(authorityId)).isInstanceOf(IllegalStateException.class);
       assertThat(jdbcTemplate.queryForObject("select entry_comment_revision > entry_comment_synced_revision from form_resource_authorities where id = ?", Boolean.class, authorityId)).isTrue();
       fail.set(false);
-      assertThat(delivery.sendOne(authorityId)).isTrue();
+      // 丢弃执行器内存状态，停用时不发送；恢复后只凭持久修订补偿原评论。
+      var recoveredDelivery = new FormIssueLinkService(jdbcTemplate, configs,
+          new com.data.collection.platform.config.FormIssueLinkProperties(), issueSettings, commentContentService,
+          objectMapper, Runnable::run, transactionManager);
+      jdbcTemplate.update("update gitlab_sync_configs set form_issue_settings=jsonb_set(form_issue_settings,array[?::text,'linkEnabled'],'false'::jsonb) where id=?",
+          Long.toString(PROJECT_ID), sourceConfigId);
+      assertThat(recoveredDelivery.dispatchPending(20)).isZero();
+      jdbcTemplate.update("update gitlab_sync_configs set form_issue_settings=jsonb_set(form_issue_settings,array[?::text,'linkEnabled'],'true'::jsonb) where id=?",
+          Long.toString(PROJECT_ID), sourceConfigId);
+      assertThat(recoveredDelivery.dispatchPending(20)).isEqualTo(1);
       assertThat(requests.getLast()).contains("响应 1 条", "CC2026R4SP1&amp;dev", "<details>", "负责人已确认");
       fields.put("problemCause", "更新后的原因");
       formRecordService.update(created.id(), new FormUpdateRequest(GITLAB_URL, PROJECT_ID, "issue", Long.toString(ISSUE_IID),
@@ -2358,6 +2367,32 @@ class FormRecordServiceIntegrationTest {
     } finally {
       server.stop(0);
     }
+  }
+
+  @Test
+  void commentIncludesValidRecordsFromEachFrozenVersionWithoutMovingOldRecords() throws Exception {
+    long originalVersion = issueResponseVersionId;
+    ObjectNode originalFields = issueResponseFields("DEFECT", "负责人已确认", "2026-12-20", "dev");
+    originalFields.put("problemCause", "旧版原因内容");
+    var original = createIssueResponse(ISSUE_IID, originalFields, UUID.randomUUID().toString()).record();
+    ObjectNode originalSpec = (ObjectNode) objectMapper.readTree(specCatalog.rawJson(FormTemplateSpecCatalog.ISSUE_RESPONSE));
+    for (JsonNode field : originalSpec.path("fields")) {
+      if ("problemCause".equals(field.path("apiKey").asText())) ((ObjectNode) field).put("label", "历史问题原因");
+    }
+    jdbcTemplate.update("update form_template_versions set field_spec=?::jsonb, version_status='RETIRED', record_source_role='AUTHORITATIVE' where id=?",
+        objectMapper.writeValueAsString(originalSpec), originalVersion);
+    issueResponseVersionId = createVersionAndTables(issueResponseScopeId, FormTemplateSpecCatalog.ISSUE_RESPONSE);
+    jdbcTemplate.update("update form_template_versions set version_label='CC2026R2',record_source_role='AUTHORITATIVE' where id=?", issueResponseVersionId);
+    ObjectNode currentFields = issueResponseFields("DEFECT", "负责人已确认", "2027-01-20", "CC2027R1");
+    currentFields.put("problemCause", "新版原因内容");
+    var current = createIssueResponse(ISSUE_IID, currentFields, UUID.randomUUID().toString()).record();
+    var authority = jdbcTemplate.queryForMap("select * from form_resource_authorities where scope_id=? and resource_id=?",
+        issueResponseScopeId, ISSUE_IID);
+    String comment = commentContentService.render(authority, "http://platform.test/response", "http://platform.test/reply");
+    assertThat(comment).contains("响应 2 条", "历史问题原因", "旧版原因内容", "新版原因内容",
+        "#" + original.id(), "#" + current.id());
+    assertThat(count(recordTable(issueResponseScopeId, originalVersion))).isEqualTo(1);
+    assertThat(count(recordTable(issueResponseScopeId, issueResponseVersionId))).isEqualTo(1);
   }
 
   @Test
