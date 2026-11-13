@@ -153,5 +153,6 @@
   "V20261104_01__form_issue_link_delivery.sql": "55fbfc8d4369ccbce2dbbc4d4f9ed47d94835afc221bcfac31dc28683e0a7bed",
   "V20261105_01__independent_form_definitions.sql": "b9e74a6e5bbfeca3a098e6a63df9c7ae980d3bf153ec7ae287e67cf621bfa1b1",
   "V20261105_02__form_issue_project_settings.sql": "c926b1b39bc00edb3b8b7606ee9713b1a0a91272de3ee88487673d4488f9b4c6",
-  "V20261105_03__form_input_on_single_row_facts.sql": "ff34c1db94d7a07ca78d5f15c20bc45d42173b7ce1b8464a13968e301bea9f60"
+  "V20261105_03__form_input_on_single_row_facts.sql": "ff34c1db94d7a07ca78d5f15c20bc45d42173b7ce1b8464a13968e301bea9f60",
+  "V20261113_01__form_issue_comment_revision.sql": "a843d3f9ef75ab0fa8b8a6cdf0b94574c9bb9f28294d914010c68b0d322d3a8e"
 }

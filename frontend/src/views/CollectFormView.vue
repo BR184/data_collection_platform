@@ -1145,7 +1145,10 @@ onBeforeUnmount(() => {
               <el-tag v-if="detail && !detail.writable" type="warning" effect="plain" size="small">仅历史查看</el-tag>
               <el-tag v-if="resourcePending" type="info" effect="plain" size="small">资源待同步</el-tag>
             </div>
-            <el-button v-if="detail?.writable" class="form-add-button" type="primary" :icon="Plus" title="新增填写块" data-action="add-block" @click="addBlock">新增填写</el-button>
+            <div class="form-heading-actions">
+              <a v-if="activeContext?.resourceType === 'issue' && ['issue_response', 'issue_reply'].includes(activeContext.templateKey)" class="form-help-link" href="./help/forms/" target="_blank" rel="noopener noreferrer">使用说明 ↗</a>
+              <el-button v-if="detail?.writable" class="form-add-button" type="primary" :icon="Plus" title="新增填写块" data-action="add-block" @click="addBlock">新增填写</el-button>
+            </div>
           </div>
           <div class="form-resource-bar">
             <span class="form-resource-segment">{{ RESOURCE_TYPE_LABELS[routeContext.resourceType] || routeContext.resourceType }}</span>
@@ -1167,9 +1170,10 @@ onBeforeUnmount(() => {
               <span v-else>资源链接 —</span>
             </span>
             <span v-if="severityLevel" class="form-resource-segment">{{ severityLevel }}</span>
-            <code class="form-template-key">{{ activeContext?.templateKey }}</code>
-            <el-button v-if="activeContext?.resourceType === 'issue'" link @click="backToEntries">返回模板入口</el-button>
-            <span v-if="activeContext?.resourceType === 'issue' && ['issue_response', 'issue_reply'].includes(activeContext.templateKey)" class="form-resource-segment form-resource-link"><a href="./help/forms/" target="_blank" rel="noopener noreferrer">使用说明 ↗</a></span>
+            <span class="form-template-navigation">
+              <code class="form-template-key">{{ activeContext?.templateKey }}</code>
+              <el-button v-if="activeContext?.resourceType === 'issue'" link @click="backToEntries">返回模板入口</el-button>
+            </span>
           </div>
         </header>
 

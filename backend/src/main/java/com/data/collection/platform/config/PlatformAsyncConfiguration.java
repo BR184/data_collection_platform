@@ -24,6 +24,21 @@ public class PlatformAsyncConfiguration {
   /** 应用异步执行器的 bean 名；{@code @Async} 与显式提交都按此名引用。 */
   public static final String PLATFORM_ASYNC_EXECUTOR = "platformAsyncExecutor";
 
+  /** 表单评论发送执行器名，与公共异步任务隔离。 */
+  public static final String FORM_ISSUE_COMMENT_EXECUTOR = "formIssueCommentExecutor";
+
+  /** 评论发送独占一个线程及一个等待槽；饱和由持久修订补偿，不阻塞提交线程。 */
+  @Bean(name = FORM_ISSUE_COMMENT_EXECUTOR)
+  public ThreadPoolTaskExecutor formIssueCommentExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(1);
+    executor.setMaxPoolSize(1);
+    executor.setQueueCapacity(1);
+    executor.setThreadNamePrefix("form-issue-comment-");
+    executor.setWaitForTasksToCompleteOnShutdown(false);
+    return executor;
+  }
+
   /** 应用异步线程名前缀；用于线程归属断言，禁止改动。 */
   public static final String THREAD_NAME_PREFIX = "platform-async-";
 

@@ -86,7 +86,7 @@ public class FormIssueChangeBridge {
             context.sourceConfigId(),
             context.sourceInstance(),
             context.projectId(),
-            context.resourceId()));
+            context.resourceId(), context.resourceType(), context.spec().templateKey()));
   }
 
   private static String factTypeOf(String resourceType) {
@@ -129,6 +129,8 @@ public class FormIssueChangeBridge {
     orchestrator.requestSourceRound(event.sourceInstance(), "表单输入已消费并公开，重算延期标签");
   }
 
-  record FormWriteEvent(
-      long configId, String sourceInstance, long projectId, long resourceId) {}
+  /** 已完成审计与head登记的表单写事件；监听方按资源类型和模板隔离副作用。 */
+  public record FormWriteEvent(
+      long configId, String sourceInstance, long projectId, long resourceId,
+      String resourceType, String templateKey) {}
 }
