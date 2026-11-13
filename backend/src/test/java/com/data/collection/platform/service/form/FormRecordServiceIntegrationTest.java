@@ -2361,6 +2361,29 @@ class FormRecordServiceIntegrationTest {
   }
 
   @Test
+  void commentRegistrationSeesSettingsEnabledInCurrentTransaction() {
+    issueSettings.save(issueResponseScopeId, PROJECT_ID,
+        new FormIssueSettingsService.SaveRequest(true, java.time.Instant.parse("2026-01-01T00:00:00Z"),
+            false, "http://platform.test", 0));
+    Long factId = jdbcTemplate.queryForObject("select id from issue_fact where issue_id = ?", Long.class, ISSUE_ROOT);
+    com.data.collection.platform.entity.IssueFact fact = factMapper.selectById(factId);
+    fact.setCreatedAtSource(LocalDateTime.of(2026, 11, 1, 0, 0));
+    factPersistence.upsertIssueFacts(List.of(fact));
+    var delivery = new FormIssueLinkService(jdbcTemplate,
+        org.mockito.Mockito.mock(com.data.collection.platform.service.GitlabConfigService.class),
+        new com.data.collection.platform.config.FormIssueLinkProperties(), issueSettings, commentContentService,
+        objectMapper, Runnable::run, transactionManager);
+    new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+      jdbcTemplate.update("update gitlab_sync_configs set form_issue_settings = jsonb_set(form_issue_settings, array[?::text,'linkEnabled'], 'true'::jsonb) where id = ?",
+          Long.toString(PROJECT_ID), sourceConfigId);
+      assertThat(delivery.registerPublishedIssues(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+          new Long[] {ISSUE_ROOT})).isEqualTo(1);
+      status.setRollbackOnly();
+    });
+    assertThat(jdbcTemplate.queryForObject("select count(*) from form_resource_authorities where entry_registered_at is not null", Long.class)).isZero();
+  }
+
+  @Test
   void commentLockContentionTimesOutWithoutBlockingOtherDatabaseWork() throws Exception {
     issueSettings.save(issueResponseScopeId, PROJECT_ID,
         new FormIssueSettingsService.SaveRequest(true, java.time.Instant.parse("2026-01-01T00:00:00Z"),

@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 /**
@@ -571,8 +572,14 @@ public class FormIssueLinkService {
   }
 
   private boolean deliveryConfigured() {
-    return Boolean.TRUE.equals(snapshotTemplate.execute(status -> jdbcTemplate.queryForObject(
-        "select exists(select 1 from gitlab_sync_configs c, lateral jsonb_each(c.form_issue_settings) e where e.value @> '{\"enabled\":true,\"linkEnabled\":true}'::jsonb)", Boolean.class)));
+    // 发布登记必须看到调用方事务刚修改的配置；事务外后台检查才建立短查询预算。
+    if (TransactionSynchronizationManager.isActualTransactionActive()) return queryDeliveryConfigured();
+    return Boolean.TRUE.equals(snapshotTemplate.execute(status -> queryDeliveryConfigured()));
+  }
+
+  private boolean queryDeliveryConfigured() {
+    return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+        "select exists(select 1 from gitlab_sync_configs c, lateral jsonb_each(c.form_issue_settings) e where e.value @> '{\"enabled\":true,\"linkEnabled\":true}'::jsonb)", Boolean.class));
   }
 
   private static String stripTrailingSlash(String value) {
