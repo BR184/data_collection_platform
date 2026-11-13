@@ -1641,6 +1641,8 @@ endpoints:
         # 基线消费完成后调度已暂停：真实写事务登记 head 与 AFTER_COMMIT FACT_REFRESH 入队均保留。
         body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","requestKey":"00000000-0000-4000-8000-000000000002","fields":{"problemType":"REQUIREMENT","problemCause":"新增样本问题原因","modificationPlan":"新增样本修改方案","plannedResolutionDate":"2026-10-15","plannedMergeVersionBranch":"CC2026R3","supplementNote":"新增样本"}}'
         affected-tables:
+          - table: form_resource_authorities
+            ignore-columns: [updated_at, entry_comment_changed_at]
           - table: form_s1_v1_instances
           - table: form_s1_v1_records
           - table: form_record_locations
@@ -1669,6 +1671,8 @@ endpoints:
         query: id=1
         body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","expectedStorageVersionId":"1","recordVersion":1,"fields":{"problemType":"DEFECT","problemCause":"更新后的问题原因","modificationPlan":"黄金基线固定修改方案","plannedResolutionDate":"2026-09-30","plannedMergeVersionBranch":"CC2026R3","supplementNote":"更新后补充"}}'
         affected-tables:
+          - table: form_resource_authorities
+            ignore-columns: [updated_at, entry_comment_changed_at]
           - table: form_s1_v1_instances
           - table: form_s1_v1_records
           - table: form_record_locations
@@ -1697,6 +1701,8 @@ endpoints:
         query: id=1
         body: '{"gitlabBaseUrl":"http://gitlab.test.local:18080","projectId":9,"resourceType":"issue","resourceId":"969","templateKey":"issue_response","scopeId":"1","storageVersionId":"1","expectedStorageVersionId":"1","recordVersion":1,"confirmVoid":true,"confirmationText":"作废"}'
         affected-tables:
+          - table: form_resource_authorities
+            ignore-columns: [updated_at, entry_comment_changed_at]
           - table: form_s1_v1_instances
           - table: form_s1_v1_records
           - table: form_record_locations

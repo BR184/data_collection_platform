@@ -3,9 +3,9 @@
   "code" : "00000",
   "message" : "成功",
   "data" : {
-    "sourceAddress" : "https://gitlab.example.com",
+    "sourceAddress" : "http://gitlab.test.local:18080",
     "projectId" : 9,
-    "requestIid" : 1,
+    "requestIid" : 969,
     "resourceType" : "issue"
   }
 }

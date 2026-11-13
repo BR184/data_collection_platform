@@ -1,0 +1,9 @@
+{
+  "problemType": "DEFECT",
+  "problemCause": "黄金基线固定问题原因",
+  "modificationPlan": "黄金基线固定修改方案",
+  "ownerConfirmation": null,
+  "plannedResolutionDate": "2026-09-30",
+  "plannedMergeVersionBranch": "CC2026R3",
+  "supplementNote": "黄金基线固定补充"
+}

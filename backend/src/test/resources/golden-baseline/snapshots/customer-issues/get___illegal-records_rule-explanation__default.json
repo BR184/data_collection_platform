@@ -62,7 +62,7 @@
       "title" : "筛出非法数据",
       "description" : "保留命中客户问题非法判定规则的缺陷。",
       "inputCount" : 875,
-      "outputCount" : 529,
+      "outputCount" : 526,
       "samples" : [ {
         "label" : "#1543 CCProduct",
         "detail" : "【扫描凸台】特定场景下，扫面特征生成失败——大行 | 非法类型: 未按照模板回复"

@@ -1,7 +1,7 @@
 {
   "table" : "issue_fact",
   "rows" : [ {
-    "id" : "1201",
+    "id" : "1202",
     "source_system" : "GITLAB",
     "source_instance" : "default",
     "ingest_channel" : "MIRROR",
@@ -76,23 +76,24 @@
     "is_level1_other" : "f",
     "is_illegal" : "t",
     "illegal_reason" : "未设定严重程度",
-    "has_response" : "f",
+    "has_response" : "t",
     "response_overdue" : "f",
     "is_response_delayed" : "f",
-    "resolve_sla_days" : "18",
-    "resolve_deadline_at" : "2021-08-31 02:05:57.8352",
+    "resolve_sla_days" : "1873",
+    "resolve_deadline_at" : "2026-09-30 00:00:00",
     "is_resolve_delayed" : "f",
     "is_legacy" : "f",
     "deleted" : "f",
     "illegal_reasons" : "未设定严重程度, 未设定模块",
-    "research_template_time" : null,
+    "research_template_time" : "2026-09-01 12:00:00",
     "fixed_label_time" : null,
     "fix_user" : "",
     "customer_names" : "",
-    "planned_resolution_at" : null,
-    "planned_resolution_text" : "",
-    "planned_merge_version_branch" : "",
+    "planned_resolution_at" : "2026-09-30 00:00:00",
+    "planned_resolution_text" : "2026-09-30",
+    "planned_merge_version_branch" : "CC2026R3",
     "handler_name" : "",
-    "is_customer_requirement" : "f"
+    "is_customer_requirement" : "f",
+    "form_input_hash" : "44aff82c6fa2dbe7fddb1701287fd14b83a743d621a6d73061a2171781f30ec7"
   } ]
 }

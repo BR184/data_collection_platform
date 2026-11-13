@@ -57,9 +57,6 @@
       "value" : "自动化测试"
     } ],
     "functionNames" : [ {
-      "label" : "模板",
-      "value" : "模板"
-    }, {
       "label" : "特征阵列",
       "value" : "特征阵列"
     }, {
@@ -356,6 +353,9 @@
     }, {
       "label" : "工程图",
       "value" : "工程图"
+    }, {
+      "label" : "模板",
+      "value" : "模板"
     } ],
     "testingPhases" : [ {
       "label" : "CC2026R3",
@@ -392,9 +392,6 @@
       "value" : "CC2024R3"
     } ],
     "authorNames" : [ {
-      "label" : "武伟",
-      "value" : "武伟"
-    }, {
       "label" : "白欣慧",
       "value" : "白欣慧"
     }, {
@@ -460,6 +457,9 @@
     }, {
       "label" : "李永正",
       "value" : "李永正"
+    }, {
+      "label" : "武伟",
+      "value" : "武伟"
     } ],
     "assigneeNames" : [ {
       "label" : "武晓旭",

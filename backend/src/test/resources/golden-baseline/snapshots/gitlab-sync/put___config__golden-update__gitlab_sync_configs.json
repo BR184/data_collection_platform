@@ -29,11 +29,12 @@
     "compensation_window_start" : null,
     "compensation_window_end" : null,
     "compensation_missed_window_policy" : "SKIP",
-    "web_base_url" : null,
+    "web_base_url" : "http://gitlab.test.local:18080",
     "api_token" : "",
     "delay_label_writeback_enabled" : "f",
     "match_mode_enabled" : "f",
     "incremental_rerun_requested_at" : null,
-    "incremental_rerun_trigger_count" : "0"
+    "incremental_rerun_trigger_count" : "0",
+    "form_issue_settings" : "{}"
   } ]
 }

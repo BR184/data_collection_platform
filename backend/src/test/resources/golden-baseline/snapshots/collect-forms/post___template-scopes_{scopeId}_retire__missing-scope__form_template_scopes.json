@@ -1,0 +1,26 @@
+{
+  "table" : "form_template_scopes",
+  "rows" : [ {
+    "id" : "1",
+    "template_key" : "issue_response",
+    "scope_key" : "golden-response",
+    "source_config_id" : "1",
+    "source_instance" : "default",
+    "canonical_gitlab_base_url" : "http://gitlab.test.local:18080",
+    "project_ids" : "[9]",
+    "version_project_id" : "9",
+    "resource_type" : "issue",
+    "current_version_id" : "1",
+    "status" : "ACTIVE",
+    "updated_at" : "2026-09-01 12:00:00",
+    "write_fenced" : "f",
+    "write_fence_reason" : null,
+    "write_fence_publication_id" : null,
+    "write_fence_token" : null,
+    "write_fence_at" : null,
+    "binding_revision" : "1",
+    "binding_hash" : "3a78999165deeea3ddececc084def9da29c70c1837d9ede23bd51cab7859b9ac",
+    "source_set_revision" : "0",
+    "source_set_hash" : "9a04ad204d3ef04cd068eda284479e134eb53a1114bbaccbf233aa45ff856c40"
+  } ]
+}

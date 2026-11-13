@@ -11,6 +11,14 @@
     "platform-seed.sql.gz": {
       "bytes": 10651513,
       "sha256": "e858ab617046194d3febf1b29b16c87d3dde027cfde08c0674d8a5bb59fdf413"
+    },
+    "form-response-spec.json": {
+      "bytes": 2283,
+      "sha256": "db15df991f5f503c3abaaaa8231f9e2d8e623cc7e36bf0917f43596eeb06b61f"
+    },
+    "form-response-fields.json": {
+      "bytes": 299,
+      "sha256": "cc1680437e0e50efee23619bf1dfe910bec38f555cc333070dcafd7b2d61b2e0"
     }
   },
   "frozen_at": "2026-09-01T13:22:08+0800",
@@ -124,5 +132,25 @@
       "review_records": 6
     }
   },
-  "repo_commit": "c58ff5acd9e8ccb3fbf978d70a4682afa3545bec"
+  "repo_commit": "c58ff5acd9e8ccb3fbf978d70a4682afa3545bec",
+  "form_input": {
+    "revision": "2026-11-13",
+    "source_config": "golden-baseline",
+    "gitlab_base_url": "http://gitlab.test.local:18080",
+    "project_id": 9,
+    "resource_type": "issue",
+    "resource_id": 969,
+    "scope_id": 1,
+    "version_id": 1,
+    "template_key": "issue_response",
+    "fixed_at": "2026-09-01T12:00:00",
+    "table_counts": {
+      "form_template_scopes": 1,
+      "form_template_versions": 1,
+      "form_s1_v1_instances": 1,
+      "form_s1_v1_records": 1,
+      "form_record_locations": 1,
+      "form_resource_authorities": 1
+    }
+  }
 }

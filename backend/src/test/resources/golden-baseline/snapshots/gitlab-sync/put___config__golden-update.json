@@ -10,7 +10,7 @@
       "enabled" : true,
       "sourceEnabled" : true,
       "sourceInstance" : "default",
-      "webBaseUrl" : null,
+      "webBaseUrl" : "http://gitlab.test.local:18080",
       "apiToken" : "",
       "delayLabelWritebackEnabled" : false,
       "matchModeEnabled" : false,
@@ -19,7 +19,7 @@
       "whitelistMode" : "RECOMMENDED",
       "whitelistTables" : [ ],
       "dbHost" : "localhost",
-      "dbPort" : 49828,
+      "dbPort" : 60932,
       "dbName" : "gitlabhq_full_import_test",
       "dbUsername" : "gitlab",
       "dbPassword" : "",
@@ -38,12 +38,12 @@
       "syncThreadMode" : "FIXED",
       "syncThreadValue" : 3.0,
       "maxSyncThreads" : 4,
-      "lastFullSyncAt" : "2026-09-29T12:44:29.674178+08:00",
+      "lastFullSyncAt" : "2026-11-13T17:28:57.857974+08:00",
       "lastIncrementalSyncAt" : null,
       "incrementalRerunRequestedAt" : null,
       "incrementalRerunTriggerCount" : null,
-      "createdAt" : "2026-09-29T12:44:14.346763+08:00",
-      "updatedAt" : "2026-09-29T12:45:11.280055+08:00"
+      "createdAt" : "2026-11-13T17:28:29.518549+08:00",
+      "updatedAt" : "2026-11-13T17:29:57.602094+08:00"
     }
   }
 }
